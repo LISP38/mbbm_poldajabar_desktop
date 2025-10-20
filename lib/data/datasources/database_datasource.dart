@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:kupon_bbm_app/data/models/kupon_model.dart';
 import 'package:kupon_bbm_app/data/models/kendaraan_model.dart';
+
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -45,7 +46,9 @@ class DatabaseDatasource {
           print('DEBUG: onUpgrade called from $oldVersion to $newVersion');
           if (oldVersion < 2) {
             // Remove UNIQUE constraint from nomor_kupon
-            await db.execute('CREATE TABLE fact_kupon_temp AS SELECT * FROM fact_kupon');
+            await db.execute(
+              'CREATE TABLE fact_kupon_temp AS SELECT * FROM fact_kupon',
+            );
             await db.execute('DROP TABLE fact_kupon');
             await db.execute('''
               CREATE TABLE fact_kupon (
@@ -71,19 +74,66 @@ class DatabaseDatasource {
                 FOREIGN KEY (jenis_kupon_id) REFERENCES dim_jenis_kupon(jenis_kupon_id)
               );
             ''');
-            await db.execute('INSERT INTO fact_kupon SELECT * FROM fact_kupon_temp');
+            await db.execute(
+              'INSERT INTO fact_kupon SELECT * FROM fact_kupon_temp',
+            );
             await db.execute('DROP TABLE fact_kupon_temp');
             print('DEBUG: UNIQUE constraint removed from nomor_kupon');
           }
 
           if (oldVersion < 3) {
-            print('DEBUG: Version 3 migration skipped');
+            // Add import history tracking tables
+            await db.execute('''
+              CREATE TABLE import_history (
+                session_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_name TEXT NOT NULL,
+                import_type TEXT NOT NULL,
+                import_date TEXT NOT NULL,
+                expected_period TEXT,
+                total_kupons INTEGER NOT NULL,
+                success_count INTEGER DEFAULT 0,
+                error_count INTEGER DEFAULT 0,
+                duplicate_count INTEGER DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'PROCESSING',
+                error_message TEXT,
+                metadata TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+              );
+            ''');
+
+            await db.execute('''
+              CREATE TABLE import_details (
+                detail_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                kupon_data TEXT NOT NULL,
+                status TEXT NOT NULL,
+                error_message TEXT,
+                action TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES import_history(session_id) 
+                  ON DELETE CASCADE
+              );
+            ''');
+
+            // Add indexes for import history
+            await db.execute(
+              'CREATE INDEX idx_import_history_date ON import_history(import_date);',
+            );
+            await db.execute(
+              'CREATE INDEX idx_import_history_status ON import_history(status);',
+            );
+            await db.execute(
+              'CREATE INDEX idx_import_details_session ON import_details(session_id);',
+            );
+
+            print('DEBUG: Import history tables created');
           }
 
           if (oldVersion < 4) {
             // Make kendaraan_id nullable to support DUKUNGAN kupon
             print('DEBUG: Making kendaraan_id nullable in fact_kupon');
-
+            
             // Create new table with nullable kendaraan_id
             await db.execute('''
               CREATE TABLE fact_kupon_new (
@@ -112,17 +162,19 @@ class DatabaseDatasource {
                   ON DELETE RESTRICT ON UPDATE CASCADE
               );
             ''');
-
+            
             // Copy data from old table
             await db.execute('''
               INSERT INTO fact_kupon_new
               SELECT * FROM fact_kupon;
             ''');
-
+            
             // Drop old table and rename
             await db.execute('DROP TABLE fact_kupon');
-            await db.execute('ALTER TABLE fact_kupon_new RENAME TO fact_kupon');
-
+            await db.execute(
+              'ALTER TABLE fact_kupon_new RENAME TO fact_kupon',
+            );
+            
             print('DEBUG: fact_kupon table migrated with nullable kendaraan_id');
           }
 
@@ -155,13 +207,15 @@ class DatabaseDatasource {
     print('DEBUG: _createDB called');
     final batch = db.batch();
 
-    // Dimension tables
+    // ---- Dimension tables ----
+    // CREATE TABLE dulu, baru INSERT default data
     batch.execute('''
       CREATE TABLE IF NOT EXISTS dim_satker (
         satker_id INTEGER PRIMARY KEY,
         nama_satker TEXT NOT NULL
       );
     ''');
+    // Note: Satker data will be populated in _seedMasterData
 
     batch.execute('''
       CREATE TABLE IF NOT EXISTS dim_jenis_bbm (
@@ -192,7 +246,7 @@ class DatabaseDatasource {
       );
     ''');
 
-    // Fact tables
+    // ---- Fact tables ----
     batch.execute('''
       CREATE TABLE IF NOT EXISTS fact_kupon (
         kupon_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -238,17 +292,54 @@ class DatabaseDatasource {
       );
     ''');
 
-    // Indexes
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_kendaraan_satker ON dim_kendaraan(satker_id);');
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_kupon_kendaraan ON fact_kupon(kendaraan_id);');
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_kupon_status ON fact_kupon(status);');
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_transaksi_kupon ON fact_transaksi(kupon_id);');
+    // Import history tables
+    batch.execute('''
+      CREATE TABLE IF NOT EXISTS import_history (
+        session_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_name TEXT NOT NULL,
+        import_type TEXT NOT NULL,
+        import_date TEXT NOT NULL,
+        expected_period TEXT,
+        total_kupons INTEGER NOT NULL,
+        success_count INTEGER DEFAULT 0,
+        error_count INTEGER DEFAULT 0,
+        duplicate_count INTEGER DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'PROCESSING',
+        error_message TEXT,
+        metadata TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+    ''');
 
     batch.execute('''
       CREATE UNIQUE INDEX IF NOT EXISTS idx_fact_kupon_unique_key
       ON fact_kupon (nomor_kupon, jenis_kupon_id, jenis_bbm_id, satker_id, bulan_terbit, tahun_terbit)
       WHERE is_deleted = 0;
     ''');
+
+    // Indexes
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_kendaraan_satker ON dim_kendaraan(satker_id);',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_kupon_kendaraan ON fact_kupon(kendaraan_id);',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_kupon_status ON fact_kupon(status);',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_transaksi_kupon ON fact_transaksi(kupon_id);',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_import_history_date ON import_history(import_date);',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_import_history_status ON import_history(status);',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_import_details_session ON import_details(session_id);',
+    );
 
     await batch.commit(noResult: true);
     print('DEBUG: Tables created, seeding master data...');
@@ -264,7 +355,6 @@ class DatabaseDatasource {
         'jenis_bbm_id': 1,
         'nama_jenis_bbm': 'Pertamax',
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      
       await txn.insert('dim_jenis_bbm', {
         'jenis_bbm_id': 2,
         'nama_jenis_bbm': 'Pertamina Dex',
@@ -275,7 +365,6 @@ class DatabaseDatasource {
         'jenis_kupon_id': 1,
         'nama_jenis_kupon': 'Ranjen',
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      
       await txn.insert('dim_jenis_kupon', {
         'jenis_kupon_id': 2,
         'nama_jenis_kupon': 'Dukungan',
