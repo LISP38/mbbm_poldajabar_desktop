@@ -278,43 +278,12 @@ class EnhancedImportService {
           //    continue; // Lanjutkan ke kupon berikutnya
           // }
         } else if (kupon.jenisKuponId == 2) {
-          // Dukungan
-          // Untuk non-CADANGAN, cari kendaraan_id dari kupon Ranjen terkait di database
-          if (kupon.namaSatker.toUpperCase() != 'CADANGAN') {
-            final ranjenResult = await db.query(
-              'fact_kupon',
-              where: '''
-                satker_id = ? AND 
-                jenis_kupon_id = 1 AND 
-                bulan_terbit = ? AND 
-                tahun_terbit = ?
-              ''',
-              whereArgs: [kupon.satkerId, kupon.bulanTerbit, kupon.tahunTerbit],
-              limit: 1, // Ambil satu saja jika ada
-            );
-
-            if (ranjenResult.isNotEmpty) {
-              kendaraanId = ranjenResult.first['kendaraan_id'] as int?;
-              print(
-                'Found RANJEN with kendaraan_id: $kendaraanId for DUKUNGAN ${kupon.nomorKupon}',
-              );
-            } else {
-              print(
-                'No matching RANJEN found in DB for DUKUNGAN ${kupon.nomorKupon} (Satker: ${kupon.namaSatker}, Month: ${kupon.bulanTerbit}, Year: ${kupon.tahunTerbit})',
-              );
-              // Untuk DUKUNGAN non-CADANGAN, jika RANJEN tidak ditemukan, ini adalah error
-              errorCount++;
-              errorMessages.add(
-                'Dukungan ${kupon.nomorKupon} (${kupon.namaSatker}) failed: No matching Ranjen found in database.',
-              );
-              continue; // Lanjutkan ke kupon berikutnya
-            }
-          } else {
-            // Untuk CADANGAN, kendaraan_id tetap null
-            print(
-              'Processing CADANGAN DUKUNGAN ${kupon.nomorKupon}, kendaraan_id will be null.',
-            );
-          }
+          // Dukungan - selalu set kendaraan_id = null
+          // Satker sudah ditentukan dari parsing Excel
+          kendaraanId = null;
+          print(
+            'Processing DUKUNGAN ${kupon.nomorKupon} (${kupon.namaSatker}), kendaraan_id will be null.',
+          );
         }
 
         // Sekarang coba insert kupon

@@ -32,7 +32,7 @@ class DatabaseDatasource {
     return await dbFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 5,
+        version: 6,
         onConfigure: (db) async {
           print('DEBUG: onConfigure called');
           await db.execute('PRAGMA foreign_keys = ON;');
@@ -115,7 +115,7 @@ class DatabaseDatasource {
 
             // Copy data from old table
             await db.execute('''
-              INSERT INTO fact_kupon_new 
+              INSERT INTO fact_kupon_new
               SELECT * FROM fact_kupon;
             ''');
 
@@ -129,8 +129,20 @@ class DatabaseDatasource {
           if (oldVersion < 5) {
             print('DEBUG: Adding unique index to fact_kupon');
             await db.execute('''
-              CREATE UNIQUE INDEX IF NOT EXISTS idx_fact_kupon_unique_key 
-              ON fact_kupon (nomor_kupon, jenis_kupon_id, satker_id, bulan_terbit, tahun_terbit) 
+              CREATE UNIQUE INDEX IF NOT EXISTS idx_fact_kupon_unique_key
+              ON fact_kupon (nomor_kupon, jenis_kupon_id, satker_id, bulan_terbit, tahun_terbit)
+              WHERE is_deleted = 0;
+            ''');
+          }
+
+          if (oldVersion < 6) {
+            print('DEBUG: Updating unique index to include jenis_bbm_id');
+            // Drop old index
+            await db.execute('DROP INDEX IF EXISTS idx_fact_kupon_unique_key');
+            // Create new index with jenis_bbm_id
+            await db.execute('''
+              CREATE UNIQUE INDEX IF NOT EXISTS idx_fact_kupon_unique_key
+              ON fact_kupon (nomor_kupon, jenis_kupon_id, jenis_bbm_id, satker_id, bulan_terbit, tahun_terbit)
               WHERE is_deleted = 0;
             ''');
           }
@@ -233,8 +245,8 @@ class DatabaseDatasource {
     batch.execute('CREATE INDEX IF NOT EXISTS idx_transaksi_kupon ON fact_transaksi(kupon_id);');
 
     batch.execute('''
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_fact_kupon_unique_key 
-      ON fact_kupon (nomor_kupon, jenis_kupon_id, satker_id, bulan_terbit, tahun_terbit) 
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_fact_kupon_unique_key
+      ON fact_kupon (nomor_kupon, jenis_kupon_id, jenis_bbm_id, satker_id, bulan_terbit, tahun_terbit)
       WHERE is_deleted = 0;
     ''');
 
@@ -330,16 +342,18 @@ class DatabaseDatasource {
         final duplicateCheck = await db.query(
           'fact_kupon',
           where: '''
-            nomor_kupon = ? AND 
-            jenis_kupon_id = ? AND 
-            satker_id = ? AND 
-            bulan_terbit = ? AND 
+            nomor_kupon = ? AND
+            jenis_kupon_id = ? AND
+            jenis_bbm_id = ? AND
+            satker_id = ? AND
+            bulan_terbit = ? AND
             tahun_terbit = ? AND
             is_deleted = 0
           ''',
           whereArgs: [
             k.nomorKupon,
             k.jenisKuponId,
+            k.jenisBbmId,
             satkerId,
             k.bulanTerbit,
             k.tahunTerbit,
