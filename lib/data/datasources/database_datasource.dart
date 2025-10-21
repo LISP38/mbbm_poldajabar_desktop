@@ -118,13 +118,13 @@ class DatabaseDatasource {
 
             // Add indexes for import history
             await db.execute(
-              'CREATE INDEX idx_import_history_date ON import_history(import_date);',
+              'CREATE INDEX IF NOT EXISTS idx_import_history_date ON import_history(import_date);',
             );
             await db.execute(
-              'CREATE INDEX idx_import_history_status ON import_history(status);',
+              'CREATE INDEX IF NOT EXISTS idx_import_history_status ON import_history(status);',
             );
             await db.execute(
-              'CREATE INDEX idx_import_details_session ON import_details(session_id);',
+              'CREATE INDEX IF NOT EXISTS idx_import_details_session ON import_details(session_id);',
             );
 
             print('DEBUG: Import history tables created');
@@ -309,6 +309,20 @@ class DatabaseDatasource {
         metadata TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+    ''');
+
+    batch.execute('''
+      CREATE TABLE IF NOT EXISTS import_details (
+        detail_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL,
+        kupon_data TEXT NOT NULL,
+        status TEXT NOT NULL,
+        error_message TEXT,
+        action TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES import_history(session_id)
+          ON DELETE CASCADE
       );
     ''');
 
