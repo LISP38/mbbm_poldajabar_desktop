@@ -40,6 +40,9 @@ class TransaksiProvider extends ChangeNotifier {
 
   Future<void> fetchTransaksi() async {
     _transaksiList = await _transaksiRepository.getAllTransaksi();
+    print(
+      'DEBUG PROVIDER: fetchTransaksi() - Total data: ${_transaksiList.length}',
+    );
     notifyListeners();
   }
 
@@ -57,20 +60,27 @@ class TransaksiProvider extends ChangeNotifier {
   }
 
   Future<void> addTransaksi(TransaksiEntity transaksi) async {
+    print('DEBUG PROVIDER: addTransaksi() - Menambah transaksi...');
     await _transaksiRepository.insertTransaksi(transaksi);
-    await fetchTransaksiFiltered();
+    print(
+      'DEBUG PROVIDER: addTransaksi() - Transaksi berhasil ditambah, fetch ulang...',
+    );
+    // Fetch semua transaksi tanpa filter untuk memastikan data baru muncul
+    await fetchTransaksi();
     await fetchKuponMinus();
   }
 
   Future<void> updateTransaksi(TransaksiEntity transaksi) async {
     await _transaksiRepository.updateTransaksi(transaksi);
-    await fetchTransaksiFiltered();
+    // Fetch semua transaksi untuk memastikan perubahan terlihat
+    await fetchTransaksi();
     await fetchKuponMinus();
   }
 
   Future<void> deleteTransaksi(int transaksiId) async {
     await _transaksiRepository.deleteTransaksi(transaksiId);
-    await fetchTransaksiFiltered();
+    // Fetch semua transaksi untuk memastikan penghapusan terlihat
+    await fetchTransaksi();
     await fetchKuponMinus();
   }
 

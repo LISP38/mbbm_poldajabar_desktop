@@ -1,10 +1,13 @@
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:excel/excel.dart' as excel_lib;
 import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
 import 'dart:io';
 import '../../providers/transaksi_provider.dart';
+import '../../providers/dashboard_provider.dart';
+import '../../../data/models/transaksi_model.dart';
+import '../../../domain/entities/transaksi_entity.dart';
 import 'show_detail_transaksi_dialog.dart';
 
 class DataTransaksiPage extends StatefulWidget {
@@ -15,11 +18,17 @@ class DataTransaksiPage extends StatefulWidget {
 }
 
 class _DataTransaksiPageState extends State<DataTransaksiPage> {
-  void _navigateToTransaksiForm({required int jenisKuponId, required int jenisBbmId}) {
+  void _navigateToTransaksiForm({
+    required int jenisKuponId,
+    required int jenisBbmId,
+  }) {
     // TODO: Implement navigation to transaction form, passing jenisKuponId and jenisBbmId
     // Example: Navigator.push(...)
-    print('Navigate to form: jenisKuponId=$jenisKuponId, jenisBbmId=$jenisBbmId');
+    print(
+      'Navigate to form: jenisKuponId=$jenisKuponId, jenisBbmId=$jenisBbmId',
+    );
   }
+
   int? _selectedBulan;
   int? _selectedTahun;
 
@@ -32,16 +41,33 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
   // Map jenis kupon untuk tampilan
   final Map<int, String> _jenisKuponMap = {1: 'RANJEN', 2: 'DUKUNGAN'};
 
+  // Pagination variables
+  int _transaksiCurrentPage = 0;
+  int _kuponMinusCurrentPage = 0;
+  final int _rowsPerPage = 50; // Jumlah data per halaman
+
+  // Search variables
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final provider = Provider.of<TransaksiProvider>(context, listen: false);
-    provider.fetchTransaksiFiltered();
+    // Reset filter dan fetch semua transaksi
+    provider.resetFilter();
+    provider.fetchTransaksi();
     provider.fetchKuponMinus();
   }
 
@@ -166,7 +192,10 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                       ElevatedButton.icon(
                         onPressed: () {
                           // Ranjen-Pertamax
-                          _navigateToTransaksiForm(jenisKuponId: 1, jenisBbmId: 1);
+                          _navigateToTransaksiForm(
+                            jenisKuponId: 1,
+                            jenisBbmId: 1,
+                          );
                         },
                         icon: const Icon(Icons.add),
                         label: const Text('Ranjen - Pertamax'),
@@ -178,7 +207,10 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                       ElevatedButton.icon(
                         onPressed: () {
                           // Dukungan-Pertamax
-                          _navigateToTransaksiForm(jenisKuponId: 2, jenisBbmId: 1);
+                          _navigateToTransaksiForm(
+                            jenisKuponId: 2,
+                            jenisBbmId: 1,
+                          );
                         },
                         icon: const Icon(Icons.add),
                         label: const Text('Dukungan - Pertamax'),
@@ -190,7 +222,10 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                       ElevatedButton.icon(
                         onPressed: () {
                           // Ranjen-Pertamina Dex
-                          _navigateToTransaksiForm(jenisKuponId: 1, jenisBbmId: 2);
+                          _navigateToTransaksiForm(
+                            jenisKuponId: 1,
+                            jenisBbmId: 2,
+                          );
                         },
                         icon: const Icon(Icons.add),
                         label: const Text('Ranjen - Pertamina Dex'),
@@ -202,7 +237,10 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                       ElevatedButton.icon(
                         onPressed: () {
                           // Dukungan-Pertamina Dex
-                          _navigateToTransaksiForm(jenisKuponId: 2, jenisBbmId: 2);
+                          _navigateToTransaksiForm(
+                            jenisKuponId: 2,
+                            jenisBbmId: 2,
+                          );
                         },
                         icon: const Icon(Icons.add),
                         label: const Text('Dukungan - Pertamina Dex'),
@@ -216,7 +254,6 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                 ),
               ],
             ),
-
           ],
         ),
       ),
@@ -240,109 +277,191 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
           );
         }
 
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columns: const [
-              DataColumn(label: Text('Tanggal')),
-              DataColumn(label: Text('Nomor Kupon')),
-              DataColumn(label: Text('Satker')),
-              DataColumn(label: Text('Jenis BBM')),
-              DataColumn(label: Text('Jenis Kupon')),
-              DataColumn(label: Text('Jumlah (L)')),
-              DataColumn(label: Text('Aksi')),
-            ],
-            rows: transaksi.map((t) {
-              return DataRow(
-                cells: [
-                  DataCell(Text(t.tanggalTransaksi)),
-                  DataCell(Text(t.nomorKupon)),
-                  DataCell(Text(t.namaSatker)),
-                  DataCell(Text(_jenisBBMMap[t.jenisBbmId] ?? 'Unknown')),
-                  DataCell(Text('RANJEN')),
-                  DataCell(Text(t.jumlahLiter.toString())),
-                  DataCell(
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.info_outline),
-                          tooltip: 'Detail',
-                          onPressed: () async {
-                            showDialog(
-                              context: context,
-                              builder: (ctx) => ShowDetailTransaksiDialog(transaksi: t),
-                            );
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.edit),
-                          tooltip: 'Edit',
-                          onPressed: () async {
-                            // Show confirmation before edit
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('Konfirmasi Edit'),
-                                content: const Text('Edit transaksi ini?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.of(ctx).pop(false),
-                                    child: const Text('Batal'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.of(ctx).pop(true),
-                                    child: const Text('Edit'),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (confirm == true) {
-                              // TODO: Implement edit logic and show success/error SnackBar
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Transaksi berhasil diedit!')),
-                              );
-                            }
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete),
-                          tooltip: 'Delete',
-                          onPressed: () async {
-                            // Show confirmation before delete
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              barrierDismissible: false,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('Konfirmasi Hapus'),
-                                content: const Text('Hapus transaksi ini?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.of(ctx).pop(false),
-                                    child: const Text('Batal'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.of(ctx).pop(true),
-                                    child: const Text('Hapus'),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (confirm == true) {
-                              // TODO: Implement delete logic and show success/error SnackBar
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Transaksi berhasil dihapus!')),
-                              );
-                            }
-                          },
-                        ),
-                      ],
+        // Filter by search query
+        final filteredTransaksi = _searchQuery.isEmpty
+            ? transaksi
+            : transaksi
+                  .where(
+                    (t) => t.nomorKupon.toLowerCase().contains(
+                      _searchQuery.toLowerCase(),
                     ),
+                  )
+                  .toList();
+
+        if (filteredTransaksi.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.search_off, size: 64, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Nomor kupon "$_searchQuery" tidak ditemukan',
+                    style: const TextStyle(fontSize: 18),
                   ),
                 ],
-              );
-            }).toList(),
-          ),
+              ),
+            ),
+          );
+        }
+
+        // Calculate pagination
+        final totalPages = (filteredTransaksi.length / _rowsPerPage).ceil();
+        final startIndex = _transaksiCurrentPage * _rowsPerPage;
+        final endIndex = (startIndex + _rowsPerPage).clamp(
+          0,
+          filteredTransaksi.length,
+        );
+        final paginatedTransaksi = filteredTransaksi.sublist(
+          startIndex,
+          endIndex,
+        );
+
+        return Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SingleChildScrollView(
+                  child: DataTable(
+                    columns: const [
+                      DataColumn(label: Text('Tanggal')),
+                      DataColumn(label: Text('Nomor Kupon')),
+                      DataColumn(label: Text('Satker')),
+                      DataColumn(label: Text('Jenis BBM')),
+                      DataColumn(label: Text('Jenis Kupon')),
+                      DataColumn(label: Text('Jumlah (L)')),
+                      DataColumn(label: Text('Aksi')),
+                    ],
+                    rows: paginatedTransaksi.map((t) {
+                      // Highlight row if search query matches
+                      final isHighlighted =
+                          _searchQuery.isNotEmpty &&
+                          t.nomorKupon.toLowerCase().contains(
+                            _searchQuery.toLowerCase(),
+                          );
+                      return DataRow(
+                        color: isHighlighted
+                            ? MaterialStateProperty.all(
+                                Colors.yellow.withOpacity(0.3),
+                              )
+                            : null,
+                        cells: [
+                          DataCell(Text(t.tanggalTransaksi)),
+                          DataCell(
+                            Text(
+                              t.nomorKupon,
+                              style: isHighlighted
+                                  ? const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue,
+                                    )
+                                  : null,
+                            ),
+                          ),
+                          DataCell(Text(t.namaSatker)),
+                          DataCell(
+                            Text(_jenisBBMMap[t.jenisBbmId] ?? 'Unknown'),
+                          ),
+                          DataCell(Text('RANJEN')),
+                          DataCell(Text(t.jumlahLiter.toString())),
+                          DataCell(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.info_outline),
+                                  tooltip: 'Detail',
+                                  onPressed: () async {
+                                    showDialog(
+                                      context: context,
+                                      builder: (ctx) =>
+                                          ShowDetailTransaksiDialog(
+                                            transaksi: t,
+                                          ),
+                                    );
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit),
+                                  tooltip: 'Edit',
+                                  onPressed: () async {
+                                    await _showEditTransaksiDialog(context, t);
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete),
+                                  tooltip: 'Delete',
+                                  onPressed: () async {
+                                    await _showDeleteTransaksiDialog(
+                                      context,
+                                      t,
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ),
+            // Pagination controls
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Menampilkan ${startIndex + 1}-$endIndex dari ${filteredTransaksi.length} data' +
+                        (_searchQuery.isNotEmpty
+                            ? ' (dari ${transaksi.length} total)'
+                            : ''),
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.first_page),
+                        onPressed: _transaksiCurrentPage > 0
+                            ? () => setState(() => _transaksiCurrentPage = 0)
+                            : null,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left),
+                        onPressed: _transaksiCurrentPage > 0
+                            ? () => setState(() => _transaksiCurrentPage--)
+                            : null,
+                      ),
+                      Text(
+                        'Halaman ${_transaksiCurrentPage + 1} dari $totalPages',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right),
+                        onPressed: _transaksiCurrentPage < totalPages - 1
+                            ? () => setState(() => _transaksiCurrentPage++)
+                            : null,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.last_page),
+                        onPressed: _transaksiCurrentPage < totalPages - 1
+                            ? () => setState(
+                                () => _transaksiCurrentPage = totalPages - 1,
+                              )
+                            : null,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         );
       },
     );
@@ -652,34 +771,105 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
           );
         }
 
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columns: const [
-              DataColumn(label: Text('Nomor Kupon')),
-              DataColumn(label: Text('Jenis Kupon')),
-              DataColumn(label: Text('Jenis BBM')),
-              DataColumn(label: Text('Satker')),
-              DataColumn(label: Text('Kuota Satker')),
-              DataColumn(label: Text('Kuota Sisa')),
-              DataColumn(label: Text('Minus')),
-            ],
-            rows: kuponMinusList.map((m) {
-              return DataRow(
-                cells: [
-                  DataCell(Text(m['nomor_kupon']?.toString() ?? '')),
-                  DataCell(
-                    Text(_jenisKuponMap[m['jenis_kupon_id']] ?? 'Unknown'),
+        // Calculate pagination
+        final totalPages = (kuponMinusList.length / _rowsPerPage).ceil();
+        final startIndex = _kuponMinusCurrentPage * _rowsPerPage;
+        final endIndex = (startIndex + _rowsPerPage).clamp(
+          0,
+          kuponMinusList.length,
+        );
+        final paginatedKuponMinus = kuponMinusList.sublist(
+          startIndex,
+          endIndex,
+        );
+
+        return Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SingleChildScrollView(
+                  child: DataTable(
+                    columns: const [
+                      DataColumn(label: Text('Nomor Kupon')),
+                      DataColumn(label: Text('Jenis Kupon')),
+                      DataColumn(label: Text('Jenis BBM')),
+                      DataColumn(label: Text('Satker')),
+                      DataColumn(label: Text('Kuota Satker')),
+                      DataColumn(label: Text('Kuota Sisa')),
+                      DataColumn(label: Text('Minus')),
+                    ],
+                    rows: paginatedKuponMinus.map((m) {
+                      return DataRow(
+                        cells: [
+                          DataCell(Text(m['nomor_kupon']?.toString() ?? '')),
+                          DataCell(
+                            Text(
+                              _jenisKuponMap[m['jenis_kupon_id']] ?? 'Unknown',
+                            ),
+                          ),
+                          DataCell(
+                            Text(_jenisBBMMap[m['jenis_bbm_id']] ?? 'Unknown'),
+                          ),
+                          DataCell(Text(m['nama_satker']?.toString() ?? '')),
+                          DataCell(Text(m['kuota_satker']?.toString() ?? '0')),
+                          DataCell(Text(m['kuota_sisa']?.toString() ?? '0')),
+                          DataCell(Text(m['minus']?.toString() ?? '0')),
+                        ],
+                      );
+                    }).toList(),
                   ),
-                  DataCell(Text(_jenisBBMMap[m['jenis_bbm_id']] ?? 'Unknown')),
-                  DataCell(Text(m['nama_satker']?.toString() ?? '')),
-                  DataCell(Text(m['kuota_satker']?.toString() ?? '0')),
-                  DataCell(Text(m['kuota_sisa']?.toString() ?? '0')),
-                  DataCell(Text(m['minus']?.toString() ?? '0')),
+                ),
+              ),
+            ),
+            // Pagination controls
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Menampilkan ${startIndex + 1}-$endIndex dari ${kuponMinusList.length} data',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.first_page),
+                        onPressed: _kuponMinusCurrentPage > 0
+                            ? () => setState(() => _kuponMinusCurrentPage = 0)
+                            : null,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left),
+                        onPressed: _kuponMinusCurrentPage > 0
+                            ? () => setState(() => _kuponMinusCurrentPage--)
+                            : null,
+                      ),
+                      Text(
+                        'Halaman ${_kuponMinusCurrentPage + 1} dari $totalPages',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right),
+                        onPressed: _kuponMinusCurrentPage < totalPages - 1
+                            ? () => setState(() => _kuponMinusCurrentPage++)
+                            : null,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.last_page),
+                        onPressed: _kuponMinusCurrentPage < totalPages - 1
+                            ? () => setState(
+                                () => _kuponMinusCurrentPage = totalPages - 1,
+                              )
+                            : null,
+                      ),
+                    ],
+                  ),
                 ],
-              );
-            }).toList(),
-          ),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -701,25 +891,89 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Data Transaksi BBM',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Data Transaksi BBM',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            ElevatedButton.icon(
+                              onPressed: _exportTransaksiToExcel,
+                              icon: const Icon(Icons.download),
+                              label: const Text('Export'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ],
                         ),
-                        ElevatedButton.icon(
-                          onPressed: _exportTransaksiToExcel,
-                          icon: const Icon(Icons.download),
-                          label: const Text('Export'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
+                        const SizedBox(height: 12),
+                        // Search bar
+                        TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Cari nomor kupon...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      setState(() {
+                                        _searchController.clear();
+                                        _searchQuery = '';
+                                        _transaksiCurrentPage = 0;
+                                      });
+                                    },
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
                           ),
+                          onChanged: (value) {
+                            setState(() {
+                              _searchQuery = value;
+                              _transaksiCurrentPage = 0; // Reset to first page
+                            });
+                          },
                         ),
+                        if (_searchQuery.isNotEmpty)
+                          Consumer<TransaksiProvider>(
+                            builder: (context, provider, _) {
+                              final filteredCount = provider.transaksiList
+                                  .where(
+                                    (t) => t.nomorKupon.toLowerCase().contains(
+                                      _searchQuery.toLowerCase(),
+                                    ),
+                                  )
+                                  .length;
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Text(
+                                  'Ditemukan $filteredCount data yang cocok',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: filteredCount > 0
+                                        ? Colors.green
+                                        : Colors.red,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                       ],
                     ),
                   ),
@@ -779,5 +1033,299 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
       ),
     );
   }
+
+  // Fungsi untuk menampilkan dialog Edit Transaksi
+  Future<void> _showEditTransaksiDialog(
+    BuildContext context,
+    TransaksiEntity t,
+  ) async {
+    final transaksiProvider = Provider.of<TransaksiProvider>(
+      context,
+      listen: false,
+    );
+    final dashboardProvider = Provider.of<DashboardProvider>(
+      context,
+      listen: false,
+    );
+
+    final formKey = GlobalKey<FormState>();
+    final tanggalController = TextEditingController(text: t.tanggalTransaksi);
+    final jumlahController = TextEditingController(
+      text: t.jumlahLiter.toString(),
+    );
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Edit Transaksi'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Informasi Transaksi
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Nomor Kupon: ${t.nomorKupon}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Text('Satker: ${t.namaSatker}'),
+                        Text(
+                          'Jenis BBM: ${_jenisBBMMap[t.jenisBbmId] ?? "Unknown"}',
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Form Edit
+                  TextFormField(
+                    controller: tanggalController,
+                    decoration: const InputDecoration(
+                      labelText: 'Tanggal Transaksi',
+                      suffixIcon: Icon(Icons.calendar_today),
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (v) =>
+                        v == null || v.isEmpty ? 'Wajib diisi' : null,
+                    readOnly: true,
+                    onTap: () async {
+                      DateTime? pickedDate = await showDatePicker(
+                        context: ctx,
+                        initialDate:
+                            DateTime.tryParse(tanggalController.text) ??
+                            DateTime.now(),
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2100),
+                      );
+                      if (pickedDate != null) {
+                        tanggalController.text = DateFormat(
+                          'yyyy-MM-dd',
+                        ).format(pickedDate);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: jumlahController,
+                    decoration: const InputDecoration(
+                      labelText: 'Jumlah (Liter)',
+                      suffixText: 'L',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) {
+                        return 'Wajib diisi';
+                      }
+                      final value = double.tryParse(v);
+                      if (value == null || value <= 0) {
+                        return 'Jumlah harus lebih dari 0';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (formKey.currentState?.validate() ?? false) {
+                  // Show loading
+                  showDialog(
+                    context: ctx,
+                    barrierDismissible: false,
+                    builder: (context) =>
+                        const Center(child: CircularProgressIndicator()),
+                  );
+
+                  try {
+                    final transaksiEdit = TransaksiModel(
+                      transaksiId: t.transaksiId,
+                      kuponId: t.kuponId,
+                      nomorKupon: t.nomorKupon,
+                      namaSatker: t.namaSatker,
+                      jenisBbmId: t.jenisBbmId,
+                      tanggalTransaksi: tanggalController.text,
+                      jumlahLiter:
+                          double.tryParse(jumlahController.text) ??
+                          t.jumlahLiter,
+                      createdAt: t.createdAt,
+                      updatedAt: DateTime.now().toIso8601String(),
+                      isDeleted: t.isDeleted,
+                      status: t.status,
+                    );
+
+                    await transaksiProvider.updateTransaksi(transaksiEdit);
+                    await transaksiProvider.fetchTransaksiFiltered();
+                    await dashboardProvider.fetchKupons();
+
+                    if (ctx.mounted) {
+                      Navigator.of(ctx).pop(); // Close loading
+                      Navigator.of(ctx).pop(); // Close dialog
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Transaksi berhasil diupdate!'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (ctx.mounted) {
+                      Navigator.of(ctx).pop(); // Close loading
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Gagal update transaksi: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Fungsi untuk menampilkan dialog Delete Transaksi
+  Future<void> _showDeleteTransaksiDialog(
+    BuildContext context,
+    TransaksiEntity t,
+  ) async {
+    final transaksiProvider = Provider.of<TransaksiProvider>(
+      context,
+      listen: false,
+    );
+    final dashboardProvider = Provider.of<DashboardProvider>(
+      context,
+      listen: false,
+    );
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Konfirmasi Hapus'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Apakah Anda yakin ingin menghapus transaksi ini?',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            const Divider(),
+            const SizedBox(height: 8),
+            Text('Nomor Kupon: ${t.nomorKupon}'),
+            Text('Satker: ${t.namaSatker}'),
+            Text('Tanggal: ${t.tanggalTransaksi}'),
+            Text('Jumlah: ${t.jumlahLiter} L'),
+            Text('Jenis BBM: ${_jenisBBMMap[t.jenisBbmId] ?? "Unknown"}'),
+            const SizedBox(height: 8),
+            const Divider(),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.warning_amber, color: Colors.orange, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Data yang dihapus tidak dapat dikembalikan!',
+                      style: TextStyle(fontSize: 12, color: Colors.orange),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      // Show loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      try {
+        await transaksiProvider.deleteTransaksi(t.transaksiId);
+        await transaksiProvider.fetchTransaksiFiltered();
+        await dashboardProvider.fetchKupons();
+
+        if (context.mounted) {
+          Navigator.of(context).pop(); // Close loading
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Transaksi berhasil dihapus!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          Navigator.of(context).pop(); // Close loading
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Gagal menghapus transaksi: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
 }
+
 // ...existing code...

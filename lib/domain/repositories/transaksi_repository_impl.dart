@@ -30,6 +30,14 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         whereArgs.add(tahun.toString());
       }
 
+      // First, check total transaksi without JOIN to see raw count
+      final totalTransaksi = await db.rawQuery('''
+        SELECT COUNT(*) as total FROM fact_transaksi WHERE is_deleted = 0
+      ''');
+      print(
+        'DEBUG REPO: Total transaksi di database (tanpa JOIN): ${totalTransaksi.first['total']}',
+      );
+
       final result = await db.rawQuery('''
         SELECT 
           t.*,
@@ -44,9 +52,42 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           k.updated_at as kupon_updated_at
         FROM fact_transaksi t
         LEFT JOIN fact_kupon k ON t.kupon_id = k.kupon_id
-        WHERE $where AND k.is_deleted = 0
+        WHERE $where
         ORDER BY t.tanggal_transaksi DESC, t.created_at DESC
       ''', whereArgs);
+
+      print('DEBUG REPO: getAllTransaksi() - WHERE clause: $where');
+      print('DEBUG REPO: getAllTransaksi() - WHERE args: $whereArgs');
+      print(
+        'DEBUG REPO: getAllTransaksi() - Query result count (after JOIN): ${result.length}',
+      );
+
+      // Debug: show sample of filtered out records
+      if (totalTransaksi.first['total'] != result.length) {
+        print(
+          'WARNING: ${(totalTransaksi.first['total'] as int) - result.length} transaksi difilter karena JOIN condition!',
+        );
+
+        // Check which transaksi are being filtered
+        final allTransaksi = await db.rawQuery('''
+          SELECT t.transaksi_id, t.kupon_id, k.kupon_id as joined_kupon_id, k.is_deleted as kupon_is_deleted
+          FROM fact_transaksi t
+          LEFT JOIN fact_kupon k ON t.kupon_id = k.kupon_id
+          WHERE t.is_deleted = 0
+        ''');
+
+        print('DEBUG: Checking all transaksi:');
+        for (var t in allTransaksi) {
+          final included = result.any(
+            (r) => r['transaksi_id'] == t['transaksi_id'],
+          );
+          if (!included) {
+            print(
+              '  FILTERED OUT - transaksi_id: ${t['transaksi_id']}, kupon_id: ${t['kupon_id']}, joined_kupon: ${t['joined_kupon_id']}, kupon_is_deleted: ${t['kupon_is_deleted']}',
+            );
+          }
+        }
+      }
 
       return result.map((map) => TransaksiModel.fromMap(map)).toList();
     } catch (e) {
@@ -92,13 +133,19 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   Future<void> insertTransaksi(TransaksiEntity transaksi) async {
     try {
       final db = await dbHelper.database;
+
+      final transaksiMap = (transaksi as TransaksiModel).toMap();
+      print('DEBUG INSERT: Inserting transaksi with data: $transaksiMap');
+
       await db.transaction((txn) async {
-        // Insert transaksi
-        await txn.insert(
+        // Insert transaksi (auto-increment ID, jangan replace)
+        final insertedId = await txn.insert(
           'fact_transaksi',
-          (transaksi as TransaksiModel).toMap(),
-          conflictAlgorithm: ConflictAlgorithm.replace,
+          transaksiMap,
+          conflictAlgorithm: ConflictAlgorithm.abort,
         );
+
+        print('DEBUG INSERT: Inserted transaksi with ID: $insertedId');
 
         // Update kuota_sisa in fact_kupon
         await txn.rawUpdate(
