@@ -8,6 +8,8 @@ import '../../providers/transaksi_provider.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../../data/models/transaksi_model.dart';
 import '../../../domain/entities/transaksi_entity.dart';
+import '../../../domain/repositories/kendaraan_repository.dart';
+import '../../../core/di/dependency_injection.dart';
 import 'show_detail_transaksi_dialog.dart';
 
 class DataTransaksiPage extends StatefulWidget {
@@ -50,9 +52,61 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  // Cache untuk No Pol berdasarkan kuponId
+  final Map<int, String> _noPolCache = {};
+
   @override
   void initState() {
     super.initState();
+    _loadNoPolData();
+  }
+
+  Future<void> _loadNoPolData() async {
+    final dashboardProvider = Provider.of<DashboardProvider>(
+      context,
+      listen: false,
+    );
+    final kendaraanRepo = getIt<KendaraanRepository>();
+
+    // Load no pol for all kupons
+    for (final kupon in dashboardProvider.kuponList) {
+      if (kupon.kendaraanId != null &&
+          !_noPolCache.containsKey(kupon.kuponId)) {
+        try {
+          final kendaraan = await kendaraanRepo.getKendaraanById(
+            kupon.kendaraanId!,
+          );
+          if (kendaraan != null) {
+            setState(() {
+              _noPolCache[kupon.kuponId] =
+                  '${kendaraan.noPolNomor}-${kendaraan.noPolKode}';
+            });
+          }
+        } catch (e) {
+          // Jika error, set N/A
+          setState(() {
+            _noPolCache[kupon.kuponId] = 'N/A';
+          });
+        }
+      }
+    }
+  }
+
+  String _getNoPolForTransaksi(TransaksiEntity transaksi) {
+    final dashboardProvider = Provider.of<DashboardProvider>(
+      context,
+      listen: false,
+    );
+
+    // Find kupon for this transaction
+    final matchingKupons = dashboardProvider.kuponList.where(
+      (k) => k.kuponId == transaksi.kuponId,
+    );
+
+    if (matchingKupons.isEmpty) return 'N/A';
+
+    final kupon = matchingKupons.first;
+    return _noPolCache[kupon.kuponId] ?? 'Loading...';
   }
 
   @override
@@ -65,10 +119,20 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final provider = Provider.of<TransaksiProvider>(context, listen: false);
+    final dashboardProvider = Provider.of<DashboardProvider>(
+      context,
+      listen: false,
+    );
+
     // Reset filter dan fetch semua transaksi
     provider.resetFilter();
     provider.fetchTransaksi();
     provider.fetchKuponMinus();
+
+    // Load kupon data and no pol
+    dashboardProvider.fetchKupons().then((_) {
+      _loadNoPolData();
+    });
   }
 
   String _getBulanName(int bulan) {
@@ -329,6 +393,7 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                     columns: const [
                       DataColumn(label: Text('Tanggal')),
                       DataColumn(label: Text('Nomor Kupon')),
+                      DataColumn(label: Text('No Pol')),
                       DataColumn(label: Text('Satker')),
                       DataColumn(label: Text('Jenis BBM')),
                       DataColumn(label: Text('Jenis Kupon')),
@@ -361,6 +426,7 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                                   : null,
                             ),
                           ),
+                          DataCell(Text(_getNoPolForTransaksi(t))),
                           DataCell(Text(t.namaSatker)),
                           DataCell(
                             Text(_jenisBBMMap[t.jenisBbmId] ?? 'Unknown'),

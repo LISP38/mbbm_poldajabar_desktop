@@ -19,10 +19,11 @@ class TransactionPage extends StatefulWidget {
   State<TransactionPage> createState() => _TransactionPageState();
 }
 
-class _TransactionPageState extends State<TransactionPage> with SingleTickerProviderStateMixin {
+class _TransactionPageState extends State<TransactionPage>
+    with SingleTickerProviderStateMixin {
   // TabController
   late TabController _tabController;
-  
+
   // Map jenis BBM untuk tampilan
   final Map<int, String> _jenisBBMMap = {1: 'Pertamax', 2: 'Pertamina Dex'};
 
@@ -406,7 +407,7 @@ class _TransactionPageState extends State<TransactionPage> with SingleTickerProv
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    
+
     Future.microtask(() {
       final transaksiProvider = Provider.of<TransaksiProvider>(
         context,
@@ -502,7 +503,7 @@ class _TransactionPageState extends State<TransactionPage> with SingleTickerProv
       ),
     );
   }
-  
+
   // Tab Transaksi
   Widget _buildTransaksiTab() {
     return Padding(
@@ -512,301 +513,292 @@ class _TransactionPageState extends State<TransactionPage> with SingleTickerProv
         children: [
           // FILTER SECTION
           Row(
-              children: [
-                SizedBox(
-                  width: 180,
-                  child: DropdownButtonFormField<int>(
-                    decoration: const InputDecoration(
-                      labelText: 'Bulan',
-                      border: OutlineInputBorder(),
-                    ),
-                    initialValue: Provider.of<TransaksiProvider>(
-                      context,
-                    ).filterBulan,
-                    items: [
-                      for (int i = 1; i <= 12; i++)
-                        DropdownMenuItem(
-                          value: i,
-                          child: Text(_getBulanName(i)),
-                        ),
-                    ],
-                    onChanged: (val) {
-                      Provider.of<TransaksiProvider>(
-                        context,
-                        listen: false,
-                      ).setFilterTransaksi(bulan: val);
-                    },
+            children: [
+              SizedBox(
+                width: 180,
+                child: DropdownButtonFormField<int>(
+                  decoration: const InputDecoration(
+                    labelText: 'Bulan',
+                    border: OutlineInputBorder(),
                   ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 120,
-                  child: DropdownButtonFormField<int>(
-                    decoration: const InputDecoration(
-                      labelText: 'Tahun',
-                      border: OutlineInputBorder(),
-                    ),
-                    initialValue: Provider.of<TransaksiProvider>(
-                      context,
-                    ).filterTahun,
-                    items: [2024, 2025]
-                        .map(
-                          (e) => DropdownMenuItem(
-                            value: e,
-                            child: Text(e.toString()),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (val) {
-                      Provider.of<TransaksiProvider>(
-                        context,
-                        listen: false,
-                      ).setFilterTransaksi(tahun: val);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 180,
-                  child: DropdownButtonFormField<int>(
-                    decoration: const InputDecoration(
-                      labelText: 'Satker',
-                      border: OutlineInputBorder(),
-                    ),
-                    initialValue: _filterSatkerId,
-                    items: _satkerList
-                        .map(
-                          (s) => DropdownMenuItem<int>(
-                            value: s['satker_id'] as int,
-                            child: Text(s['nama_satker'] as String),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (val) {
-                      setState(() {
-                        _filterSatkerId = val;
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Filter Tanggal
-                OutlinedButton.icon(
-                  onPressed: () => _selectDateRange(context),
-                  icon: const Icon(Icons.date_range),
-                  label: Text(
-                    _filterTanggalMulai != null && _filterTanggalSelesai != null
-                        ? '${_filterTanggalMulai!.day}/${_filterTanggalMulai!.month}/${_filterTanggalMulai!.year} - ${_filterTanggalSelesai!.day}/${_filterTanggalSelesai!.month}/${_filterTanggalSelesai!.year}'
-                        : 'Pilih Range Tanggal',
-                  ),
-                ),
-                if (_filterTanggalMulai != null)
-                  IconButton(
-                    icon: const Icon(Icons.clear),
-                    tooltip: 'Hapus Filter Tanggal',
-                    onPressed: _clearDateFilter,
-                  ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: () {
+                  initialValue: Provider.of<TransaksiProvider>(
+                    context,
+                  ).filterBulan,
+                  items: [
+                    for (int i = 1; i <= 12; i++)
+                      DropdownMenuItem(value: i, child: Text(_getBulanName(i))),
+                  ],
+                  onChanged: (val) {
                     Provider.of<TransaksiProvider>(
                       context,
                       listen: false,
-                    ).fetchTransaksiFiltered();
+                    ).setFilterTransaksi(bulan: val);
                   },
-                  icon: const Icon(Icons.search),
-                  label: const Text('Cari'),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 120,
+                child: DropdownButtonFormField<int>(
+                  decoration: const InputDecoration(
+                    labelText: 'Tahun',
+                    border: OutlineInputBorder(),
+                  ),
+                  initialValue: Provider.of<TransaksiProvider>(
+                    context,
+                  ).filterTahun,
+                  items: [2024, 2025]
+                      .map(
+                        (e) => DropdownMenuItem(
+                          value: e,
+                          child: Text(e.toString()),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (val) {
+                    Provider.of<TransaksiProvider>(
+                      context,
+                      listen: false,
+                    ).setFilterTransaksi(tahun: val);
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 180,
+                child: DropdownButtonFormField<int>(
+                  decoration: const InputDecoration(
+                    labelText: 'Satker',
+                    border: OutlineInputBorder(),
+                  ),
+                  initialValue: _filterSatkerId,
+                  items: _satkerList
+                      .map(
+                        (s) => DropdownMenuItem<int>(
+                          value: s['satker_id'] as int,
+                          child: Text(s['nama_satker'] as String),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      _filterSatkerId = val;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Filter Tanggal
+              OutlinedButton.icon(
+                onPressed: () => _selectDateRange(context),
+                icon: const Icon(Icons.date_range),
+                label: Text(
+                  _filterTanggalMulai != null && _filterTanggalSelesai != null
+                      ? '${_filterTanggalMulai!.day}/${_filterTanggalMulai!.month}/${_filterTanggalMulai!.year} - ${_filterTanggalSelesai!.day}/${_filterTanggalSelesai!.month}/${_filterTanggalSelesai!.year}'
+                      : 'Pilih Range Tanggal',
+                ),
+              ),
+              if (_filterTanggalMulai != null)
+                IconButton(
+                  icon: const Icon(Icons.clear),
+                  tooltip: 'Hapus Filter Tanggal',
+                  onPressed: _clearDateFilter,
+                ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Provider.of<TransaksiProvider>(
+                    context,
+                    listen: false,
+                  ).fetchTransaksiFiltered();
+                },
+                icon: const Icon(Icons.search),
+                label: const Text('Cari'),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Data Transaksi',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+            children: [
+              const Text(
+                'Data Transaksi',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              ElevatedButton.icon(
+                onPressed: _exportTransaksi,
+                icon: const Icon(Icons.download),
+                label: const Text('Export Transaksi'),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _showTambahTransaksiDialog(
+                  context,
+                  jenisBbm: 1,
+                  jenisKuponId: 1,
                 ),
-                ElevatedButton.icon(
-                  onPressed: _exportTransaksi,
-                  icon: const Icon(Icons.download),
-                  label: const Text('Export Transaksi'),
+                icon: const Icon(Icons.add),
+                label: const Text('Ranjen - Pertamax'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => _showTambahTransaksiDialog(
-                    context,
-                    jenisBbm: 1,
-                    jenisKuponId: 1,
-                  ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Ranjen - Pertamax'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                  ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _showTambahTransaksiDialog(
+                  context,
+                  jenisBbm: 1,
+                  jenisKuponId: 2,
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => _showTambahTransaksiDialog(
-                    context,
-                    jenisBbm: 1,
-                    jenisKuponId: 2,
-                  ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Dukungan - Pertamax'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
+                icon: const Icon(Icons.add),
+                label: const Text('Dukungan - Pertamax'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => _showTambahTransaksiDialog(
-                    context,
-                    jenisBbm: 2,
-                    jenisKuponId: 1,
-                  ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Ranjen - Pertamina Dex'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                  ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _showTambahTransaksiDialog(
+                  context,
+                  jenisBbm: 2,
+                  jenisKuponId: 1,
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => _showTambahTransaksiDialog(
-                    context,
-                    jenisBbm: 2,
-                    jenisKuponId: 2,
-                  ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Dukungan - Pertamina Dex'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                  ),
+                icon: const Icon(Icons.add),
+                label: const Text('Ranjen - Pertamina Dex'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
                 ),
-              ],
-            ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _showTambahTransaksiDialog(
+                  context,
+                  jenisBbm: 2,
+                  jenisKuponId: 2,
+                ),
+                icon: const Icon(Icons.add),
+                label: const Text('Dukungan - Pertamina Dex'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           // Search bar for transaksi
           Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Cari nomor kupon...',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            setState(() {
-                              _searchController.clear();
-                              _searchQuery = '';
-                              _transaksiCurrentPage = 0;
-                            });
-                          },
-                        )
-                      : null,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
-                  ),
+            padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Cari nomor kupon...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            _searchQuery = '';
+                            _transaksiCurrentPage = 0;
+                          });
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                    _transaksiCurrentPage = 0; // Reset to first page
-                  });
-                },
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
               ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                  _transaksiCurrentPage = 0; // Reset to first page
+                });
+              },
             ),
+          ),
           if (_searchQuery.isNotEmpty)
-              Consumer<TransaksiProvider>(
-                builder: (context, provider, _) {
-                  final transaksiListRaw = provider.transaksiList;
-                  final transaksiList = transaksiListRaw
-                      .map(
-                        (t) => t is TransaksiModel
-                            ? t
-                            : TransaksiModel(
-                                transaksiId: t.transaksiId,
-                                kuponId: t.kuponId,
-                                nomorKupon: t.nomorKupon,
-                                namaSatker: t.namaSatker,
-                                jenisBbmId: t.jenisBbmId,
-                                tanggalTransaksi: t.tanggalTransaksi,
-                                jumlahLiter: t.jumlahLiter,
-                                createdAt: t.createdAt,
-                                updatedAt:
-                                    t.updatedAt ??
-                                    DateTime.now().toIso8601String(),
-                                isDeleted: t.isDeleted,
-                                status: t.status,
-                              ),
-                      )
-                      .toList();
+            Consumer<TransaksiProvider>(
+              builder: (context, provider, _) {
+                final transaksiListRaw = provider.transaksiList;
+                final transaksiList = transaksiListRaw
+                    .map(
+                      (t) => t is TransaksiModel
+                          ? t
+                          : TransaksiModel(
+                              transaksiId: t.transaksiId,
+                              kuponId: t.kuponId,
+                              nomorKupon: t.nomorKupon,
+                              namaSatker: t.namaSatker,
+                              jenisBbmId: t.jenisBbmId,
+                              tanggalTransaksi: t.tanggalTransaksi,
+                              jumlahLiter: t.jumlahLiter,
+                              createdAt: t.createdAt,
+                              updatedAt:
+                                  t.updatedAt ??
+                                  DateTime.now().toIso8601String(),
+                              isDeleted: t.isDeleted,
+                              status: t.status,
+                            ),
+                    )
+                    .toList();
 
-                  List<TransaksiModel> filteredList = transaksiList;
+                List<TransaksiModel> filteredList = transaksiList;
 
-                  // Apply date filter if set
-                  if (_filterTanggalMulai != null &&
-                      _filterTanggalSelesai != null) {
-                    filteredList = transaksiList.where((t) {
-                      try {
-                        final transaksiDate = DateTime.parse(
-                          t.tanggalTransaksi,
-                        );
-                        return transaksiDate.isAfter(
-                              _filterTanggalMulai!.subtract(
-                                const Duration(days: 1),
-                              ),
-                            ) &&
-                            transaksiDate.isBefore(
-                              _filterTanggalSelesai!.add(
-                                const Duration(days: 1),
-                              ),
-                            );
-                      } catch (e) {
-                        return true;
-                      }
-                    }).toList();
-                  }
+                // Apply date filter if set
+                if (_filterTanggalMulai != null &&
+                    _filterTanggalSelesai != null) {
+                  filteredList = transaksiList.where((t) {
+                    try {
+                      final transaksiDate = DateTime.parse(t.tanggalTransaksi);
+                      return transaksiDate.isAfter(
+                            _filterTanggalMulai!.subtract(
+                              const Duration(days: 1),
+                            ),
+                          ) &&
+                          transaksiDate.isBefore(
+                            _filterTanggalSelesai!.add(const Duration(days: 1)),
+                          );
+                    } catch (e) {
+                      return true;
+                    }
+                  }).toList();
+                }
 
-                  // Apply search filter
-                  final filteredCount = filteredList
-                      .where(
-                        (t) => t.nomorKupon.toLowerCase().contains(
-                          _searchQuery.toLowerCase(),
-                        ),
-                      )
-                      .length;
-
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8, bottom: 8),
-                    child: Text(
-                      'Ditemukan $filteredCount data yang cocok',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: filteredCount > 0 ? Colors.green : Colors.red,
-                        fontWeight: FontWeight.w500,
+                // Apply search filter
+                final filteredCount = filteredList
+                    .where(
+                      (t) => t.nomorKupon.toLowerCase().contains(
+                        _searchQuery.toLowerCase(),
                       ),
+                    )
+                    .length;
+
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 8),
+                  child: Text(
+                    'Ditemukan $filteredCount data yang cocok',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: filteredCount > 0 ? Colors.green : Colors.red,
+                      fontWeight: FontWeight.w500,
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
+            ),
           const SizedBox(height: 8),
           // Tabel Transaksi
-          Expanded(
-            child: _buildTransaksiTable(context),
-          ),
+          Expanded(child: _buildTransaksiTable(context)),
         ],
       ),
     );
   }
-  
+
   // Tab Kupon Minus
   Widget _buildKuponMinusTab() {
     return Padding(
@@ -820,10 +812,7 @@ class _TransactionPageState extends State<TransactionPage> with SingleTickerProv
             children: [
               const Text(
                 'Daftar Kupon dengan Sisa Minus',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
               ),
               ElevatedButton.icon(
                 onPressed: () => _exportKuponMinusToExcel(context),
@@ -834,9 +823,7 @@ class _TransactionPageState extends State<TransactionPage> with SingleTickerProv
           ),
           const SizedBox(height: 16),
           // Tabel Kupon Minus
-          Expanded(
-            child: _buildKuponMinusTable(context),
-          ),
+          Expanded(child: _buildKuponMinusTable(context)),
         ],
       ),
     );
@@ -848,12 +835,88 @@ class _TransactionPageState extends State<TransactionPage> with SingleTickerProv
       context,
       listen: false,
     );
-    final transaksi = provider.transaksiList;
+
+    // Get all transactions
+    var transaksi = provider.transaksiList;
+
+    // Check if any filter is active
+    bool hasFilter =
+        provider.filterBulan != null ||
+        provider.filterTahun != null ||
+        _filterTanggalMulai != null ||
+        _filterTanggalSelesai != null ||
+        _filterSatkerId != null;
+
+    // Apply filters if any filter is active
+    if (hasFilter) {
+      transaksi = transaksi.where((t) {
+        bool matchFilter = true;
+
+        // Filter by Bulan
+        if (provider.filterBulan != null) {
+          try {
+            final transaksiDate = DateTime.parse(t.tanggalTransaksi);
+            matchFilter =
+                matchFilter && (transaksiDate.month == provider.filterBulan);
+          } catch (e) {
+            matchFilter = false;
+          }
+        }
+
+        // Filter by Tahun
+        if (provider.filterTahun != null) {
+          try {
+            final transaksiDate = DateTime.parse(t.tanggalTransaksi);
+            matchFilter =
+                matchFilter && (transaksiDate.year == provider.filterTahun);
+          } catch (e) {
+            matchFilter = false;
+          }
+        }
+
+        // Filter by Date Range
+        if (_filterTanggalMulai != null && _filterTanggalSelesai != null) {
+          try {
+            final transaksiDate = DateTime.parse(t.tanggalTransaksi);
+            matchFilter =
+                matchFilter &&
+                transaksiDate.isAfter(
+                  _filterTanggalMulai!.subtract(const Duration(days: 1)),
+                ) &&
+                transaksiDate.isBefore(
+                  _filterTanggalSelesai!.add(const Duration(days: 1)),
+                );
+          } catch (e) {
+            matchFilter = false;
+          }
+        }
+
+        // Filter by Satker
+        if (_filterSatkerId != null) {
+          // Find kupon for this transaction
+          final matchingKupons = dashboardProvider.kuponList.where(
+            (k) => k.kuponId == t.kuponId,
+          );
+          if (matchingKupons.isNotEmpty) {
+            final kupon = matchingKupons.first;
+            matchFilter = matchFilter && (kupon.satkerId == _filterSatkerId);
+          } else {
+            matchFilter = false;
+          }
+        }
+
+        return matchFilter;
+      }).toList();
+    }
 
     if (transaksi.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tidak ada data transaksi untuk diexport.'),
+        SnackBar(
+          content: Text(
+            hasFilter
+                ? 'Tidak ada data transaksi yang sesuai dengan filter untuk diexport.'
+                : 'Tidak ada data transaksi untuk diexport.',
+          ),
         ),
       );
       return;
