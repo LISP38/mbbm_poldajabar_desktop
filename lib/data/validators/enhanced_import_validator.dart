@@ -96,14 +96,14 @@ class EnhancedImportValidator {
         duplicates.entries.where((e) => e.value > 1).toList();
 
     if (actualDuplicates.isNotEmpty) {
-      warnings.add('Ditemukan duplikat dalam file Excel:');
+      errors.add('Ditemukan duplikat dalam file Excel:');
       actualDuplicates.forEach((entry) {
-        warnings.add('• ${entry.key}: ${entry.value} kali');
+        errors.add('• ${entry.key}: ${entry.value} kali');
       });
     }
 
     return ValidationResult(
-      isValid: true,
+      isValid: errors.isEmpty,
       errors: errors,
       warnings: warnings,
       metadata: {'duplicate_keys': duplicates},

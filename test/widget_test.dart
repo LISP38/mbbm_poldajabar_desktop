@@ -7,24 +7,46 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
 import 'package:kupon_bbm_app/main.dart';
+import 'package:kupon_bbm_app/core/di/dependency_injection.dart' as di;
+import 'package:kupon_bbm_app/presentation/providers/dashboard_provider.dart';
+import 'package:kupon_bbm_app/presentation/providers/transaksi_provider.dart';
+import 'package:kupon_bbm_app/presentation/providers/kupon_provider.dart';
+import 'package:kupon_bbm_app/presentation/providers/master_data_provider.dart';
+import 'package:kupon_bbm_app/presentation/providers/enhanced_import_provider.dart';
+import 'package:kupon_bbm_app/domain/repositories/kupon_repository.dart';
+import 'package:kupon_bbm_app/domain/repositories/master_data_repository.dart';
+import 'package:kupon_bbm_app/domain/repositories/transaksi_repository_impl.dart';
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    // Initialize dependencies and build app with the required providers.
+    await di.initializeDependencies();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(
+            create: (_) => DashboardProvider(di.getIt<KuponRepository>()),
+          ),
+          ChangeNotifierProvider(
+            create: (_) => TransaksiProvider(di.getIt<TransaksiRepositoryImpl>()),
+          ),
+          ChangeNotifierProvider(
+            create: (_) => KuponProvider(di.getIt<KuponRepository>()),
+          ),
+          ChangeNotifierProvider(
+            create: (_) => MasterDataProvider(di.getIt<MasterDataRepository>()),
+          ),
+          ChangeNotifierProvider(create: (_) => di.getIt<EnhancedImportProvider>()),
+        ],
+        child: const MyApp(),
+      ),
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify that Import page is shown by default (MainPage selected index 0)
+    expect(find.text('Import Kupon dari Excel'), findsOneWidget);
   });
 }
