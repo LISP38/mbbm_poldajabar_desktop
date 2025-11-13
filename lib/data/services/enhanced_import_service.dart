@@ -158,13 +158,18 @@ class EnhancedImportService {
         newKendaraans: newKendaraans,
       );
 
+      // If import was successful, don't include validation errors from earlier
+      final importErrors = (result['error'] ?? 0) > 0 
+          ? ['Import failed: ${result['error']} errors occurred']
+          : <String>[];
+
       return ImportResult(
         success: result['error'] == 0,
         successCount: result['success'] ?? 0,
         errorCount: result['error'] ?? 0,
         duplicateCount: duplicateCount,
         warnings: allWarnings,
-        errors: allErrors,
+        errors: importErrors,  // Only include import errors, not validation warnings
         metadata: allMetadata,
       );
     } catch (e) {

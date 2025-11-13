@@ -93,11 +93,15 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
     try {
       final db = await dbHelper.database;
       await db.transaction((txn) async {
+        // Remove transaksi_id from map for insert
+        final map = (transaksi as TransaksiModel).toMap();
+        map.remove('transaksi_id'); // Remove ID to let SQLite auto-increment
+        
         // Insert transaksi
         await txn.insert(
           'fact_transaksi',
-          (transaksi as TransaksiModel).toMap(),
-          conflictAlgorithm: ConflictAlgorithm.replace,
+          map,
+          conflictAlgorithm: ConflictAlgorithm.abort,
         );
 
         // Update kuota_sisa in fact_kupon

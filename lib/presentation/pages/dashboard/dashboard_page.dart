@@ -149,7 +149,7 @@ class _DashboardPageState extends State<DashboardPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSummarySection(context),
+          // _buildSummarySection(context),
           _buildRanjenFilterSection(context),
           const SizedBox(height: 16),
           Expanded(child: _buildRanjenTable(context)),
@@ -172,7 +172,7 @@ class _DashboardPageState extends State<DashboardPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSummarySection(context),
+          // _buildSummarySection(context),
           _buildDukunganFilterSection(context),
           const SizedBox(height: 16),
           Expanded(child: _buildDukunganTable(context)),
@@ -189,44 +189,44 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget _buildSummarySection(BuildContext context) {
-    return Consumer<DashboardProvider>(
-      builder: (context, provider, _) {
-        // Gunakan data yang tepat berdasarkan tab yang aktif
-        final activeTabKuponCount = _tabController.index == 0
-            ? provider.ranjenKupons.length
-            : provider.dukunganKupons.length;
+  // Widget _buildSummarySection(BuildContext context) {
+  //   return Consumer<DashboardProvider>(
+  //     builder: (context, provider, _) {
+  //       // Gunakan data yang tepat berdasarkan tab yang aktif
+  //       final activeTabKuponCount = _tabController.index == 0
+  //           ? provider.ranjenKupons.length
+  //           : provider.dukunganKupons.length;
 
-        return Card(
-          color: Colors.blue.shade50,
-          margin: const EdgeInsets.only(bottom: 12),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Text(
-                  'Total Kupon (${_tabController.index == 0 ? 'Ranjen' : 'Dukungan'}): ',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  activeTabKuponCount.toString(),
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.blue.shade900,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+  //       return Card(
+  //         color: Colors.blue.shade50,
+  //         margin: const EdgeInsets.only(bottom: 12),
+  //         child: Padding(
+  //           padding: const EdgeInsets.all(16.0),
+  //           child: Row(
+  //             children: [
+  //               Text(
+  //                 'Total Kupon (${_tabController.index == 0 ? 'Ranjen' : 'Dukungan'}): ',
+  //                 style: const TextStyle(fontWeight: FontWeight.bold),
+  //               ),
+  //               Text(
+  //                 activeTabKuponCount.toString(),
+  //                 style: TextStyle(
+  //                   fontSize: 18,
+  //                   color: Colors.blue.shade900,
+  //                   fontWeight: FontWeight.bold,
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
 
   String _getNopolByKendaraanId(int? kendaraanId) {
     // Handle DUKUNGAN coupons that don't have kendaraan
-    if (kendaraanId == null) return 'N/A (DUKUNGAN)';
+    if (kendaraanId == null) return '-';
 
     final kendaraan = _kendaraanList.firstWhere(
       (k) => k.kendaraanId == kendaraanId,
@@ -577,9 +577,12 @@ class _DashboardPageState extends State<DashboardPage>
   Widget _buildRanjenFilterSection(BuildContext context) {
     final provider = Provider.of<DashboardProvider>(context, listen: false);
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
+      child: ExpansionTile(
+        title: const Text('Filter Ranjen'),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
           children: [
             Row(
               children: [
@@ -796,6 +799,8 @@ class _DashboardPageState extends State<DashboardPage>
             ),
           ],
         ),
+          )
+        ],
       ),
     );
   }
@@ -803,9 +808,12 @@ class _DashboardPageState extends State<DashboardPage>
   Widget _buildDukunganFilterSection(BuildContext context) {
     final provider = Provider.of<DashboardProvider>(context, listen: false);
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
+      child: ExpansionTile(
+        title: const Text('Filter Dukungan'),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
           children: [
             Row(
               children: [
@@ -973,6 +981,8 @@ class _DashboardPageState extends State<DashboardPage>
             ),
           ],
         ),
+          )
+        ],
       ),
     );
   }
@@ -994,67 +1004,70 @@ class _DashboardPageState extends State<DashboardPage>
           );
         }
 
-        // PERBAIKAN: Sederhanakan struktur scrolling
+        // PERBAIKAN: Tambahkan vertical scroll dan horizontal scroll
         return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columns: const [
-              DataColumn(label: Text('No')),
-              DataColumn(label: Text('No Kupon')),
-              DataColumn(label: Text('Satker')),
-              DataColumn(label: Text('Jenis BBM')),
-              DataColumn(label: Text('NoPol')),
-              DataColumn(label: Text('Jenis Ranmor')),
-              DataColumn(label: Text('Bulan/Tahun')),
-              DataColumn(label: Text('Kuota Sisa')),
-              DataColumn(label: Text('Status')),
-              DataColumn(label: Text('Aksi')),
-            ],
-            rows: kupons.asMap().entries.map((entry) {
-              final i = entry.key + 1;
-              final k = entry.value;
-              return DataRow(
-                cells: [
-                  DataCell(Text(i.toString())),
-                  DataCell(
-                    Text(
-                      '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/LOGISTIK',
-                    ),
-                  ),
-                  DataCell(Text(k.namaSatker)),
-                  DataCell(
-                    Text(_jenisBBMMap[k.jenisBbmId] ?? k.jenisBbmId.toString()),
-                  ),
-                  DataCell(Text(_getNopolByKendaraanId(k.kendaraanId))),
-                  DataCell(Text(_getJenisRanmorByKendaraanId(k.kendaraanId))),
-                  DataCell(Text('${k.bulanTerbit}/${k.tahunTerbit}')),
-                  DataCell(Text('${k.kuotaSisa.toStringAsFixed(2)} L')),
-                  DataCell(
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: k.status == 'Aktif' ? Colors.green : Colors.red,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        k.status,
-                        style: const TextStyle(color: Colors.white),
+          scrollDirection: Axis.vertical,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columns: const [
+                DataColumn(label: Text('No')),
+                DataColumn(label: Text('No Kupon')),
+                DataColumn(label: Text('Satker')),
+                DataColumn(label: Text('Jenis BBM')),
+                DataColumn(label: Text('NoPol')),
+                DataColumn(label: Text('Jenis Ranmor')),
+                DataColumn(label: Text('Bulan/Tahun')),
+                DataColumn(label: Text('Kuota Sisa')),
+                DataColumn(label: Text('Status')),
+                DataColumn(label: Text('Aksi')),
+              ],
+              rows: kupons.asMap().entries.map((entry) {
+                final i = entry.key + 1;
+                final k = entry.value;
+                return DataRow(
+                  cells: [
+                    DataCell(Text(i.toString())),
+                    DataCell(
+                      Text(
+                        '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/LOGISTIK',
                       ),
                     ),
-                  ),
-                  DataCell(
-                    IconButton(
-                      icon: const Icon(Icons.info_outline, color: Colors.blue),
-                      tooltip: 'Lihat Detail Kupon',
-                      onPressed: () => _showKuponDetailDialog(context, k),
+                    DataCell(Text(k.namaSatker)),
+                    DataCell(
+                      Text(_jenisBBMMap[k.jenisBbmId] ?? k.jenisBbmId.toString()),
                     ),
-                  ),
-                ],
-              );
-            }).toList(),
+                    DataCell(Text(_getNopolByKendaraanId(k.kendaraanId))),
+                    DataCell(Text(_getJenisRanmorByKendaraanId(k.kendaraanId))),
+                    DataCell(Text('${k.bulanTerbit}/${k.tahunTerbit}')),
+                    DataCell(Text('${k.kuotaSisa.toStringAsFixed(2)} L')),
+                    DataCell(
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: k.status == 'Aktif' ? Colors.green : Colors.red,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          k.status,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      IconButton(
+                        icon: const Icon(Icons.info_outline, color: Colors.blue),
+                        tooltip: 'Lihat Detail Kupon',
+                        onPressed: () => _showKuponDetailDialog(context, k),
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
           ),
         );
       },
@@ -1078,16 +1091,19 @@ class _DashboardPageState extends State<DashboardPage>
           );
         }
 
-        // PERBAIKAN: Sederhanakan struktur scrolling dan tetap gunakan Card
-        return Card(
+        // PERBAIKAN: Tambahkan vertical scroll, gunakan kolom yang sama seperti RANJEN untuk konsistensi
+        return SingleChildScrollView(
+          scrollDirection: Axis.vertical,
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: DataTable(
               columns: const [
-                DataColumn(label: Text('No.')),
-                DataColumn(label: Text('Nomor Kupon')),
+                DataColumn(label: Text('No')),
+                DataColumn(label: Text('No Kupon')),
                 DataColumn(label: Text('Satker')),
                 DataColumn(label: Text('Jenis BBM')),
+                DataColumn(label: Text('NoPol')),
+                DataColumn(label: Text('Jenis Ranmor')),
                 DataColumn(label: Text('Bulan/Tahun')),
                 DataColumn(label: Text('Kuota Sisa')),
                 DataColumn(label: Text('Status')),
@@ -1110,6 +1126,8 @@ class _DashboardPageState extends State<DashboardPage>
                         _jenisBBMMap[k.jenisBbmId] ?? k.jenisBbmId.toString(),
                       ),
                     ),
+                    DataCell(Text(_getNopolByKendaraanId(k.kendaraanId))),
+                    DataCell(Text(_getJenisRanmorByKendaraanId(k.kendaraanId))),
                     DataCell(Text('${k.bulanTerbit}/${k.tahunTerbit}')),
                     DataCell(Text('${k.kuotaSisa.toStringAsFixed(2)} L')),
                     DataCell(
@@ -1132,10 +1150,7 @@ class _DashboardPageState extends State<DashboardPage>
                     ),
                     DataCell(
                       IconButton(
-                        icon: const Icon(
-                          Icons.info_outline,
-                          color: Colors.blue,
-                        ),
+                        icon: const Icon(Icons.info_outline, color: Colors.blue),
                         tooltip: 'Lihat Detail Kupon',
                         onPressed: () => _showKuponDetailDialog(context, k),
                       ),
@@ -1151,7 +1166,7 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   String _getJenisRanmorByKendaraanId(int? kendaraanId) {
-    if (kendaraanId == null) return 'N/A';
+    if (kendaraanId == null) return '-';
 
     final kendaraan = _kendaraanList.firstWhere(
       (k) => k.kendaraanId == kendaraanId,

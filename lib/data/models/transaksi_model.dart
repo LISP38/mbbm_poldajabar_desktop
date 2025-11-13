@@ -36,8 +36,7 @@ class TransaksiModel extends TransaksiEntity {
   }
 
   Map<String, dynamic> toMap() {
-    return {
-      'transaksi_id': transaksiId,
+    final map = {
       'kupon_id': kuponId,
       'nomor_kupon': nomorKupon,
       'nama_satker': namaSatker,
@@ -49,5 +48,13 @@ class TransaksiModel extends TransaksiEntity {
       'is_deleted': isDeleted,
       'status': status,
     };
+
+    // Only include transaksi_id if it's not 0 (for updates)
+    if (transaksiId != 0) {
+      map['transaksi_id'] = transaksiId;
+    }
+
+    return map;
+    return map;
   }
 }
