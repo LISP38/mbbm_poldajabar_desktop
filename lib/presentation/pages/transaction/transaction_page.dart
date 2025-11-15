@@ -53,6 +53,9 @@ class _TransactionPageState extends State<TransactionPage>
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  // Cache for No Pol data
+  final Map<int, String> _noPolCache = {}; // kuponId -> No Pol
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -92,6 +95,43 @@ class _TransactionPageState extends State<TransactionPage>
     // Dapatkan tanggal terakhir dari bulan tersebut
     final lastDay = DateTime(expYear, expMonth + 1, 0).day;
     return '$lastDay ${_getBulanName(expMonth)} $expYear';
+  }
+
+  // Load No Pol data for all kupons
+  Future<void> _loadNoPolData() async {
+    try {
+      final kendaraanRepo = getIt<KendaraanRepository>();
+      final dashboardProvider = Provider.of<DashboardProvider>(
+        context,
+        listen: false,
+      );
+
+      for (final kupon in dashboardProvider.kupons) {
+        // Only RANJEN kupons have kendaraanId
+        if (kupon.kendaraanId != null) {
+          try {
+            final kendaraan = await kendaraanRepo.getKendaraanById(
+              kupon.kendaraanId!,
+            );
+            if (kendaraan != null && kendaraan.noPolNomor.isNotEmpty) {
+              setState(() {
+                _noPolCache[kupon.kuponId] =
+                    '${kendaraan.noPolNomor}-${kendaraan.noPolKode}';
+              });
+            }
+          } catch (e) {
+            // Skip if kendaraan not found for this kupon
+            continue;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading No Pol data: $e');
+    }
+  }
+
+  String _getNoPolForTransaksi(TransaksiModel transaksi) {
+    return _noPolCache[transaksi.kuponId] ?? 'N/A';
   }
 
   Future<void> _exportKuponMinusToExcel(BuildContext context) async {
@@ -424,7 +464,10 @@ class _TransactionPageState extends State<TransactionPage>
       transaksiProvider.fetchKuponMinus();
 
       // Fetch kupons untuk dropdown di form tambah transaksi
-      dashboardProvider.fetchKupons();
+      dashboardProvider.fetchKupons().then((_) {
+        // Load No Pol data after kupons are loaded
+        _loadNoPolData();
+      });
     });
   }
 
@@ -829,7 +872,8 @@ class _TransactionPageState extends State<TransactionPage>
     );
   }
 
-  void _exportTransaksi() async {
+  // Method untuk mendapatkan data transaksi yang akan di-export (dengan filter)
+  List<dynamic> _getTransaksiForExport() {
     final provider = Provider.of<TransaksiProvider>(context, listen: false);
     final dashboardProvider = Provider.of<DashboardProvider>(
       context,
@@ -909,6 +953,21 @@ class _TransactionPageState extends State<TransactionPage>
       }).toList();
     }
 
+    return transaksi;
+  }
+
+  // Method untuk preview data sebelum export
+  void _showExportPreview() async {
+    final transaksi = _getTransaksiForExport();
+    final provider = Provider.of<TransaksiProvider>(context, listen: false);
+
+    bool hasFilter =
+        provider.filterBulan != null ||
+        provider.filterTahun != null ||
+        _filterTanggalMulai != null ||
+        _filterTanggalSelesai != null ||
+        _filterSatkerId != null;
+
     if (transaksi.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -920,6 +979,103 @@ class _TransactionPageState extends State<TransactionPage>
         ),
       );
       return;
+    }
+
+    // Show preview dialog
+    showDialog(
+      context: context,
+      builder: (context) => _ExportPreviewDialog(
+        transaksi: transaksi,
+        onConfirmExport: _performExport,
+        hasFilter: hasFilter,
+      ),
+    );
+  }
+
+  void _exportTransaksi() async {
+    // Langsung panggil preview
+    _showExportPreview();
+  }
+
+  // Method untuk melakukan export setelah konfirmasi
+  void _performExport() async {
+    final provider = Provider.of<TransaksiProvider>(context, listen: false);
+    final dashboardProvider = Provider.of<DashboardProvider>(
+      context,
+      listen: false,
+    );
+
+    // Get all transactions
+    var transaksi = _getTransaksiForExport();
+
+    // Check if any filter is active
+    bool hasFilter =
+        provider.filterBulan != null ||
+        provider.filterTahun != null ||
+        _filterTanggalMulai != null ||
+        _filterTanggalSelesai != null ||
+        _filterSatkerId != null;
+
+    // Apply filters if any filter is active
+    if (hasFilter) {
+      transaksi = transaksi.where((t) {
+        bool matchFilter = true;
+
+        // Filter by Bulan
+        if (provider.filterBulan != null) {
+          try {
+            final transaksiDate = DateTime.parse(t.tanggalTransaksi);
+            matchFilter =
+                matchFilter && (transaksiDate.month == provider.filterBulan);
+          } catch (e) {
+            matchFilter = false;
+          }
+        }
+
+        // Filter by Tahun
+        if (provider.filterTahun != null) {
+          try {
+            final transaksiDate = DateTime.parse(t.tanggalTransaksi);
+            matchFilter =
+                matchFilter && (transaksiDate.year == provider.filterTahun);
+          } catch (e) {
+            matchFilter = false;
+          }
+        }
+
+        // Filter by Date Range
+        if (_filterTanggalMulai != null && _filterTanggalSelesai != null) {
+          try {
+            final transaksiDate = DateTime.parse(t.tanggalTransaksi);
+            matchFilter =
+                matchFilter &&
+                transaksiDate.isAfter(
+                  _filterTanggalMulai!.subtract(const Duration(days: 1)),
+                ) &&
+                transaksiDate.isBefore(
+                  _filterTanggalSelesai!.add(const Duration(days: 1)),
+                );
+          } catch (e) {
+            matchFilter = false;
+          }
+        }
+
+        // Filter by Satker
+        if (_filterSatkerId != null) {
+          // Find kupon for this transaction
+          final matchingKupons = dashboardProvider.kuponList.where(
+            (k) => k.kuponId == t.kuponId,
+          );
+          if (matchingKupons.isNotEmpty) {
+            final kupon = matchingKupons.first;
+            matchFilter = matchFilter && (kupon.satkerId == _filterSatkerId);
+          } else {
+            matchFilter = false;
+          }
+        }
+
+        return matchFilter;
+      }).toList();
     }
 
     if (dashboardProvider.kuponList.isEmpty) {
@@ -1393,6 +1549,17 @@ class _TransactionPageState extends State<TransactionPage>
                         DataColumn(
                           label: Expanded(
                             child: Text(
+                              'No Pol',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Expanded(
+                            child: Text(
                               'Satker',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
@@ -1472,6 +1639,7 @@ class _TransactionPageState extends State<TransactionPage>
                                     : null,
                               ),
                             ),
+                            DataCell(Text(_getNoPolForTransaksi(t))),
                             DataCell(Text(t.namaSatker)),
                             DataCell(
                               Text(_jenisBBMMap[t.jenisBbmId] ?? 'Unknown'),
@@ -2324,6 +2492,297 @@ class _TransactionPageState extends State<TransactionPage>
           ],
         );
       },
+    );
+  }
+}
+
+// Dialog untuk preview data sebelum export
+class _ExportPreviewDialog extends StatefulWidget {
+  final List<dynamic> transaksi;
+  final VoidCallback onConfirmExport;
+  final bool hasFilter;
+
+  const _ExportPreviewDialog({
+    required this.transaksi,
+    required this.onConfirmExport,
+    required this.hasFilter,
+  });
+
+  @override
+  State<_ExportPreviewDialog> createState() => _ExportPreviewDialogState();
+}
+
+class _ExportPreviewDialogState extends State<_ExportPreviewDialog> {
+  final Map<int, String> _noPolCache = {};
+  bool _isLoadingNoPol = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNoPolData();
+  }
+
+  Future<void> _loadNoPolData() async {
+    final dashboardProvider = Provider.of<DashboardProvider>(
+      context,
+      listen: false,
+    );
+    final kendaraanRepo = getIt<KendaraanRepository>();
+
+    // Load no pol for all kupons in the transaction list
+    for (final t in widget.transaksi) {
+      final matchingKupons = dashboardProvider.kuponList.where(
+        (k) => k.kuponId == t.kuponId,
+      );
+
+      if (matchingKupons.isNotEmpty) {
+        final kupon = matchingKupons.first;
+        if (kupon.kendaraanId != null &&
+            !_noPolCache.containsKey(kupon.kuponId)) {
+          try {
+            final kendaraan = await kendaraanRepo.getKendaraanById(
+              kupon.kendaraanId!,
+            );
+            if (kendaraan != null) {
+              setState(() {
+                _noPolCache[kupon.kuponId] =
+                    '${kendaraan.noPolNomor}-${kendaraan.noPolKode}';
+              });
+            }
+          } catch (e) {
+            setState(() {
+              _noPolCache[kupon.kuponId] = 'N/A';
+            });
+          }
+        }
+      }
+    }
+
+    setState(() {
+      _isLoadingNoPol = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dashboardProvider = Provider.of<DashboardProvider>(
+      context,
+      listen: false,
+    );
+
+    // Map jenis BBM untuk tampilan
+    final Map<int, String> jenisBBMMap = {1: 'Pertamax', 2: 'Pertamina Dex'};
+    final Map<int, String> jenisKuponMap = {1: 'RANJEN', 2: 'DUKUNGAN'};
+
+    return Dialog(
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.8,
+        height: MediaQuery.of(context).size.height * 0.8,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Preview Export Transaksi',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.hasFilter
+                          ? 'Data yang akan di-export (dengan filter): ${widget.transaksi.length} transaksi'
+                          : 'Data yang akan di-export (semua): ${widget.transaksi.length} transaksi',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            const Divider(),
+            const SizedBox(height: 16),
+
+            // Info Filter
+            if (widget.hasFilter)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue[700]),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Data telah difilter sesuai dengan filter yang aktif',
+                        style: TextStyle(
+                          color: Colors.blue[900],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (widget.hasFilter) const SizedBox(height: 16),
+
+            // Table Preview
+            Expanded(
+              child: SingleChildScrollView(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    headingRowColor: MaterialStateProperty.all(
+                      Colors.grey[200],
+                    ),
+                    border: TableBorder.all(color: Colors.grey[300]!),
+                    columns: const [
+                      DataColumn(
+                        label: Text(
+                          'No',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Tanggal',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Nomor Kupon',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'No Pol',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Jenis BBM',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Jenis Kupon',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Jumlah (L)',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Sisa Kuota',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                    rows: widget.transaksi.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final t = entry.value;
+
+                      // Find corresponding kupon
+                      final matchingKupons = dashboardProvider.kuponList.where(
+                        (k) => k.kuponId == t.kuponId,
+                      );
+
+                      String noPol = 'N/A';
+                      String jenisKupon = 'N/A';
+                      double kuotaSisa = 0.0;
+
+                      if (matchingKupons.isNotEmpty) {
+                        final kupon = matchingKupons.first;
+                        jenisKupon =
+                            jenisKuponMap[kupon.jenisKuponId] ?? 'Unknown';
+                        kuotaSisa = kupon.kuotaSisa;
+
+                        // Get nopol from cache
+                        noPol =
+                            _noPolCache[kupon.kuponId] ??
+                            (_isLoadingNoPol ? 'Loading...' : 'N/A');
+                      }
+
+                      return DataRow(
+                        color: MaterialStateProperty.all(
+                          index % 2 == 0 ? Colors.white : Colors.grey[50],
+                        ),
+                        cells: [
+                          DataCell(Text('${index + 1}')),
+                          DataCell(Text(t.tanggalTransaksi ?? 'N/A')),
+                          DataCell(Text(t.nomorKupon ?? 'N/A')),
+                          DataCell(Text(noPol)),
+                          DataCell(
+                            Text(jenisBBMMap[t.jenisBbmId] ?? 'Unknown'),
+                          ),
+                          DataCell(Text(jenisKupon)),
+                          DataCell(Text(t.jumlahLiter.toString())),
+                          DataCell(Text(kuotaSisa.toStringAsFixed(2))),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 16),
+
+            // Action Buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Batal'),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    widget.onConfirmExport();
+                  },
+                  icon: const Icon(Icons.download),
+                  label: const Text('Export ke Excel'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

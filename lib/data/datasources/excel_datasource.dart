@@ -62,15 +62,23 @@ class ExcelDatasource {
     String filePath,
     List<KuponModel> existingKupons,
   ) async {
+    print('========================================');
+    print('MEMULAI PROSES IMPORT EXCEL');
+    print('========================================');
+    print('File Path: $filePath');
+    
     // Validasi file sebelum parsing
     final file = File(filePath);
 
     // Cek apakah file ada
     if (!file.existsSync()) {
+      print('ERROR: File tidak ditemukan!');
       throw Exception(
         'FILE TIDAK DITEMUKAN!\n\nFile "$filePath" tidak ada atau sudah dipindah.',
       );
     }
+    
+    print('✓ File ditemukan');
 
     // Cek ukuran file (max 50MB untuk safety)
     final fileSize = file.lengthSync();
@@ -85,18 +93,31 @@ class ExcelDatasource {
 
     // Cek ekstensi file
     final extension = filePath.toLowerCase();
+    final fileExt = extension.split('.').last;
+    
+    print('DEBUG: File path: $filePath');
+    print('DEBUG: File extension: $fileExt');
+    
     if (!extension.endsWith('.xlsx') && !extension.endsWith('.xls')) {
       throw Exception(
         'FORMAT FILE SALAH!\n\n'
         'File harus berformat Excel (.xlsx atau .xls)\n'
-        'File Anda: ${extension.split('.').last.toUpperCase()}',
+        'File Anda: ${fileExt.toUpperCase()}\n'
+        'Path: $filePath\n\n'
+        'Solusi:\n'
+        '1. Pastikan file benar-benar file Excel\n'
+        '2. Jangan rename file dari format lain menjadi .xlsx\n'
+        '3. Buka dengan Excel dan Save As .xlsx',
       );
     }
 
     // Warning khusus untuk file .xls (format lama)
-    if (extension.endsWith('.xls')) {
+    if (extension.endsWith('.xls') && !extension.endsWith('.xlsx')) {
       print(
-        'WARNING: File format .xls detected. Recommend converting to .xlsx for better compatibility.',
+        'WARNING: Old Excel format (.xls) detected. Recommend converting to .xlsx for better compatibility.',
+      );
+      print(
+        'RECOMMENDATION: Open file in Excel, then Save As > Excel Workbook (.xlsx)',
       );
     }
 
@@ -104,42 +125,125 @@ class ExcelDatasource {
     late final Excel excel;
 
     try {
+      print('Membaca bytes dari file...');
       bytes = File(filePath).readAsBytesSync();
+      print('✓ Berhasil membaca ${bytes.length} bytes');
     } catch (e) {
+      print('ERROR: Gagal membaca file - ${e.toString()}');
       throw Exception(
-        'GAGAL MEMBACA FILE!\n\nError: ${e.toString()}\n\nPastikan file tidak sedang dibuka di aplikasi lain.',
+        'GAGAL MEMBACA FILE!\n\n'
+        'Error: ${e.toString()}\n\n'
+        'Kemungkinan penyebab:\n'
+        '- File sedang dibuka di aplikasi lain (Excel, dll)\n'
+        '- Tidak ada izin akses ke file\n'
+        '- File sudah dipindah atau dihapus\n\n'
+        'Solusi:\n'
+        '1. Tutup semua aplikasi yang membuka file ini\n'
+        '2. Pastikan file tidak read-only\n'
+        '3. Coba pilih file lagi',
       );
     }
 
     try {
-      excel = Excel.decodeBytes(bytes);
+      // Coba decode dengan berbagai cara
+      print('Decoding Excel file...');
+      try {
+        excel = Excel.decodeBytes(bytes);
+        print('✓ Berhasil decode Excel file');
+      } catch (decodeError) {
+        // Jika decode gagal, coba baca ulang file
+        print('WARNING: Decode pertama gagal, mencoba ulang...');
+        print('Error detail: ${decodeError.toString()}');
+        
+        // Check jika error adalah custom numFmtId
+        if (decodeError.toString().contains('numFmtId')) {
+          print('DETECTED: Custom Number Format error - numFmtId');
+          // Throw error dengan instruksi spesifik
+          throw Exception(
+            'FILE EXCEL MEMILIKI CUSTOM NUMBER FORMAT!\n\n'
+            'Error: ${decodeError.toString()}\n\n'
+            'File Excel Anda menggunakan custom number format yang tidak didukung.\n\n'
+            '🔧 SOLUSI CEPAT:\n'
+            '1. Buka file Excel Anda\n'
+            '2. Pilih SEMUA data (Ctrl+A)\n'
+            '3. Klik kanan > Format Cells\n'
+            '4. Pilih Category: "General" atau "Number"\n'
+            '5. Klik OK\n'
+            '6. Save file (Ctrl+S)\n'
+            '7. Coba import ulang\n\n'
+            '📋 ATAU gunakan cara ini:\n'
+            '1. Pilih semua data (Ctrl+A)\n'
+            '2. Copy (Ctrl+C)\n'
+            '3. Buat workbook baru\n'
+            '4. Paste Special > Values Only\n'
+            '5. Save As .xlsx\n'
+            '6. Import file baru tersebut',
+          );
+        }
+        
+        final retryBytes = await File(filePath).readAsBytes();
+        excel = Excel.decodeBytes(retryBytes);
+        print('✓ Berhasil decode pada percobaan kedua');
+      }
     } catch (e) {
       final errorMsg = e.toString().toLowerCase();
+      
+      print('ERROR DETAIL: ${e.toString()}');
+      print('ERROR TYPE: ${e.runtimeType}');
 
-      if (errorMsg.contains('numfmtid') || errorMsg.contains('format')) {
+      if (errorMsg.contains('numfmtid') || errorMsg.contains('numfmt') || errorMsg.contains('format')) {
         throw Exception(
-          'FORMAT EXCEL TIDAK KOMPATIBEL!\n\n'
-          'Solusi:\n'
+          'FILE EXCEL MEMILIKI CUSTOM NUMBER FORMAT!\n\n'
+          'Error: ${e.toString()}\n\n'
+          'File Excel Anda menggunakan custom number format yang tidak didukung oleh sistem.\n\n'
+          '🔧 SOLUSI PALING MUDAH (Copy-Paste Values):\n'
           '1. Buka file Excel Anda\n'
-          '2. Pilih File > Save As\n'
-          '3. Pilih format "Excel Workbook (.xlsx)"\n'
-          '4. Pastikan tidak ada formatting khusus (conditional formatting, custom number formats)\n'
-          '5. Coba import ulang\n\n'
-          'Atau gunakan template yang disediakan aplikasi.',
+          '2. Pilih SEMUA data (Ctrl+A)\n'
+          '3. Copy (Ctrl+C)\n'
+          '4. Paste Special (Ctrl+Alt+V atau klik kanan > Paste Special)\n'
+          '5. Pilih "Values" atau "Values Only"\n'
+          '6. Klik OK\n'
+          '7. Save file (Ctrl+S)\n'
+          '8. Coba import ulang\n\n'
+          '🔧 ATAU Reset Format Cells:\n'
+          '1. Pilih semua data (Ctrl+A)\n'
+          '2. Klik kanan > Format Cells\n'
+          '3. Tab "Number"\n'
+          '4. Category: Pilih "General"\n'
+          '5. Klik OK\n'
+          '6. Save file\n'
+          '7. Coba import ulang\n\n'
+          '💡 TIP: Jika cara di atas tidak berhasil:\n'
+          '- Copy semua data\n'
+          '- Buat Excel baru (blank workbook)\n'
+          '- Paste Special > Values Only\n'
+          '- Save As .xlsx dengan nama baru\n'
+          '- Import file baru tersebut',
         );
       } else if (errorMsg.contains('password') ||
           errorMsg.contains('encrypted')) {
         throw Exception(
           'FILE EXCEL TERPROTEKSI!\n\n'
           'File Excel ini memiliki password atau enkripsi.\n'
-          'Silakan hapus proteksi terlebih dahulu sebelum import.',
+          'Silakan hapus proteksi terlebih dahulu sebelum import.\n\n'
+          'Error detail: ${e.toString()}',
         );
       } else if (errorMsg.contains('corrupted') ||
-          errorMsg.contains('invalid')) {
+          errorMsg.contains('invalid') ||
+          errorMsg.contains('zip')) {
         throw Exception(
-          'FILE EXCEL RUSAK!\n\n'
-          'File Excel tidak dapat dibaca. Kemungkinan file rusak.\n'
-          'Silakan gunakan file backup atau buat ulang file Excel.',
+          'FILE EXCEL TIDAK VALID!\n\n'
+          'Kemungkinan penyebab:\n'
+          '- File Excel rusak atau corrupt\n'
+          '- File bukan format .xlsx yang valid\n'
+          '- File di-rename dari format lain ke .xlsx\n\n'
+          'Solusi:\n'
+          '1. Buka file dengan Microsoft Excel atau LibreOffice\n'
+          '2. Jika file terbuka normal, pilih "Save As"\n'
+          '3. Pilih format "Excel Workbook (.xlsx)"\n'
+          '4. Save dengan nama baru\n'
+          '5. Coba import file yang baru\n\n'
+          'Error detail: ${e.toString()}',
         );
       } else if (errorMsg.contains('version') ||
           errorMsg.contains('unsupported')) {
@@ -149,18 +253,22 @@ class ExcelDatasource {
           '1. Buka file dengan Excel/LibreOffice terbaru\n'
           '2. Save As dengan format .xlsx (Excel 2007+)\n'
           '3. Hindari format .xls (Excel 97-2003)\n'
-          '4. Coba import ulang',
+          '4. Coba import ulang\n\n'
+          'Error detail: ${e.toString()}',
         );
       } else {
         throw Exception(
           'GAGAL MEMBACA FILE EXCEL!\n\n'
-          'Error: ${e.toString()}\n\n'
+          'Error: ${e.toString()}\n'
+          'Tipe Error: ${e.runtimeType}\n\n'
           'Solusi umum:\n'
-          '1. Pastikan file berformat .xlsx\n'
+          '1. Pastikan file berformat .xlsx (bukan .xls)\n'
           '2. Tutup file Excel jika sedang terbuka\n'
           '3. Periksa ukuran file (max 50MB)\n'
-          '4. Gunakan template yang disediakan\n'
-          '5. Coba save ulang dengan Excel/LibreOffice terbaru',
+          '4. Coba buka file di Excel, lalu Save As dengan nama baru\n'
+          '5. Hapus semua formatting dan formula kompleks\n'
+          '6. Gunakan template yang disediakan aplikasi\n\n'
+          'Jika masalah berlanjut, kirimkan screenshot error ini.',
         );
       }
     }

@@ -19,24 +19,80 @@ class _ImportPageState extends State<ImportPage> {
 
   Future<void> _pickFile(EnhancedImportProvider provider) async {
     try {
+      print('Opening file picker...');
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['xlsx', 'xls'],
+        dialogTitle: 'Pilih File Excel (.xlsx atau .xls)',
+        allowMultiple: false,
       );
 
       if (result != null) {
         final file = result.files.first;
+        
+        print('File selected: ${file.name}');
+        print('File path: ${file.path}');
+        print('File size: ${file.size} bytes');
+        print('File extension: ${file.extension}');
+        
+        // Validasi ekstensi file
+        final extension = file.extension?.toLowerCase();
+        if (extension != 'xlsx' && extension != 'xls') {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'File harus berformat Excel (.xlsx atau .xls).\n'
+                  'File Anda: .${extension ?? "unknown"}',
+                ),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 5),
+              ),
+            );
+          }
+          return;
+        }
+        
+        // Validasi ukuran file (max 50MB)
+        if (file.size > 50 * 1024 * 1024) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'File terlalu besar!\n'
+                  'Ukuran: ${(file.size / 1024 / 1024).toStringAsFixed(1)} MB\n'
+                  'Maksimum: 50 MB',
+                ),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 5),
+              ),
+            );
+          }
+          return;
+        }
+        
         setState(() {
           _selectedFileName = file.name;
           _importCompleted = false; // Reset import completed flag
         });
         provider.setFilePath(file.path!);
+        
+        print('✓ File berhasil dipilih dan divalidasi');
+      } else {
+        print('File picker dibatalkan oleh user');
       }
     } catch (e) {
+      print('ERROR saat memilih file: ${e.toString()}');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error memilih file: $e')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text('Error memilih file: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
       }
     }
   }
