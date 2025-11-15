@@ -79,7 +79,8 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   Future<TransaksiEntity?> getTransaksiById(int transaksiId) async {
     try {
       final db = await dbHelper.database;
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT
           fp.purchasing_key as transaksi_id,
           fp.kupon_key as kupon_id,
@@ -99,7 +100,9 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         LEFT JOIN dim_date dd ON fp.date_key = dd.date_key
         LEFT JOIN dim_satker s ON fp.satker_key = s.satker_id
         WHERE fp.purchasing_key = ?
-      ''', [transaksiId]);
+      ''',
+        [transaksiId],
+      );
 
       if (result.isEmpty) {
         return null;
@@ -122,20 +125,28 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         // 1) Ensure dim_kupon exists and get kupon_key. If dim_kupon table doesn't exist (older DB), fall back to fact_kupon.
         int? kuponKey;
         try {
-          final kuponRow = await txn.query('dim_kupon',
-              where: 'nomor_kupon = ?', whereArgs: [t.nomorKupon], limit: 1);
+          final kuponRow = await txn.query(
+            'dim_kupon',
+            where: 'nomor_kupon = ?',
+            whereArgs: [t.nomorKupon],
+            limit: 1,
+          );
           if (kuponRow.isNotEmpty) {
             kuponKey = kuponRow.first['kupon_key'] as int;
           } else {
             kuponKey = await txn.insert('dim_kupon', {
               'nomor_kupon': t.nomorKupon,
-              'status': 'Aktif'
+              'status': 'Aktif',
             });
           }
         } catch (_) {
           // dim_kupon not present: try legacy fact_kupon
-          final legacy = await txn.query('fact_kupon',
-              where: 'nomor_kupon = ?', whereArgs: [t.nomorKupon], limit: 1);
+          final legacy = await txn.query(
+            'fact_kupon',
+            where: 'nomor_kupon = ?',
+            whereArgs: [t.nomorKupon],
+            limit: 1,
+          );
           if (legacy.isNotEmpty) {
             kuponKey = legacy.first['kupon_id'] as int;
           } else {
@@ -147,8 +158,12 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         final dateValue = t.tanggalTransaksi.split('T').first;
         int? dateKey;
         try {
-          final dateRow = await txn.query('dim_date',
-              where: 'date_value = ?', whereArgs: [dateValue], limit: 1);
+          final dateRow = await txn.query(
+            'dim_date',
+            where: 'date_value = ?',
+            whereArgs: [dateValue],
+            limit: 1,
+          );
           if (dateRow.isNotEmpty) {
             dateKey = dateRow.first['date_key'] as int;
           } else {
@@ -174,7 +189,8 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
 
         // 4) Insert into fact_purchasing if table exists, otherwise fallback to legacy fact_transaksi
         final tableCheck = await txn.rawQuery(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='fact_purchasing' LIMIT 1;");
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='fact_purchasing' LIMIT 1;",
+        );
         if (tableCheck.isNotEmpty) {
           await txn.insert('fact_purchasing', {
             'kupon_key': kuponKey,
@@ -187,25 +203,31 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           });
 
           // 5) Update legacy fact_kupon kuota_sisa if present (backward compatibility)
-          await txn.rawUpdate('''
+          await txn.rawUpdate(
+            '''
             UPDATE fact_kupon
             SET kuota_sisa = kuota_sisa - ?,
                 updated_at = DATETIME('now', 'localtime')
             WHERE nomor_kupon = ?
-          ''', [transaksi.jumlahLiter, t.nomorKupon]);
+          ''',
+            [transaksi.jumlahLiter, t.nomorKupon],
+          );
         } else {
           // Fallback: older DB layout — insert into fact_transaksi for compatibility
           final map = t.toMap();
           map.remove('transaksi_id');
-            await txn.insert('fact_transaksi', map);
+          await txn.insert('fact_transaksi', map);
 
           // Update legacy kuota using kupon_id if available
-          await txn.rawUpdate('''
+          await txn.rawUpdate(
+            '''
             UPDATE fact_kupon
             SET kuota_sisa = kuota_sisa - ?,
                 updated_at = DATETIME('now', 'localtime')
             WHERE kupon_id = ?
-          ''', [transaksi.jumlahLiter, transaksi.kuponId]);
+          ''',
+            [transaksi.jumlahLiter, transaksi.kuponId],
+          );
         }
       });
     } catch (e) {
