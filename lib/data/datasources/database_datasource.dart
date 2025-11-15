@@ -133,7 +133,7 @@ class DatabaseDatasource {
           if (oldVersion < 4) {
             // Make kendaraan_id nullable to support DUKUNGAN kupon
             print('DEBUG: Making kendaraan_id nullable in fact_kupon');
-            
+
             // Create new table with nullable kendaraan_id
             await db.execute('''
               CREATE TABLE fact_kupon_new (
@@ -162,20 +162,20 @@ class DatabaseDatasource {
                   ON DELETE RESTRICT ON UPDATE CASCADE
               );
             ''');
-            
+
             // Copy data from old table
             await db.execute('''
               INSERT INTO fact_kupon_new
               SELECT * FROM fact_kupon;
             ''');
-            
+
             // Drop old table and rename
             await db.execute('DROP TABLE fact_kupon');
-            await db.execute(
-              'ALTER TABLE fact_kupon_new RENAME TO fact_kupon',
+            await db.execute('ALTER TABLE fact_kupon_new RENAME TO fact_kupon');
+
+            print(
+              'DEBUG: fact_kupon table migrated with nullable kendaraan_id',
             );
-            
-            print('DEBUG: fact_kupon table migrated with nullable kendaraan_id');
           }
 
           if (oldVersion < 5) {
@@ -433,11 +433,11 @@ class DatabaseDatasource {
       // Seed sample dim_satker for star schema
       await txn.insert('dim_satker', {
         'nama_satker': 'Pusat Logistik A',
-        'kode_satker': 'SAT-001'
+        'kode_satker': 'SAT-001',
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
       await txn.insert('dim_satker', {
         'nama_satker': 'Satuan Operasi B',
-        'kode_satker': 'SAT-002'
+        'kode_satker': 'SAT-002',
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
       // Seed sample dim_kendaraan
@@ -446,14 +446,14 @@ class DatabaseDatasource {
         'jenis_ranmor': 'Truk',
         'no_pol_kode': 'B',
         'no_pol_nomor': '1234',
-        'status_aktif': 1
+        'status_aktif': 1,
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
       await txn.insert('dim_kendaraan', {
         'satker_id': 2,
         'jenis_ranmor': 'Mobil',
         'no_pol_kode': 'D',
         'no_pol_nomor': '5678',
-        'status_aktif': 1
+        'status_aktif': 1,
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
       // Seed sample dim_kupon (new dimension)
@@ -466,7 +466,7 @@ class DatabaseDatasource {
         'jenis_bbm_code': '1',
         'jenis_kupon_code': '1',
         'kendaraan_code': 'KV-001',
-        'status': 'Aktif'
+        'status': 'Aktif',
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
       await txn.insert('dim_kupon', {
         'nomor_kupon': 'KP-0002',
@@ -477,7 +477,7 @@ class DatabaseDatasource {
         'jenis_bbm_code': '2',
         'jenis_kupon_code': '2',
         'kendaraan_code': 'KV-002',
-        'status': 'Aktif'
+        'status': 'Aktif',
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
       // Seed sample dim_date
@@ -487,7 +487,7 @@ class DatabaseDatasource {
         'month': 1,
         'day': 15,
         'week_of_year': 3,
-        'quarter': 1
+        'quarter': 1,
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
       await txn.insert('dim_date', {
         'date_value': '2025-02-10',
@@ -495,42 +495,11 @@ class DatabaseDatasource {
         'month': 2,
         'day': 10,
         'week_of_year': 6,
-        'quarter': 1
+        'quarter': 1,
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
-      // Seed sample facts for star schema: fact_purchasing and fact_kupon_snapshot
-      // Note: we assume the dim inserts created keys starting at 1; adjust if needed when migrating real data
-      await txn.insert('fact_purchasing', {
-        'kupon_key': 1,
-        'kendaraan_key': 1,
-        'satker_key': 1,
-        'jenis_bbm_key': 1,
-        'jenis_kupon_key': 1,
-        'date_key': 1,
-        'jumlah_diambil': 150.0
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      await txn.insert('fact_purchasing', {
-        'kupon_key': 2,
-        'kendaraan_key': 2,
-        'satker_key': 2,
-        'jenis_bbm_key': 2,
-        'jenis_kupon_key': 2,
-        'date_key': 2,
-        'jumlah_diambil': 75.5
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-
-      await txn.insert('fact_kupon_snapshot', {
-        'kupon_key': 1,
-        'date_key': 1,
-        'kuota_awal': 1000.0,
-        'kuota_sisa': 850.0
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      await txn.insert('fact_kupon_snapshot', {
-        'kupon_key': 2,
-        'date_key': 2,
-        'kuota_awal': 2000.0,
-        'kuota_sisa': 1924.5
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      // Note: fact_purchasing and fact_kupon_snapshot will be populated through actual transactions
+      // No dummy data needed - tables start empty
     });
     print('DEBUG: _seedMasterData finished');
   }
@@ -538,10 +507,10 @@ class DatabaseDatasource {
   // PERBAIKAN: Cek duplikat sebelum insert
   Future<void> insertKupons(List<KuponModel> kupons) async {
     final db = await database;
-    
+
     int insertedCount = 0;
     int skippedCount = 0;
-    
+
     // Ambil mapping satker dari master
     final satkerRows = await db.query('dim_satker');
     final satkerMap = <String, int>{};
@@ -562,14 +531,14 @@ class DatabaseDatasource {
         final namaSatker = (namaSatkerRaw.trim().isEmpty)
             ? 'CADANGAN'
             : namaSatkerRaw
-                .trim()
-                .replaceAll(RegExp(r'\s+'), ' ')
-                .replaceAll(RegExp(r'[\x00-\x1F\x7F]'), '')
-                .toUpperCase();
-        
+                  .trim()
+                  .replaceAll(RegExp(r'\s+'), ' ')
+                  .replaceAll(RegExp(r'[\x00-\x1F\x7F]'), '')
+                  .toUpperCase();
+
         // Cari di map dengan normalisasi yang sama
         int? satkerId = satkerMap[namaSatker];
-        
+
         if (satkerId == null) {
           // Gunakan normalisasi yang sama saat mencari di database
           final existing = await db.query(
@@ -581,9 +550,13 @@ class DatabaseDatasource {
             satkerId = existing.first['satker_id'] as int;
             satkerMap[namaSatker] = satkerId;
           } else {
-            satkerId = await db.insert('dim_satker', {'nama_satker': namaSatker});
+            satkerId = await db.insert('dim_satker', {
+              'nama_satker': namaSatker,
+            });
             satkerMap[namaSatker] = satkerId;
-            print('INFO: Satker baru ditambahkan: "$namaSatker" dengan id $satkerId');
+            print(
+              'INFO: Satker baru ditambahkan: "$namaSatker" dengan id $satkerId',
+            );
           }
         }
 
@@ -637,7 +610,7 @@ class DatabaseDatasource {
 
         final jenisBbmId = k.jenisBbmId;
         final jenisKuponId = k.jenisKuponId;
-        
+
         // Insert kupon
         final insertedId = await db.insert('fact_kupon', {
           'nomor_kupon': k.nomorKupon,
@@ -657,31 +630,37 @@ class DatabaseDatasource {
           'updated_at': k.updatedAt,
           'is_deleted': k.isDeleted,
         });
-        
+
         if (insertedId > 0) {
           insertedCount++;
         }
       } catch (e) {
         if (e.toString().contains('UNIQUE constraint failed')) {
           skippedCount++;
-          print('SKIP: Kupon ${k.nomorKupon} melanggar constraint unik (duplikat)');
+          print(
+            'SKIP: Kupon ${k.nomorKupon} melanggar constraint unik (duplikat)',
+          );
         } else {
-          print('ERROR: Failed to insert kupon ${k.nomorKupon}: ${e.toString()}');
+          print(
+            'ERROR: Failed to insert kupon ${k.nomorKupon}: ${e.toString()}',
+          );
           rethrow;
         }
       }
     }
-    
-    print('DEBUG: InsertKupons completed - Inserted: $insertedCount, Skipped: $skippedCount, Total attempted: ${kupons.length}');
+
+    print(
+      'DEBUG: InsertKupons completed - Inserted: $insertedCount, Skipped: $skippedCount, Total attempted: ${kupons.length}',
+    );
   }
 
   // Metode insertKendaraans tanpa batch processing
   Future<void> insertKendaraans(List<KendaraanModel> kendaraans) async {
     final db = await database;
-    
+
     int insertedCount = 0;
     int skippedCount = 0;
-    
+
     // Insert satu per satu
     for (final k in kendaraans) {
       try {
@@ -693,7 +672,7 @@ class DatabaseDatasource {
           'status_aktif': k.statusAktif,
           'created_at': k.createdAt,
         }, conflictAlgorithm: ConflictAlgorithm.ignore);
-        
+
         if (insertedId > 0) {
           insertedCount++;
         } else {
@@ -702,15 +681,21 @@ class DatabaseDatasource {
       } catch (e) {
         if (e.toString().contains('UNIQUE constraint failed')) {
           skippedCount++;
-          print('SKIP: Kendaraan ${k.noPolKode} ${k.noPolNomor} sudah ada (duplikat)');
+          print(
+            'SKIP: Kendaraan ${k.noPolKode} ${k.noPolNomor} sudah ada (duplikat)',
+          );
         } else {
-          print('ERROR: Failed to insert kendaraan ${k.noPolKode} ${k.noPolNomor}: ${e.toString()}');
+          print(
+            'ERROR: Failed to insert kendaraan ${k.noPolKode} ${k.noPolNomor}: ${e.toString()}',
+          );
           rethrow;
         }
       }
     }
-    
-    print('DEBUG: InsertKendaraans completed - Inserted: $insertedCount, Skipped: $skippedCount, Total attempted: ${kendaraans.length}');
+
+    print(
+      'DEBUG: InsertKendaraans completed - Inserted: $insertedCount, Skipped: $skippedCount, Total attempted: ${kendaraans.length}',
+    );
   }
 
   Future<void> close() async {

@@ -43,6 +43,11 @@ class _DashboardPageState extends State<DashboardPage>
 
   bool _firstLoad = true;
 
+  // Pagination
+  int _currentPageRanjen = 1;
+  int _currentPageDukungan = 1;
+  final int _itemsPerPage = 20;
+
   @override
   void initState() {
     super.initState();
@@ -153,6 +158,9 @@ class _DashboardPageState extends State<DashboardPage>
           _buildRanjenFilterSection(context),
           const SizedBox(height: 16),
           Expanded(child: _buildRanjenTable(context)),
+          const SizedBox(height: 8),
+          _buildPaginationControls(context, true),
+          const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerRight,
             child: ElevatedButton.icon(
@@ -176,6 +184,9 @@ class _DashboardPageState extends State<DashboardPage>
           _buildDukunganFilterSection(context),
           const SizedBox(height: 16),
           Expanded(child: _buildDukunganTable(context)),
+          const SizedBox(height: 8),
+          _buildPaginationControls(context, false),
+          const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerRight,
             child: ElevatedButton.icon(
@@ -991,8 +1002,8 @@ class _DashboardPageState extends State<DashboardPage>
   Widget _buildRanjenTable(BuildContext context) {
     return Consumer<DashboardProvider>(
       builder: (context, provider, _) {
-        final kupons = provider.ranjenKupons;
-        if (kupons.isEmpty) {
+        final allKupons = provider.ranjenKupons;
+        if (allKupons.isEmpty) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(32.0),
@@ -1004,26 +1015,40 @@ class _DashboardPageState extends State<DashboardPage>
           );
         }
 
-        // PERBAIKAN: Tambahkan vertical scroll dan horizontal scroll
-        return SingleChildScrollView(
-          scrollDirection: Axis.vertical,
+        // Pagination logic
+        final totalItems = allKupons.length;
+        final totalPages = (totalItems / _itemsPerPage).ceil();
+        if (_currentPageRanjen > totalPages) _currentPageRanjen = totalPages;
+        if (_currentPageRanjen < 1) _currentPageRanjen = 1;
+        
+        final startIndex = (_currentPageRanjen - 1) * _itemsPerPage;
+        final endIndex = (startIndex + _itemsPerPage).clamp(0, totalItems);
+        final kupons = allKupons.sublist(startIndex, endIndex);
+
+        // PERBAIKAN: Vertical scroll untuk baris, horizontal scroll untuk kolom lebar
+        return Card(
+          elevation: 2,
           child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
+            scrollDirection: Axis.vertical,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columnSpacing: 24,
+                headingRowColor: WidgetStateProperty.all(Colors.blue.shade50),
               columns: const [
-                DataColumn(label: Text('No')),
-                DataColumn(label: Text('No Kupon')),
-                DataColumn(label: Text('Satker')),
-                DataColumn(label: Text('Jenis BBM')),
-                DataColumn(label: Text('NoPol')),
-                DataColumn(label: Text('Jenis Ranmor')),
-                DataColumn(label: Text('Bulan/Tahun')),
-                DataColumn(label: Text('Kuota Sisa')),
-                DataColumn(label: Text('Status')),
-                DataColumn(label: Text('Aksi')),
+                DataColumn(label: Text('No', style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(label: Text('No Kupon', style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(label: Text('Satker', style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(label: Text('Jenis BBM', style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(label: Text('NoPol', style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(label: Text('Jenis Ranmor', style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(label: Text('Bulan/Tahun', style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(label: Text('Kuota Sisa', style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(label: Text('Aksi', style: TextStyle(fontWeight: FontWeight.bold))),
               ],
               rows: kupons.asMap().entries.map((entry) {
-                final i = entry.key + 1;
+                final i = startIndex + entry.key + 1;
                 final k = entry.value;
                 return DataRow(
                   cells: [
@@ -1067,6 +1092,7 @@ class _DashboardPageState extends State<DashboardPage>
                   ],
                 );
               }).toList(),
+              ),
             ),
           ),
         );
@@ -1078,8 +1104,8 @@ class _DashboardPageState extends State<DashboardPage>
   Widget _buildDukunganTable(BuildContext context) {
     return Consumer<DashboardProvider>(
       builder: (context, provider, _) {
-        final kupons = provider.dukunganKupons;
-        if (kupons.isEmpty) {
+        final allKupons = provider.dukunganKupons;
+        if (allKupons.isEmpty) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(32.0),
@@ -1091,12 +1117,26 @@ class _DashboardPageState extends State<DashboardPage>
           );
         }
 
-        // PERBAIKAN: Tambahkan vertical scroll, gunakan kolom yang sama seperti RANJEN untuk konsistensi
-        return SingleChildScrollView(
-          scrollDirection: Axis.vertical,
+        // Pagination logic
+        final totalItems = allKupons.length;
+        final totalPages = (totalItems / _itemsPerPage).ceil();
+        if (_currentPageDukungan > totalPages) _currentPageDukungan = totalPages;
+        if (_currentPageDukungan < 1) _currentPageDukungan = 1;
+        
+        final startIndex = (_currentPageDukungan - 1) * _itemsPerPage;
+        final endIndex = (startIndex + _itemsPerPage).clamp(0, totalItems);
+        final kupons = allKupons.sublist(startIndex, endIndex);
+
+        // PERBAIKAN: Vertical scroll untuk baris, horizontal scroll untuk kolom lebar
+        return Card(
+          elevation: 2,
           child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
+            scrollDirection: Axis.vertical,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columnSpacing: 24,
+                headingRowColor: WidgetStateProperty.all(Colors.green.shade50),
               columns: const [
                 DataColumn(label: Text('No')),
                 DataColumn(label: Text('No Kupon')),
@@ -1158,6 +1198,121 @@ class _DashboardPageState extends State<DashboardPage>
                   ],
                 );
               }).toList(),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPaginationControls(BuildContext context, bool isRanjen) {
+    return Consumer<DashboardProvider>(
+      builder: (context, provider, _) {
+        final totalItems = isRanjen 
+            ? provider.ranjenKupons.length 
+            : provider.dukunganKupons.length;
+        final currentPage = isRanjen ? _currentPageRanjen : _currentPageDukungan;
+        final totalPages = (totalItems / _itemsPerPage).ceil();
+        
+        if (totalItems == 0) return const SizedBox.shrink();
+
+        final startItem = (currentPage - 1) * _itemsPerPage + 1;
+        final endItem = (currentPage * _itemsPerPage).clamp(0, totalItems);
+
+        return Card(
+          elevation: 1,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Menampilkan $startItem - $endItem dari $totalItems data',
+                  style: const TextStyle(fontSize: 14),
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.first_page),
+                      onPressed: currentPage > 1
+                          ? () {
+                              setState(() {
+                                if (isRanjen) {
+                                  _currentPageRanjen = 1;
+                                } else {
+                                  _currentPageDukungan = 1;
+                                }
+                              });
+                            }
+                          : null,
+                      tooltip: 'Halaman Pertama',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left),
+                      onPressed: currentPage > 1
+                          ? () {
+                              setState(() {
+                                if (isRanjen) {
+                                  _currentPageRanjen--;
+                                } else {
+                                  _currentPageDukungan--;
+                                }
+                              });
+                            }
+                          : null,
+                      tooltip: 'Halaman Sebelumnya',
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Halaman $currentPage dari $totalPages',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right),
+                      onPressed: currentPage < totalPages
+                          ? () {
+                              setState(() {
+                                if (isRanjen) {
+                                  _currentPageRanjen++;
+                                } else {
+                                  _currentPageDukungan++;
+                                }
+                              });
+                            }
+                          : null,
+                      tooltip: 'Halaman Berikutnya',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.last_page),
+                      onPressed: currentPage < totalPages
+                          ? () {
+                              setState(() {
+                                if (isRanjen) {
+                                  _currentPageRanjen = totalPages;
+                                } else {
+                                  _currentPageDukungan = totalPages;
+                                }
+                              });
+                            }
+                          : null,
+                      tooltip: 'Halaman Terakhir',
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         );
