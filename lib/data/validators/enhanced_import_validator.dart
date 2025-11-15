@@ -73,28 +73,32 @@ class EnhancedImportValidator {
     );
   }
 
-  // Validasi duplikasi internal dalam file
   static ValidationResult validateInternalDuplicates(List<KuponModel> kupons) {
     final errors = <String>[];
     final warnings = <String>[];
     final seen = <String>{};
-    final duplicates = <String, int>{};
+    final duplicates = <String, int>{}; // Changed from <String, dynamic> to <String, int>
 
     for (final kupon in kupons) {
       final key =
-          '${kupon.nomorKupon}_${kupon.bulanTerbit}_${kupon.tahunTerbit}_${kupon.jenisKuponId}';
+          '${kupon.nomorKupon}_${kupon.jenisBbmId}_${kupon.jenisKuponId}_${kupon.satkerId}_${kupon.bulanTerbit}_${kupon.tahunTerbit}';
 
       if (seen.contains(key)) {
         duplicates[key] = (duplicates[key] ?? 1) + 1;
       } else {
         seen.add(key);
+        duplicates[key] = 1;
       }
     }
 
-    if (duplicates.isNotEmpty) {
+    // Now .entries works correctly on the Map
+    final actualDuplicates =
+        duplicates.entries.where((e) => e.value > 1).toList();
+
+    if (actualDuplicates.isNotEmpty) {
       errors.add('Ditemukan duplikat dalam file Excel:');
-      duplicates.forEach((key, count) {
-        errors.add('• $key: $count kali');
+      actualDuplicates.forEach((entry) {
+        errors.add('• ${entry.key}: ${entry.value} kali');
       });
     }
 
@@ -102,7 +106,7 @@ class EnhancedImportValidator {
       isValid: errors.isEmpty,
       errors: errors,
       warnings: warnings,
-      metadata: {'duplicates': duplicates},
+      metadata: {'duplicate_keys': duplicates},
     );
   }
 

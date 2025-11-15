@@ -183,176 +183,177 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Widget _buildFilterSection() {
     return Card(
-      child: Container(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Filter',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Row(
+      child: ExpansionTile(
+        title: const Text('Filter'),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  flex: 2,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey),
-                            borderRadius: BorderRadius.circular(4),
+                const SizedBox(height: 0),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              child: DropdownButton<int>(
+                                isExpanded: true,
+                                value: _selectedBulan,
+                                hint: const Text('Pilih Bulan'),
+                                underline: Container(),
+                                items: _bulanList.map((bulan) {
+                                  return DropdownMenuItem<int>(
+                                    value: bulan,
+                                    child: Text(_getBulanName(bulan)),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedBulan = value;
+                                  });
+                                  if (value != null) {
+                                    Provider.of<TransaksiProvider>(
+                                      context,
+                                      listen: false,
+                                    ).setBulan(value);
+                                    Provider.of<TransaksiProvider>(
+                                      context,
+                                      listen: false,
+                                    ).fetchTransaksiFiltered();
+                                  }
+                                },
+                              ),
+                            ),
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: DropdownButton<int>(
-                            isExpanded: true,
-                            value: _selectedBulan,
-                            hint: const Text('Pilih Bulan'),
-                            underline: Container(),
-                            items: _bulanList.map((bulan) {
-                              return DropdownMenuItem<int>(
-                                value: bulan,
-                                child: Text(_getBulanName(bulan)),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedBulan = value;
-                              });
-                              if (value != null) {
-                                Provider.of<TransaksiProvider>(
-                                  context,
-                                  listen: false,
-                                ).setBulan(value);
-                                Provider.of<TransaksiProvider>(
-                                  context,
-                                  listen: false,
-                                ).fetchTransaksiFiltered();
-                              }
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              child: DropdownButton<int>(
+                                isExpanded: true,
+                                value: _selectedTahun,
+                                hint: const Text('Pilih Tahun'),
+                                underline: Container(),
+                                items: _tahunList.map((tahun) {
+                                  return DropdownMenuItem<int>(
+                                    value: tahun,
+                                    child: Text(tahun.toString()),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedTahun = value;
+                                  });
+                                  if (value != null) {
+                                    Provider.of<TransaksiProvider>(
+                                      context,
+                                      listen: false,
+                                    ).setTahun(value);
+                                    Provider.of<TransaksiProvider>(
+                                      context,
+                                      listen: false,
+                                    ).fetchTransaksiFiltered();
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 3,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              // TODO: Implement search
                             },
+                            icon: const Icon(Icons.search),
+                            label: const Text('Search'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Theme.of(context).primaryColor,
+                              foregroundColor: Colors.white,
+                            ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: DropdownButton<int>(
-                            isExpanded: true,
-                            value: _selectedTahun,
-                            hint: const Text('Pilih Tahun'),
-                            underline: Container(),
-                            items: _tahunList.map((tahun) {
-                              return DropdownMenuItem<int>(
-                                value: tahun,
-                                child: Text(tahun.toString()),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: () {
                               setState(() {
-                                _selectedTahun = value;
+                                _selectedBulan = null;
+                                _selectedTahun = null;
                               });
-                              if (value != null) {
-                                Provider.of<TransaksiProvider>(
-                                  context,
-                                  listen: false,
-                                ).setTahun(value);
-                                Provider.of<TransaksiProvider>(
-                                  context,
-                                  listen: false,
-                                ).fetchTransaksiFiltered();
-                              }
+                              Provider.of<TransaksiProvider>(
+                                context,
+                                listen: false,
+                              ).resetFilter();
+                              Provider.of<TransaksiProvider>(
+                                context,
+                                listen: false,
+                              ).fetchTransaksiFiltered();
+                              Provider.of<DashboardProvider>(
+                                context,
+                                listen: false,
+                              ).fetchKupons();
                             },
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Reset'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey[300],
+                              foregroundColor: Colors.black87,
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _selectedBulan = null;
+                                _selectedTahun = null;
+                              });
+                              Provider.of<TransaksiProvider>(
+                                context,
+                                listen: false,
+                              ).resetFilter();
+                              Provider.of<TransaksiProvider>(
+                                context,
+                                listen: false,
+                              ).fetchTransaksiFiltered();
+                              Provider.of<TransaksiProvider>(
+                                context,
+                                listen: false,
+                              ).fetchKuponMinus();
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Reset'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey[300],
+                              foregroundColor: Colors.black87,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  flex: 3,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          // TODO: Implement search
-                        },
-                        icon: const Icon(Icons.search),
-                        label: const Text('Search'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            _selectedBulan = null;
-                            _selectedTahun = null;
-                          });
-                          Provider.of<TransaksiProvider>(
-                            context,
-                            listen: false,
-                          ).resetFilter();
-                          Provider.of<TransaksiProvider>(
-                            context,
-                            listen: false,
-                          ).fetchTransaksiFiltered();
-                          Provider.of<DashboardProvider>(
-                            context,
-                            listen: false,
-                          ).fetchKupons();
-                        },
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Reset'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey[300],
-                          foregroundColor: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            _selectedBulan = null;
-                            _selectedTahun = null;
-                          });
-                          Provider.of<TransaksiProvider>(
-                            context,
-                            listen: false,
-                          ).resetFilter();
-                          Provider.of<TransaksiProvider>(
-                            context,
-                            listen: false,
-                          ).fetchTransaksiFiltered();
-                          Provider.of<TransaksiProvider>(
-                            context,
-                            listen: false,
-                          ).fetchKuponMinus();
-                        },
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Reset'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey[300],
-                          foregroundColor: Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
+          )
+        ],
       ),
     );
   }
@@ -375,47 +376,50 @@ class _DashboardPageState extends State<DashboardPage> {
         }
 
         return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columns: const [
-              DataColumn(label: Text('Tanggal')),
-              DataColumn(label: Text('Nomor Kupon')),
-              DataColumn(label: Text('Jenis BBM')),
-              DataColumn(label: Text('Jumlah (L)')),
-              DataColumn(label: Text('Status')),
-            ],
-            rows: transaksi
-                .map(
-                  (t) => DataRow(
-                    cells: [
-                      DataCell(Text(t.tanggalTransaksi)),
-                      DataCell(Text(t.nomorKupon)),
-                      DataCell(
-                        Text(t.jenisBbm == '1' ? 'Pertamax' : 'Pertamina Dex'),
-                      ),
-                      DataCell(Text(t.jumlahDiambil.toString())),
-                      DataCell(
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: t.status == 'completed'
-                                ? Colors.green
-                                : Colors.blue,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            t.status == 'completed' ? 'Selesai' : 'Proses',
-                            style: const TextStyle(color: Colors.white),
+          scrollDirection: Axis.vertical,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columns: const [
+                DataColumn(label: Text('Tanggal')),
+                DataColumn(label: Text('Nomor Kupon')),
+                DataColumn(label: Text('Jenis BBM')),
+                DataColumn(label: Text('Jumlah (L)')),
+                DataColumn(label: Text('Status')),
+              ],
+              rows: transaksi
+                  .map(
+                    (t) => DataRow(
+                      cells: [
+                        DataCell(Text(t.tanggalTransaksi)),
+                        DataCell(Text(t.nomorKupon)),
+                        DataCell(
+                          Text(t.jenisBbm == '1' ? 'Pertamax' : 'Pertamina Dex'),
+                        ),
+                        DataCell(Text(t.jumlahDiambil.toString())),
+                        DataCell(
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: t.status == 'completed'
+                                  ? Colors.green
+                                  : Colors.blue,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              t.status == 'completed' ? 'Selesai' : 'Proses',
+                              style: const TextStyle(color: Colors.white),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                )
-                .toList(),
+                      ],
+                    ),
+                  )
+                  .toList(),
+            ),
           ),
         );
       },
@@ -439,52 +443,55 @@ class _DashboardPageState extends State<DashboardPage> {
         }
 
         return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columns: const [
-              DataColumn(label: Text('No.')),
-              DataColumn(label: Text('NoPol')),
-              DataColumn(label: Text('Satker')),
-              DataColumn(label: Text('Jenis BBM')),
-              DataColumn(label: Text('Jumlah Minus')),
-              DataColumn(label: Text('Status')),
-            ],
-            rows: minusData.asMap().entries.map((entry) {
-              final i = entry.key + 1;
-              final m = entry.value;
-              return DataRow(
-                cells: [
-                  DataCell(Text(i.toString())),
-                  DataCell(
-                    Text(_getNopolByKendaraanId(m['kendaraan_id'] as int)),
-                  ),
-                  DataCell(Text(m['nama_satker'] as String)),
-                  DataCell(
-                    Text(
-                      _jenisBBMMap[m['jenis_bbm_id'] as int] ??
-                          (m['jenis_bbm_id'] as int).toString(),
+          scrollDirection: Axis.vertical,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columns: const [
+                DataColumn(label: Text('No.')),
+                DataColumn(label: Text('NoPol')),
+                DataColumn(label: Text('Satker')),
+                DataColumn(label: Text('Jenis BBM')),
+                DataColumn(label: Text('Jumlah Minus')),
+                DataColumn(label: Text('Status')),
+              ],
+              rows: minusData.asMap().entries.map((entry) {
+                final i = entry.key + 1;
+                final m = entry.value;
+                return DataRow(
+                  cells: [
+                    DataCell(Text(i.toString())),
+                    DataCell(
+                      Text(_getNopolByKendaraanId(m['kendaraan_id'] as int)),
                     ),
-                  ),
-                  DataCell(Text((m['minus_amount'] as int).toString())),
-                  DataCell(
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        'Minus',
-                        style: TextStyle(color: Colors.white),
+                    DataCell(Text(m['nama_satker'] as String)),
+                    DataCell(
+                      Text(
+                        _jenisBBMMap[m['jenis_bbm_id'] as int] ??
+                            (m['jenis_bbm_id'] as int).toString(),
                       ),
                     ),
-                  ),
-                ],
-              );
-            }).toList(),
+                    DataCell(Text((m['minus_amount'] as int).toString())),
+                    DataCell(
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'Minus',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
           ),
         );
       },
@@ -565,7 +572,7 @@ class _DashboardPageState extends State<DashboardPage> {
             const SizedBox(height: 16),
             // Transaction Table Section
             SizedBox(
-              height: 400,
+              height: 450,
               child: Card(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -601,10 +608,10 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             // Minus Table
             SizedBox(
-              height: 300,
+              height: 350,
               child: Card(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,

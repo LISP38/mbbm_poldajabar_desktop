@@ -211,22 +211,23 @@ class DatabaseDatasource {
     // CREATE TABLE dulu, baru INSERT default data
     batch.execute('''
       CREATE TABLE IF NOT EXISTS dim_satker (
-        satker_id INTEGER PRIMARY KEY,
-        nama_satker TEXT NOT NULL
+        satker_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nama_satker TEXT NOT NULL,
+        kode_satker TEXT
       );
     ''');
     // Note: Satker data will be populated in _seedMasterData
 
     batch.execute('''
       CREATE TABLE IF NOT EXISTS dim_jenis_bbm (
-        jenis_bbm_id INTEGER PRIMARY KEY,
+        jenis_bbm_id INTEGER PRIMARY KEY AUTOINCREMENT,
         nama_jenis_bbm TEXT NOT NULL
       );
     ''');
 
     batch.execute('''
       CREATE TABLE IF NOT EXISTS dim_jenis_kupon (
-        jenis_kupon_id INTEGER PRIMARY KEY,
+        jenis_kupon_id INTEGER PRIMARY KEY AUTOINCREMENT,
         nama_jenis_kupon TEXT NOT NULL
       );
     ''');
@@ -234,19 +235,18 @@ class DatabaseDatasource {
     batch.execute('''
       CREATE TABLE IF NOT EXISTS dim_kendaraan (
         kendaraan_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        satker_id INTEGER NOT NULL,
-        jenis_ranmor TEXT NOT NULL,
-        no_pol_kode TEXT NOT NULL,
-        no_pol_nomor TEXT NOT NULL,
+        satker_id INTEGER, -- denormalized attribute, not enforced as FK
+        jenis_ranmor TEXT,
+        no_pol_kode TEXT,
+        no_pol_nomor TEXT,
         status_aktif INTEGER DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(no_pol_kode, no_pol_nomor),
-        FOREIGN KEY (satker_id) REFERENCES dim_satker(satker_id) 
-          ON DELETE RESTRICT ON UPDATE CASCADE
+        UNIQUE(no_pol_kode, no_pol_nomor)
       );
     ''');
 
     // ---- Fact tables ----
+    // Legacy fact_kupon retained for compatibility. Recommend migrating to dim_kupon + fact_kupon_snapshot.
     batch.execute('''
       CREATE TABLE IF NOT EXISTS fact_kupon (
         kupon_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -265,16 +265,11 @@ class DatabaseDatasource {
         status TEXT DEFAULT 'Aktif',
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        is_deleted INTEGER DEFAULT 0,
-        FOREIGN KEY (kendaraan_id) REFERENCES dim_kendaraan(kendaraan_id)
-          ON DELETE CASCADE ON UPDATE CASCADE,
-        FOREIGN KEY (jenis_bbm_id) REFERENCES dim_jenis_bbm(jenis_bbm_id),
-        FOREIGN KEY (jenis_kupon_id) REFERENCES dim_jenis_kupon(jenis_kupon_id),
-        FOREIGN KEY (satker_id) REFERENCES dim_satker(satker_id)
-          ON DELETE RESTRICT ON UPDATE CASCADE
+        is_deleted INTEGER DEFAULT 0
       );
     ''');
 
+    // Legacy fact_transaksi retained. New star-schema fact_purchasing will be created below.
     batch.execute('''
       CREATE TABLE IF NOT EXISTS fact_transaksi (
         transaksi_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -287,8 +282,58 @@ class DatabaseDatasource {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         is_deleted INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'Aktif',
-        FOREIGN KEY (kupon_id) REFERENCES fact_kupon(kupon_id) ON DELETE CASCADE
+        status TEXT DEFAULT 'Aktif'
+      );
+    ''');
+
+    // ---- Star schema additions (dimensions + facts following true star schema) ----
+    batch.execute('''
+      CREATE TABLE IF NOT EXISTS dim_kupon (
+        kupon_key INTEGER PRIMARY KEY AUTOINCREMENT,
+        nomor_kupon TEXT NOT NULL,
+        bulan_terbit INTEGER,
+        tahun_terbit INTEGER,
+        tanggal_mulai TEXT,
+        tanggal_sampai TEXT,
+        jenis_bbm_code TEXT,
+        jenis_kupon_code TEXT,
+        kendaraan_code TEXT,
+        status TEXT
+      );
+    ''');
+
+    batch.execute('''
+      CREATE TABLE IF NOT EXISTS dim_date (
+        date_key INTEGER PRIMARY KEY AUTOINCREMENT,
+        date_value TEXT NOT NULL,
+        year INTEGER,
+        month INTEGER,
+        day INTEGER,
+        week_of_year INTEGER,
+        quarter INTEGER
+      );
+    ''');
+
+    batch.execute('''
+      CREATE TABLE IF NOT EXISTS fact_purchasing (
+        purchasing_key INTEGER PRIMARY KEY AUTOINCREMENT,
+        kupon_key INTEGER,
+        kendaraan_key INTEGER,
+        satker_key INTEGER,
+        jenis_bbm_key INTEGER,
+        jenis_kupon_key INTEGER,
+        date_key INTEGER,
+        jumlah_diambil REAL DEFAULT 0
+      );
+    ''');
+
+    batch.execute('''
+      CREATE TABLE IF NOT EXISTS fact_kupon_snapshot (
+        snapshot_key INTEGER PRIMARY KEY AUTOINCREMENT,
+        kupon_key INTEGER,
+        date_key INTEGER,
+        kuota_awal REAL,
+        kuota_sisa REAL
       );
     ''');
 
@@ -385,6 +430,107 @@ class DatabaseDatasource {
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
       // dim_satker: now fully dynamic, no hardcoded list
+      // Seed sample dim_satker for star schema
+      await txn.insert('dim_satker', {
+        'nama_satker': 'Pusat Logistik A',
+        'kode_satker': 'SAT-001'
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      await txn.insert('dim_satker', {
+        'nama_satker': 'Satuan Operasi B',
+        'kode_satker': 'SAT-002'
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+      // Seed sample dim_kendaraan
+      await txn.insert('dim_kendaraan', {
+        'satker_id': 1,
+        'jenis_ranmor': 'Truk',
+        'no_pol_kode': 'B',
+        'no_pol_nomor': '1234',
+        'status_aktif': 1
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      await txn.insert('dim_kendaraan', {
+        'satker_id': 2,
+        'jenis_ranmor': 'Mobil',
+        'no_pol_kode': 'D',
+        'no_pol_nomor': '5678',
+        'status_aktif': 1
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+      // Seed sample dim_kupon (new dimension)
+      await txn.insert('dim_kupon', {
+        'nomor_kupon': 'KP-0001',
+        'bulan_terbit': 1,
+        'tahun_terbit': 2025,
+        'tanggal_mulai': '2025-01-01',
+        'tanggal_sampai': '2025-01-31',
+        'jenis_bbm_code': '1',
+        'jenis_kupon_code': '1',
+        'kendaraan_code': 'KV-001',
+        'status': 'Aktif'
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      await txn.insert('dim_kupon', {
+        'nomor_kupon': 'KP-0002',
+        'bulan_terbit': 2,
+        'tahun_terbit': 2025,
+        'tanggal_mulai': '2025-02-01',
+        'tanggal_sampai': '2025-02-28',
+        'jenis_bbm_code': '2',
+        'jenis_kupon_code': '2',
+        'kendaraan_code': 'KV-002',
+        'status': 'Aktif'
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+      // Seed sample dim_date
+      await txn.insert('dim_date', {
+        'date_value': '2025-01-15',
+        'year': 2025,
+        'month': 1,
+        'day': 15,
+        'week_of_year': 3,
+        'quarter': 1
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      await txn.insert('dim_date', {
+        'date_value': '2025-02-10',
+        'year': 2025,
+        'month': 2,
+        'day': 10,
+        'week_of_year': 6,
+        'quarter': 1
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+      // Seed sample facts for star schema: fact_purchasing and fact_kupon_snapshot
+      // Note: we assume the dim inserts created keys starting at 1; adjust if needed when migrating real data
+      await txn.insert('fact_purchasing', {
+        'kupon_key': 1,
+        'kendaraan_key': 1,
+        'satker_key': 1,
+        'jenis_bbm_key': 1,
+        'jenis_kupon_key': 1,
+        'date_key': 1,
+        'jumlah_diambil': 150.0
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      await txn.insert('fact_purchasing', {
+        'kupon_key': 2,
+        'kendaraan_key': 2,
+        'satker_key': 2,
+        'jenis_bbm_key': 2,
+        'jenis_kupon_key': 2,
+        'date_key': 2,
+        'jumlah_diambil': 75.5
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+      await txn.insert('fact_kupon_snapshot', {
+        'kupon_key': 1,
+        'date_key': 1,
+        'kuota_awal': 1000.0,
+        'kuota_sisa': 850.0
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      await txn.insert('fact_kupon_snapshot', {
+        'kupon_key': 2,
+        'date_key': 2,
+        'kuota_awal': 2000.0,
+        'kuota_sisa': 1924.5
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
     });
     print('DEBUG: _seedMasterData finished');
   }

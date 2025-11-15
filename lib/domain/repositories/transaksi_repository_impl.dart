@@ -2,7 +2,7 @@ import 'package:kupon_bbm_app/data/datasources/database_datasource.dart';
 import 'package:kupon_bbm_app/data/models/transaksi_model.dart';
 import 'package:kupon_bbm_app/domain/entities/transaksi_entity.dart';
 import 'package:kupon_bbm_app/domain/repositories/transaksi_repository.dart';
-import 'package:sqflite/sqflite.dart';
+// sqflite import not required here; Database access via DatabaseDatasource
 
 class TransaksiRepositoryImpl implements TransaksiRepository {
   final DatabaseDatasource dbHelper;
@@ -18,75 +18,55 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
     try {
       final db = await dbHelper.database;
 
-      String where = 't.is_deleted = ?';
-      List<dynamic> whereArgs = [isDeleted ?? 0];
+      // Filtering by month/year can be implemented by joining dim_date if needed
 
-      if (bulan != null) {
-        where += ' AND strftime("%m", t.tanggal_transaksi) = ?';
-        whereArgs.add(bulan.toString().padLeft(2, '0'));
-      }
-      if (tahun != null) {
-        where += ' AND strftime("%Y", t.tanggal_transaksi) = ?';
-        whereArgs.add(tahun.toString());
-      }
-
-      // First, check total transaksi without JOIN to see raw count
-      final totalTransaksi = await db.rawQuery('''
-        SELECT COUNT(*) as total FROM fact_transaksi WHERE is_deleted = 0
-      ''');
-      print(
-        'DEBUG REPO: Total transaksi di database (tanpa JOIN): ${totalTransaksi.first['total']}',
-      );
-
-      final result = await db.rawQuery('''
-        SELECT 
-          t.*,
-          k.satker_id,
-          k.jenis_kupon_id,
-          k.bulan_terbit,
-          k.tahun_terbit,
-          k.kuota_awal,
-          k.kuota_sisa,
-          k.status as status_kupon,
-          k.created_at as kupon_created_at,
-          k.updated_at as kupon_updated_at
-        FROM fact_transaksi t
-        LEFT JOIN fact_kupon k ON t.kupon_id = k.kupon_id
-        WHERE $where
-        ORDER BY t.tanggal_transaksi DESC, t.created_at DESC
-      ''', whereArgs);
-
-      print('DEBUG REPO: getAllTransaksi() - WHERE clause: $where');
-      print('DEBUG REPO: getAllTransaksi() - WHERE args: $whereArgs');
-      print(
-        'DEBUG REPO: getAllTransaksi() - Query result count (after JOIN): ${result.length}',
-      );
-
-      // Debug: show sample of filtered out records
-      if (totalTransaksi.first['total'] != result.length) {
-        print(
-          'WARNING: ${(totalTransaksi.first['total'] as int) - result.length} transaksi difilter karena JOIN condition!',
-        );
-
-        // Check which transaksi are being filtered
-        final allTransaksi = await db.rawQuery('''
-          SELECT t.transaksi_id, t.kupon_id, k.kupon_id as joined_kupon_id, k.is_deleted as kupon_is_deleted
+      // Prefer new star-schema fact_purchasing and dim_kupon; alias fields to match TransaksiModel.fromMap
+      List<Map<String, dynamic>> result;
+      try {
+        result = await db.rawQuery('''
+          SELECT
+            fp.purchasing_key as transaksi_id,
+            fp.kupon_key as kupon_id,
+            d.nomor_kupon as kupon_nomor,
+            s.nama_satker as kupon_satker,
+            fp.jenis_bbm_key as jenis_bbm_id,
+            dd.date_value as tanggal_transaksi,
+            fp.jumlah_diambil as jumlah_liter,
+            COALESCE(fp_created.created_at, dd.date_value) as created_at,
+            COALESCE(fp_created.updated_at, dd.date_value) as updated_at,
+            0 as is_deleted,
+            '' as status,
+            d.tanggal_mulai as kupon_created_at,
+            d.tanggal_sampai as kupon_expired_at
+          FROM fact_purchasing fp
+          LEFT JOIN dim_kupon d ON fp.kupon_key = d.kupon_key
+          LEFT JOIN dim_date dd ON fp.date_key = dd.date_key
+          LEFT JOIN dim_satker s ON fp.satker_key = s.satker_id
+          LEFT JOIN (
+            SELECT purchasing_key, NULL as created_at, NULL as updated_at FROM fact_purchasing
+          ) fp_created ON fp_created.purchasing_key = fp.purchasing_key
+          WHERE 1=1
+          ORDER BY dd.date_value DESC
+        ''');
+      } catch (e) {
+        // Fallback to legacy tables if new star-schema tables are not available
+        result = await db.rawQuery('''
+          SELECT 
+            t.*,
+            k.satker_id,
+            k.jenis_kupon_id,
+            k.bulan_terbit,
+            k.tahun_terbit,
+            k.kuota_awal,
+            k.kuota_sisa,
+            k.status as status_kupon,
+            k.created_at as kupon_created_at,
+            k.updated_at as kupon_updated_at
           FROM fact_transaksi t
           LEFT JOIN fact_kupon k ON t.kupon_id = k.kupon_id
-          WHERE t.is_deleted = 0
+          WHERE t.is_deleted = 0 AND k.is_deleted = 0
+          ORDER BY t.tanggal_transaksi DESC, t.created_at DESC
         ''');
-
-        print('DEBUG: Checking all transaksi:');
-        for (var t in allTransaksi) {
-          final included = result.any(
-            (r) => r['transaksi_id'] == t['transaksi_id'],
-          );
-          if (!included) {
-            print(
-              '  FILTERED OUT - transaksi_id: ${t['transaksi_id']}, kupon_id: ${t['kupon_id']}, joined_kupon: ${t['joined_kupon_id']}, kupon_is_deleted: ${t['kupon_is_deleted']}',
-            );
-          }
-        }
       }
 
       return result.map((map) => TransaksiModel.fromMap(map)).toList();
@@ -99,25 +79,27 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   Future<TransaksiEntity?> getTransaksiById(int transaksiId) async {
     try {
       final db = await dbHelper.database;
-      final result = await db.rawQuery(
-        '''
-        SELECT 
-          t.*,
-          k.satker_id,
-          k.jenis_kupon_id,
-          k.bulan_terbit,
-          k.tahun_terbit,
-          k.kuota_awal,
-          k.kuota_sisa,
-          k.status as status_kupon,
-          k.created_at as kupon_created_at,
-          k.updated_at as kupon_updated_at
-        FROM fact_transaksi t
-        LEFT JOIN fact_kupon k ON t.kupon_id = k.kupon_id
-        WHERE t.transaksi_id = ? AND t.is_deleted = 0
-      ''',
-        [transaksiId],
-      );
+      final result = await db.rawQuery('''
+        SELECT
+          fp.purchasing_key as transaksi_id,
+          fp.kupon_key as kupon_id,
+          d.nomor_kupon as kupon_nomor,
+          s.nama_satker as kupon_satker,
+          fp.jenis_bbm_key as jenis_bbm_id,
+          dd.date_value as tanggal_transaksi,
+          fp.jumlah_diambil as jumlah_liter,
+          dd.date_value as created_at,
+          dd.date_value as updated_at,
+          0 as is_deleted,
+          '' as status,
+          d.tanggal_mulai as kupon_created_at,
+          d.tanggal_sampai as kupon_expired_at
+        FROM fact_purchasing fp
+        LEFT JOIN dim_kupon d ON fp.kupon_key = d.kupon_key
+        LEFT JOIN dim_date dd ON fp.date_key = dd.date_key
+        LEFT JOIN dim_satker s ON fp.satker_key = s.satker_id
+        WHERE fp.purchasing_key = ?
+      ''', [transaksiId]);
 
       if (result.isEmpty) {
         return null;
@@ -133,30 +115,98 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   Future<void> insertTransaksi(TransaksiEntity transaksi) async {
     try {
       final db = await dbHelper.database;
-
-      final transaksiMap = (transaksi as TransaksiModel).toMap();
-      print('DEBUG INSERT: Inserting transaksi with data: $transaksiMap');
-
       await db.transaction((txn) async {
-        // Insert transaksi (auto-increment ID, jangan replace)
-        final insertedId = await txn.insert(
-          'fact_transaksi',
-          transaksiMap,
-          conflictAlgorithm: ConflictAlgorithm.abort,
-        );
+        // Map incoming transaksi into star-schema keys
+        final t = transaksi as TransaksiModel;
 
-        print('DEBUG INSERT: Inserted transaksi with ID: $insertedId');
+        // 1) Ensure dim_kupon exists and get kupon_key. If dim_kupon table doesn't exist (older DB), fall back to fact_kupon.
+        int? kuponKey;
+        try {
+          final kuponRow = await txn.query('dim_kupon',
+              where: 'nomor_kupon = ?', whereArgs: [t.nomorKupon], limit: 1);
+          if (kuponRow.isNotEmpty) {
+            kuponKey = kuponRow.first['kupon_key'] as int;
+          } else {
+            kuponKey = await txn.insert('dim_kupon', {
+              'nomor_kupon': t.nomorKupon,
+              'status': 'Aktif'
+            });
+          }
+        } catch (_) {
+          // dim_kupon not present: try legacy fact_kupon
+          final legacy = await txn.query('fact_kupon',
+              where: 'nomor_kupon = ?', whereArgs: [t.nomorKupon], limit: 1);
+          if (legacy.isNotEmpty) {
+            kuponKey = legacy.first['kupon_id'] as int;
+          } else {
+            kuponKey = null;
+          }
+        }
 
-        // Update kuota_sisa in fact_kupon
-        await txn.rawUpdate(
-          '''
-          UPDATE fact_kupon 
-          SET kuota_sisa = kuota_sisa - ?,
-              updated_at = DATETIME('now', 'localtime')
-          WHERE kupon_id = ?
-        ''',
-          [transaksi.jumlahLiter, transaksi.kuponId],
-        );
+        // 2) Ensure dim_date exists and get date_key (store only date part). Fallback to null if dim_date missing.
+        final dateValue = t.tanggalTransaksi.split('T').first;
+        int? dateKey;
+        try {
+          final dateRow = await txn.query('dim_date',
+              where: 'date_value = ?', whereArgs: [dateValue], limit: 1);
+          if (dateRow.isNotEmpty) {
+            dateKey = dateRow.first['date_key'] as int;
+          } else {
+            final dt = DateTime.parse(t.tanggalTransaksi);
+            dateKey = await txn.insert('dim_date', {
+              'date_value': dateValue,
+              'year': dt.year,
+              'month': dt.month,
+              'day': dt.day,
+              'week_of_year': ((dt.day - 1) / 7).floor() + 1,
+              'quarter': ((dt.month - 1) / 3).floor() + 1,
+            });
+          }
+        } catch (_) {
+          dateKey = null;
+        }
+
+        // 3) Determine other keys: kendaraan_key, satker_key, jenis_bbm_key, jenis_kupon_key
+        final kendaraanKey = transaksi.kuponId == 0 ? null : transaksi.kuponId;
+        final satkerKey = null; // caller could provide satker mapping elsewhere
+        final jenisBbmKey = transaksi.jenisBbmId;
+        final jenisKuponKey = null;
+
+        // 4) Insert into fact_purchasing if table exists, otherwise fallback to legacy fact_transaksi
+        final tableCheck = await txn.rawQuery(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='fact_purchasing' LIMIT 1;");
+        if (tableCheck.isNotEmpty) {
+          await txn.insert('fact_purchasing', {
+            'kupon_key': kuponKey,
+            'kendaraan_key': kendaraanKey,
+            'satker_key': satkerKey,
+            'jenis_bbm_key': jenisBbmKey,
+            'jenis_kupon_key': jenisKuponKey,
+            'date_key': dateKey,
+            'jumlah_diambil': transaksi.jumlahLiter,
+          });
+
+          // 5) Update legacy fact_kupon kuota_sisa if present (backward compatibility)
+          await txn.rawUpdate('''
+            UPDATE fact_kupon
+            SET kuota_sisa = kuota_sisa - ?,
+                updated_at = DATETIME('now', 'localtime')
+            WHERE nomor_kupon = ?
+          ''', [transaksi.jumlahLiter, t.nomorKupon]);
+        } else {
+          // Fallback: older DB layout — insert into fact_transaksi for compatibility
+          final map = t.toMap();
+          map.remove('transaksi_id');
+            await txn.insert('fact_transaksi', map);
+
+          // Update legacy kuota using kupon_id if available
+          await txn.rawUpdate('''
+            UPDATE fact_kupon
+            SET kuota_sisa = kuota_sisa - ?,
+                updated_at = DATETIME('now', 'localtime')
+            WHERE kupon_id = ?
+          ''', [transaksi.jumlahLiter, transaksi.kuponId]);
+        }
       });
     } catch (e) {
       throw Exception('Failed to insert transaksi: $e');
@@ -301,11 +351,11 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         LEFT JOIN dim_satker s ON k.satker_id = s.satker_id
         LEFT JOIN dim_jenis_kupon jk ON k.jenis_kupon_id = jk.jenis_kupon_id
         LEFT JOIN (
-          SELECT kupon_id, SUM(jumlah_liter) as total_liter
-          FROM fact_transaksi
-          WHERE is_deleted = 0
-          GROUP BY kupon_id
-        ) t ON k.kupon_id = t.kupon_id
+          SELECT d.nomor_kupon as nomor, SUM(fp.jumlah_diambil) as total_liter
+          FROM fact_purchasing fp
+          LEFT JOIN dim_kupon d ON fp.kupon_key = d.kupon_key
+          GROUP BY d.nomor_kupon
+        ) t ON k.nomor_kupon = t.nomor
         WHERE k.kuota_sisa < 0 AND k.is_deleted = 0
       ''');
 
