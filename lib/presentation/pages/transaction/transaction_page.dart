@@ -372,6 +372,8 @@ class _TransactionPageState extends State<TransactionPage> {
         listen: false,
       ).fetchTransaksiFiltered();
       Provider.of<TransaksiProvider>(context, listen: false).fetchKuponMinus();
+      // Fetch kupon list untuk dropdown (ambil semua kupon: Ranjen + Dukungan)
+      Provider.of<DashboardProvider>(context, listen: false).fetchKupons();
     });
   }
 

@@ -27,26 +27,23 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           SELECT
             fp.purchasing_key as transaksi_id,
             fp.kupon_key as kupon_id,
-            d.nomor_kupon as kupon_nomor,
-            s.nama_satker as kupon_satker,
+            COALESCE(d.nomor_kupon, 'UNKNOWN') as kupon_nomor,
+            COALESCE(s.nama_satker, 'UNKNOWN') as kupon_satker,
             fp.jenis_bbm_key as jenis_bbm_id,
-            dd.date_value as tanggal_transaksi,
+            COALESCE(dd.date_value, date('now')) as tanggal_transaksi,
             fp.jumlah_diambil as jumlah_liter,
-            COALESCE(fp_created.created_at, dd.date_value) as created_at,
-            COALESCE(fp_created.updated_at, dd.date_value) as updated_at,
+            COALESCE(dd.date_value, date('now')) as created_at,
+            COALESCE(dd.date_value, date('now')) as updated_at,
             0 as is_deleted,
             '' as status,
-            d.tanggal_mulai as kupon_created_at,
-            d.tanggal_sampai as kupon_expired_at
+            COALESCE(d.tanggal_mulai, date('now')) as kupon_created_at,
+            COALESCE(d.tanggal_sampai, date('now')) as kupon_expired_at
           FROM fact_purchasing fp
           LEFT JOIN dim_kupon d ON fp.kupon_key = d.kupon_key
           LEFT JOIN dim_date dd ON fp.date_key = dd.date_key
           LEFT JOIN dim_satker s ON fp.satker_key = s.satker_id
-          LEFT JOIN (
-            SELECT purchasing_key, NULL as created_at, NULL as updated_at FROM fact_purchasing
-          ) fp_created ON fp_created.purchasing_key = fp.purchasing_key
           WHERE 1=1
-          ORDER BY dd.date_value DESC
+          ORDER BY COALESCE(dd.date_value, date('now')) DESC
         ''');
       } catch (e) {
         // Fallback to legacy tables if new star-schema tables are not available
@@ -84,20 +81,21 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         SELECT
           fp.purchasing_key as transaksi_id,
           fp.kupon_key as kupon_id,
-          d.nomor_kupon as kupon_nomor,
-          s.nama_satker as kupon_satker,
+          COALESCE(d.nomor_kupon, 'UNKNOWN') as kupon_nomor,
+          COALESCE(s.nama_satker, 'UNKNOWN') as kupon_satker,
           fp.jenis_bbm_key as jenis_bbm_id,
-          dd.date_value as tanggal_transaksi,
+          COALESCE(dd.date_value, date('now')) as tanggal_transaksi,
           fp.jumlah_diambil as jumlah_liter,
-          dd.date_value as created_at,
-          dd.date_value as updated_at,
+          COALESCE(dd.date_value, date('now')) as created_at,
+          COALESCE(dd.date_value, date('now')) as updated_at,
           0 as is_deleted,
           '' as status,
-          d.tanggal_mulai as kupon_created_at,
-          d.tanggal_sampai as kupon_expired_at
+          COALESCE(d.tanggal_mulai, date('now')) as kupon_created_at,
+          COALESCE(d.tanggal_sampai, date('now')) as kupon_expired_at
         FROM fact_purchasing fp
         LEFT JOIN dim_kupon d ON fp.kupon_key = d.kupon_key
         LEFT JOIN dim_date dd ON fp.date_key = dd.date_key
+        LEFT JOIN dim_satker s ON fp.satker_key = s.satker_id
         LEFT JOIN dim_satker s ON fp.satker_key = s.satker_id
         WHERE fp.purchasing_key = ?
       ''',
@@ -183,7 +181,29 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
 
         // 3) Determine other keys: kendaraan_key, satker_key, jenis_bbm_key, jenis_kupon_key
         final kendaraanKey = transaksi.kuponId == 0 ? null : transaksi.kuponId;
-        final satkerKey = null; // caller could provide satker mapping elsewhere
+        
+        // Get satker_key from dim_satker based on nama_satker
+        int? satkerKey;
+        try {
+          final satkerRow = await txn.query(
+            'dim_satker',
+            where: 'nama_satker = ?',
+            whereArgs: [t.namaSatker],
+            limit: 1,
+          );
+          if (satkerRow.isNotEmpty) {
+            satkerKey = satkerRow.first['satker_id'] as int;
+          } else {
+            // Create new satker if not exists
+            satkerKey = await txn.insert('dim_satker', {
+              'nama_satker': t.namaSatker,
+              'kode_satker': 'AUTO-${DateTime.now().millisecondsSinceEpoch}',
+            });
+          }
+        } catch (_) {
+          satkerKey = null;
+        }
+        
         final jenisBbmKey = transaksi.jenisBbmId;
         final jenisKuponKey = null;
 

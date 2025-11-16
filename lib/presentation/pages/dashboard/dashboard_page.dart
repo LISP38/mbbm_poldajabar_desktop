@@ -594,223 +594,225 @@ class _DashboardPageState extends State<DashboardPage>
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
-          children: [
-            Row(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _nomorKuponController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nomor Kupon',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextField(
-                    controller: _nopolController,
-                    decoration: const InputDecoration(
-                      labelText: 'NoPol',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedSatker,
-                    decoration: const InputDecoration(
-                      labelText: 'Satker',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: provider.satkerList
-                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                        .toList(),
-                    onChanged: (value) =>
-                        setState(() => _selectedSatker = value),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedJenisBBM,
-                    decoration: const InputDecoration(
-                      labelText: 'Jenis BBM',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: _jenisBBMMap.entries
-                        .map(
-                          (e) => DropdownMenuItem(
-                            value: e.key.toString(),
-                            child: Text(e.value),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) =>
-                        setState(() => _selectedJenisBBM = value),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownSearch<String>(
-                    popupProps: const PopupProps.menu(
-                      showSearchBox: true,
-                      searchFieldProps: TextFieldProps(
-                        decoration: InputDecoration(
-                          hintText: 'Cari jenis ranmor...',
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _nomorKuponController,
+                        decoration: const InputDecoration(
+                          labelText: 'Nomor Kupon',
+                          border: OutlineInputBorder(),
                         ),
                       ),
                     ),
-                    items: _kendaraanList
-                        .map((k) => k.jenisRanmor)
-                        .toSet()
-                        .toList(),
-                    dropdownDecoratorProps: const DropDownDecoratorProps(
-                      dropdownSearchDecoration: InputDecoration(
-                        labelText: 'Jenis Ranmor',
-                        border: OutlineInputBorder(),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextField(
+                        controller: _nopolController,
+                        decoration: const InputDecoration(
+                          labelText: 'NoPol',
+                          border: OutlineInputBorder(),
+                        ),
                       ),
                     ),
-                    onChanged: (value) =>
-                        setState(() => _selectedJenisRanmor = value),
-                    selectedItem: _selectedJenisRanmor,
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    value: _selectedBulan,
-                    decoration: const InputDecoration(
-                      labelText: 'Bulan',
-                      border: OutlineInputBorder(),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedSatker,
+                        decoration: const InputDecoration(
+                          labelText: 'Satker',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: provider.satkerList
+                            .map(
+                              (s) => DropdownMenuItem(value: s, child: Text(s)),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => _selectedSatker = value),
+                      ),
                     ),
-                    items: _bulanList
-                        .map(
-                          (b) => DropdownMenuItem(
-                            value: b,
-                            child: Text(b.toString()),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) =>
-                        setState(() => _selectedBulan = value),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    value: _selectedTahun,
-                    decoration: const InputDecoration(
-                      labelText: 'Tahun',
-                      border: OutlineInputBorder(),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedJenisBBM,
+                        decoration: const InputDecoration(
+                          labelText: 'Jenis BBM',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _jenisBBMMap.entries
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e.key.toString(),
+                                child: Text(e.value),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => _selectedJenisBBM = value),
+                      ),
                     ),
-                    items: _tahunList
-                        .map(
-                          (t) => DropdownMenuItem(
-                            value: t,
-                            child: Text(t.toString()),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) =>
-                        setState(() => _selectedTahun = value),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () {
-                    final provider = Provider.of<DashboardProvider>(
-                      context,
-                      listen: false,
-                    );
-                    provider.setFilter(
-                      nomorKupon: _nomorKuponController.text.isNotEmpty
-                          ? _nomorKuponController.text
-                          : null,
-                      satker: _selectedSatker,
-                      jenisBBM: _selectedJenisBBM,
-                      jenisKupon: '1', // Ranjen
-                      nopol: _nopolController.text.isNotEmpty
-                          ? _nopolController.text
-                          : null,
-                      jenisRanmor: _selectedJenisRanmor,
-                      bulanTerbit: _selectedBulan,
-                      tahunTerbit: _selectedTahun,
-                    );
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownSearch<String>(
+                        popupProps: const PopupProps.menu(
+                          showSearchBox: true,
+                          searchFieldProps: TextFieldProps(
+                            decoration: InputDecoration(
+                              hintText: 'Cari jenis ranmor...',
+                            ),
+                          ),
+                        ),
+                        items: _kendaraanList
+                            .map((k) => k.jenisRanmor)
+                            .toSet()
+                            .toList(),
+                        dropdownDecoratorProps: const DropDownDecoratorProps(
+                          dropdownSearchDecoration: InputDecoration(
+                            labelText: 'Jenis Ranmor',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        onChanged: (value) =>
+                            setState(() => _selectedJenisRanmor = value),
+                        selectedItem: _selectedJenisRanmor,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: _selectedBulan,
+                        decoration: const InputDecoration(
+                          labelText: 'Bulan',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _bulanList
+                            .map(
+                              (b) => DropdownMenuItem(
+                                value: b,
+                                child: Text(b.toString()),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => _selectedBulan = value),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: _selectedTahun,
+                        decoration: const InputDecoration(
+                          labelText: 'Tahun',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _tahunList
+                            .map(
+                              (t) => DropdownMenuItem(
+                                value: t,
+                                child: Text(t.toString()),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => _selectedTahun = value),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        final provider = Provider.of<DashboardProvider>(
+                          context,
+                          listen: false,
+                        );
+                        provider.setFilter(
+                          nomorKupon: _nomorKuponController.text.isNotEmpty
+                              ? _nomorKuponController.text
+                              : null,
+                          satker: _selectedSatker,
+                          jenisBBM: _selectedJenisBBM,
+                          jenisKupon: '1', // Ranjen
+                          nopol: _nopolController.text.isNotEmpty
+                              ? _nopolController.text
+                              : null,
+                          jenisRanmor: _selectedJenisRanmor,
+                          bulanTerbit: _selectedBulan,
+                          tahunTerbit: _selectedTahun,
+                        );
 
-                    // Show loading indicator
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Row(
-                          children: [
-                            CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
+                        // Show loading indicator
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Row(
+                              children: [
+                                CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 16),
+                                Text('Memuat data...'),
+                              ],
                             ),
-                            SizedBox(width: 16),
-                            Text('Memuat data...'),
-                          ],
-                        ),
-                        duration: Duration(seconds: 1),
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.filter_alt),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.filter_alt),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                  ),
-                  label: const Text('Filter'),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    _resetFilters();
-                    // Show loading indicator
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Row(
-                          children: [
-                            CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
+                      label: const Text('Filter'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        _resetFilters();
+                        // Show loading indicator
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Row(
+                              children: [
+                                CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 16),
+                                Text('Mereset filter...'),
+                              ],
                             ),
-                            SizedBox(width: 16),
-                            Text('Mereset filter...'),
-                          ],
-                        ),
-                        duration: Duration(seconds: 1),
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.refresh),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey,
+                        foregroundColor: Colors.white,
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.refresh),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey,
-                    foregroundColor: Colors.white,
-                  ),
-                  label: const Text('Reset Filter'),
+                      label: const Text('Reset Filter'),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
-          )
+          ),
         ],
       ),
     );
@@ -825,174 +827,176 @@ class _DashboardPageState extends State<DashboardPage>
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
-          children: [
-            Row(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _nomorKuponController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nomor Kupon',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextField(
-                    controller: _nopolController,
-                    decoration: const InputDecoration(
-                      labelText: 'NoPol',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedSatker,
-                    decoration: const InputDecoration(
-                      labelText: 'Satker',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: provider.satkerList
-                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                        .toList(),
-                    onChanged: (value) =>
-                        setState(() => _selectedSatker = value),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedJenisBBM,
-                    decoration: const InputDecoration(
-                      labelText: 'Jenis BBM',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: _jenisBBMMap.entries
-                        .map(
-                          (e) => DropdownMenuItem(
-                            value: e.key.toString(),
-                            child: Text(e.value),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) =>
-                        setState(() => _selectedJenisBBM = value),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownSearch<String>(
-                    popupProps: const PopupProps.menu(
-                      showSearchBox: true,
-                      searchFieldProps: TextFieldProps(
-                        decoration: InputDecoration(
-                          hintText: 'Cari jenis ranmor...',
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _nomorKuponController,
+                        decoration: const InputDecoration(
+                          labelText: 'Nomor Kupon',
+                          border: OutlineInputBorder(),
                         ),
                       ),
                     ),
-                    items: _kendaraanList
-                        .map((k) => k.jenisRanmor)
-                        .toSet()
-                        .toList(),
-                    dropdownDecoratorProps: const DropDownDecoratorProps(
-                      dropdownSearchDecoration: InputDecoration(
-                        labelText: 'Jenis Ranmor',
-                        border: OutlineInputBorder(),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextField(
+                        controller: _nopolController,
+                        decoration: const InputDecoration(
+                          labelText: 'NoPol',
+                          border: OutlineInputBorder(),
+                        ),
                       ),
                     ),
-                    onChanged: (value) =>
-                        setState(() => _selectedJenisRanmor = value),
-                    selectedItem: _selectedJenisRanmor,
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    value: _selectedBulan,
-                    decoration: const InputDecoration(
-                      labelText: 'Bulan',
-                      border: OutlineInputBorder(),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedSatker,
+                        decoration: const InputDecoration(
+                          labelText: 'Satker',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: provider.satkerList
+                            .map(
+                              (s) => DropdownMenuItem(value: s, child: Text(s)),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => _selectedSatker = value),
+                      ),
                     ),
-                    items: _bulanList
-                        .map(
-                          (b) => DropdownMenuItem(
-                            value: b,
-                            child: Text(b.toString()),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) =>
-                        setState(() => _selectedBulan = value),
-                  ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedJenisBBM,
+                        decoration: const InputDecoration(
+                          labelText: 'Jenis BBM',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _jenisBBMMap.entries
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e.key.toString(),
+                                child: Text(e.value),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => _selectedJenisBBM = value),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    value: _selectedTahun,
-                    decoration: const InputDecoration(
-                      labelText: 'Tahun',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: _tahunList
-                        .map(
-                          (t) => DropdownMenuItem(
-                            value: t,
-                            child: Text(t.toString()),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownSearch<String>(
+                        popupProps: const PopupProps.menu(
+                          showSearchBox: true,
+                          searchFieldProps: TextFieldProps(
+                            decoration: InputDecoration(
+                              hintText: 'Cari jenis ranmor...',
+                            ),
                           ),
-                        )
-                        .toList(),
-                    onChanged: (value) =>
-                        setState(() => _selectedTahun = value),
-                  ),
+                        ),
+                        items: _kendaraanList
+                            .map((k) => k.jenisRanmor)
+                            .toSet()
+                            .toList(),
+                        dropdownDecoratorProps: const DropDownDecoratorProps(
+                          dropdownSearchDecoration: InputDecoration(
+                            labelText: 'Jenis Ranmor',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        onChanged: (value) =>
+                            setState(() => _selectedJenisRanmor = value),
+                        selectedItem: _selectedJenisRanmor,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: _selectedBulan,
+                        decoration: const InputDecoration(
+                          labelText: 'Bulan',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _bulanList
+                            .map(
+                              (b) => DropdownMenuItem(
+                                value: b,
+                                child: Text(b.toString()),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => _selectedBulan = value),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: _selectedTahun,
+                        decoration: const InputDecoration(
+                          labelText: 'Tahun',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _tahunList
+                            .map(
+                              (t) => DropdownMenuItem(
+                                value: t,
+                                child: Text(t.toString()),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => _selectedTahun = value),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        provider.setFilter(
+                          nomorKupon: _nomorKuponController.text.isNotEmpty
+                              ? _nomorKuponController.text
+                              : null,
+                          satker: _selectedSatker,
+                          jenisBBM: _selectedJenisBBM,
+                          jenisKupon: '2', // Dukungan
+                          nopol: _nopolController.text.isNotEmpty
+                              ? _nopolController.text
+                              : null,
+                          jenisRanmor: _selectedJenisRanmor,
+                          bulanTerbit: _selectedBulan,
+                          tahunTerbit: _selectedTahun,
+                        );
+                      },
+                      icon: const Icon(Icons.search),
+                      label: const Text('Filter'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: _resetFilters,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Reset Filter'),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () {
-                    provider.setFilter(
-                      nomorKupon: _nomorKuponController.text.isNotEmpty
-                          ? _nomorKuponController.text
-                          : null,
-                      satker: _selectedSatker,
-                      jenisBBM: _selectedJenisBBM,
-                      jenisKupon: '2', // Dukungan
-                      nopol: _nopolController.text.isNotEmpty
-                          ? _nopolController.text
-                          : null,
-                      jenisRanmor: _selectedJenisRanmor,
-                      bulanTerbit: _selectedBulan,
-                      tahunTerbit: _selectedTahun,
-                    );
-                  },
-                  icon: const Icon(Icons.search),
-                  label: const Text('Filter'),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: _resetFilters,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Reset Filter'),
-                ),
-              ],
-            ),
-          ],
-        ),
-          )
+          ),
         ],
       ),
     );
@@ -1020,7 +1024,7 @@ class _DashboardPageState extends State<DashboardPage>
         final totalPages = (totalItems / _itemsPerPage).ceil();
         if (_currentPageRanjen > totalPages) _currentPageRanjen = totalPages;
         if (_currentPageRanjen < 1) _currentPageRanjen = 1;
-        
+
         final startIndex = (_currentPageRanjen - 1) * _itemsPerPage;
         final endIndex = (startIndex + _itemsPerPage).clamp(0, totalItems);
         final kupons = allKupons.sublist(startIndex, endIndex);
@@ -1035,63 +1039,122 @@ class _DashboardPageState extends State<DashboardPage>
               child: DataTable(
                 columnSpacing: 24,
                 headingRowColor: WidgetStateProperty.all(Colors.blue.shade50),
-              columns: const [
-                DataColumn(label: Text('No', style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(label: Text('No Kupon', style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(label: Text('Satker', style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(label: Text('Jenis BBM', style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(label: Text('NoPol', style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(label: Text('Jenis Ranmor', style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(label: Text('Bulan/Tahun', style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(label: Text('Kuota Sisa', style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(label: Text('Aksi', style: TextStyle(fontWeight: FontWeight.bold))),
-              ],
-              rows: kupons.asMap().entries.map((entry) {
-                final i = startIndex + entry.key + 1;
-                final k = entry.value;
-                return DataRow(
-                  cells: [
-                    DataCell(Text(i.toString())),
-                    DataCell(
-                      Text(
-                        '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/LOGISTIK',
-                      ),
+                columns: const [
+                  DataColumn(
+                    label: Text(
+                      'No',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    DataCell(Text(k.namaSatker)),
-                    DataCell(
-                      Text(_jenisBBMMap[k.jenisBbmId] ?? k.jenisBbmId.toString()),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      'No Kupon',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    DataCell(Text(_getNopolByKendaraanId(k.kendaraanId))),
-                    DataCell(Text(_getJenisRanmorByKendaraanId(k.kendaraanId))),
-                    DataCell(Text('${k.bulanTerbit}/${k.tahunTerbit}')),
-                    DataCell(Text('${k.kuotaSisa.toStringAsFixed(2)} L')),
-                    DataCell(
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                  ),
+                  DataColumn(
+                    label: Text(
+                      'Satker',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      'Jenis BBM',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      'NoPol',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      'Jenis Ranmor',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      'Bulan/Tahun',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      'Kuota Sisa',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      'Status',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      'Aksi',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+                rows: kupons.asMap().entries.map((entry) {
+                  final i = startIndex + entry.key + 1;
+                  final k = entry.value;
+                  return DataRow(
+                    cells: [
+                      DataCell(Text(i.toString())),
+                      DataCell(
+                        Text(
+                          '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/LOGISTIK',
                         ),
-                        decoration: BoxDecoration(
-                          color: k.status == 'Aktif' ? Colors.green : Colors.red,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          k.status,
-                          style: const TextStyle(color: Colors.white),
+                      ),
+                      DataCell(Text(k.namaSatker)),
+                      DataCell(
+                        Text(
+                          _jenisBBMMap[k.jenisBbmId] ?? k.jenisBbmId.toString(),
                         ),
                       ),
-                    ),
-                    DataCell(
-                      IconButton(
-                        icon: const Icon(Icons.info_outline, color: Colors.blue),
-                        tooltip: 'Lihat Detail Kupon',
-                        onPressed: () => _showKuponDetailDialog(context, k),
+                      DataCell(Text(_getNopolByKendaraanId(k.kendaraanId))),
+                      DataCell(
+                        Text(_getJenisRanmorByKendaraanId(k.kendaraanId)),
                       ),
-                    ),
-                  ],
-                );
-              }).toList(),
+                      DataCell(Text('${k.bulanTerbit}/${k.tahunTerbit}')),
+                      DataCell(Text('${k.kuotaSisa.toStringAsFixed(2)} L')),
+                      DataCell(
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: k.status == 'Aktif'
+                                ? Colors.green
+                                : Colors.red,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            k.status,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        IconButton(
+                          icon: const Icon(
+                            Icons.info_outline,
+                            color: Colors.blue,
+                          ),
+                          tooltip: 'Lihat Detail Kupon',
+                          onPressed: () => _showKuponDetailDialog(context, k),
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
               ),
             ),
           ),
@@ -1120,9 +1183,10 @@ class _DashboardPageState extends State<DashboardPage>
         // Pagination logic
         final totalItems = allKupons.length;
         final totalPages = (totalItems / _itemsPerPage).ceil();
-        if (_currentPageDukungan > totalPages) _currentPageDukungan = totalPages;
+        if (_currentPageDukungan > totalPages)
+          _currentPageDukungan = totalPages;
         if (_currentPageDukungan < 1) _currentPageDukungan = 1;
-        
+
         final startIndex = (_currentPageDukungan - 1) * _itemsPerPage;
         final endIndex = (startIndex + _itemsPerPage).clamp(0, totalItems);
         final kupons = allKupons.sublist(startIndex, endIndex);
@@ -1137,67 +1201,72 @@ class _DashboardPageState extends State<DashboardPage>
               child: DataTable(
                 columnSpacing: 24,
                 headingRowColor: WidgetStateProperty.all(Colors.green.shade50),
-              columns: const [
-                DataColumn(label: Text('No')),
-                DataColumn(label: Text('No Kupon')),
-                DataColumn(label: Text('Satker')),
-                DataColumn(label: Text('Jenis BBM')),
-                DataColumn(label: Text('NoPol')),
-                DataColumn(label: Text('Jenis Ranmor')),
-                DataColumn(label: Text('Bulan/Tahun')),
-                DataColumn(label: Text('Kuota Sisa')),
-                DataColumn(label: Text('Status')),
-                DataColumn(label: Text('Aksi')),
-              ],
-              rows: kupons.asMap().entries.map((entry) {
-                final i = entry.key + 1;
-                final k = entry.value;
-                return DataRow(
-                  cells: [
-                    DataCell(Text(i.toString())),
-                    DataCell(
-                      Text(
-                        '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/LOGISTIK',
-                      ),
-                    ),
-                    DataCell(Text(k.namaSatker)),
-                    DataCell(
-                      Text(
-                        _jenisBBMMap[k.jenisBbmId] ?? k.jenisBbmId.toString(),
-                      ),
-                    ),
-                    DataCell(Text(_getNopolByKendaraanId(k.kendaraanId))),
-                    DataCell(Text(_getJenisRanmorByKendaraanId(k.kendaraanId))),
-                    DataCell(Text('${k.bulanTerbit}/${k.tahunTerbit}')),
-                    DataCell(Text('${k.kuotaSisa.toStringAsFixed(2)} L')),
-                    DataCell(
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: k.status == 'Aktif'
-                              ? Colors.green
-                              : Colors.red,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          k.status,
-                          style: const TextStyle(color: Colors.white),
+                columns: const [
+                  DataColumn(label: Text('No')),
+                  DataColumn(label: Text('No Kupon')),
+                  DataColumn(label: Text('Satker')),
+                  DataColumn(label: Text('Jenis BBM')),
+                  DataColumn(label: Text('NoPol')),
+                  DataColumn(label: Text('Jenis Ranmor')),
+                  DataColumn(label: Text('Bulan/Tahun')),
+                  DataColumn(label: Text('Kuota Sisa')),
+                  DataColumn(label: Text('Status')),
+                  DataColumn(label: Text('Aksi')),
+                ],
+                rows: kupons.asMap().entries.map((entry) {
+                  final i = entry.key + 1;
+                  final k = entry.value;
+                  return DataRow(
+                    cells: [
+                      DataCell(Text(i.toString())),
+                      DataCell(
+                        Text(
+                          '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/LOGISTIK',
                         ),
                       ),
-                    ),
-                    DataCell(
-                      IconButton(
-                        icon: const Icon(Icons.info_outline, color: Colors.blue),
-                        tooltip: 'Lihat Detail Kupon',
-                        onPressed: () => _showKuponDetailDialog(context, k),
+                      DataCell(Text(k.namaSatker)),
+                      DataCell(
+                        Text(
+                          _jenisBBMMap[k.jenisBbmId] ?? k.jenisBbmId.toString(),
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              }).toList(),
+                      DataCell(Text(_getNopolByKendaraanId(k.kendaraanId))),
+                      DataCell(
+                        Text(_getJenisRanmorByKendaraanId(k.kendaraanId)),
+                      ),
+                      DataCell(Text('${k.bulanTerbit}/${k.tahunTerbit}')),
+                      DataCell(Text('${k.kuotaSisa.toStringAsFixed(2)} L')),
+                      DataCell(
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: k.status == 'Aktif'
+                                ? Colors.green
+                                : Colors.red,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            k.status,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        IconButton(
+                          icon: const Icon(
+                            Icons.info_outline,
+                            color: Colors.blue,
+                          ),
+                          tooltip: 'Lihat Detail Kupon',
+                          onPressed: () => _showKuponDetailDialog(context, k),
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
               ),
             ),
           ),
@@ -1209,12 +1278,14 @@ class _DashboardPageState extends State<DashboardPage>
   Widget _buildPaginationControls(BuildContext context, bool isRanjen) {
     return Consumer<DashboardProvider>(
       builder: (context, provider, _) {
-        final totalItems = isRanjen 
-            ? provider.ranjenKupons.length 
+        final totalItems = isRanjen
+            ? provider.ranjenKupons.length
             : provider.dukunganKupons.length;
-        final currentPage = isRanjen ? _currentPageRanjen : _currentPageDukungan;
+        final currentPage = isRanjen
+            ? _currentPageRanjen
+            : _currentPageDukungan;
         final totalPages = (totalItems / _itemsPerPage).ceil();
-        
+
         if (totalItems == 0) return const SizedBox.shrink();
 
         final startItem = (currentPage - 1) * _itemsPerPage + 1;
