@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:excel/excel.dart';
-import 'package:file_picker/file_picker.dart';
-import 'dart:io';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 // import 'package:get_it/get_it.dart';
@@ -11,6 +8,7 @@ import '../../../data/models/transaksi_model.dart';
 import '../../../domain/entities/kupon_entity.dart';
 import '../../../domain/repositories/kendaraan_repository.dart';
 import '../../../core/di/dependency_injection.dart';
+import '../export/export_preview_page.dart';
 
 class TransactionPage extends StatefulWidget {
   const TransactionPage({super.key});
@@ -19,7 +17,8 @@ class TransactionPage extends StatefulWidget {
   State<TransactionPage> createState() => _TransactionPageState();
 }
 
-class _TransactionPageState extends State<TransactionPage> {
+class _TransactionPageState extends State<TransactionPage>
+    with SingleTickerProviderStateMixin {
   // Map jenis BBM untuk tampilan
   final Map<int, String> _jenisBBMMap = {1: 'Pertamax', 2: 'Pertamina Dex'};
 
@@ -29,6 +28,14 @@ class _TransactionPageState extends State<TransactionPage> {
   // Filter tanggal
   DateTime? _filterTanggalMulai;
   DateTime? _filterTanggalSelesai;
+
+  // Pagination
+  int _currentPageTransaksi = 1;
+  int _currentPageKuponMinus = 1;
+  final int _itemsPerPage = 20;
+
+  // Tab Controller
+  late TabController _tabController;
 
   String _getBulanName(int bulan) {
     final namaBulan = [
@@ -64,28 +71,50 @@ class _TransactionPageState extends State<TransactionPage> {
     return '$lastDay ${_getBulanName(expMonth)} $expYear';
   }
 
-  Future<void> _exportKuponMinusToExcel(BuildContext context) async {
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
+  // Helper functions for preview page
+  Future<String?> _getNopolByKendaraanId(int? kendaraanId) async {
+    if (kendaraanId == null) return null;
+    try {
+      final kendaraanRepo = getIt<KendaraanRepository>();
+      final kendaraan = await kendaraanRepo.getKendaraanById(kendaraanId);
+      if (kendaraan != null) {
+        return '${kendaraan.noPolNomor}-${kendaraan.noPolKode}';
+      }
+    } catch (e) {
+      debugPrint('Error getting nopol: $e');
+    }
+    return null;
+  }
+
+  Future<String?> _getJenisRanmorByKendaraanId(int? kendaraanId) async {
+    if (kendaraanId == null) return null;
+    try {
+      final kendaraanRepo = getIt<KendaraanRepository>();
+      final kendaraan = await kendaraanRepo.getKendaraanById(kendaraanId);
+      return kendaraan?.jenisRanmor;
+    } catch (e) {
+      debugPrint('Error getting jenis ranmor: $e');
+    }
+    return null;
+  }
+
+  Future<void> _exportToExcel(BuildContext context) async {
+    if (!mounted) return;
 
     try {
-      final transaksiProvider = Provider.of<TransaksiProvider>(
+      final dashboardProvider = Provider.of<DashboardProvider>(
         context,
         listen: false,
       );
 
-      final kuponMinusList = transaksiProvider.kuponMinusList;
-
-      if (kuponMinusList.isEmpty) {
+      // Use kuponList from dashboard provider for visual preview
+      if (dashboardProvider.kuponList.isEmpty) {
         if (context.mounted) {
-          Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Tidak ada data kupon minus untuk diexport'),
+              content: Text(
+                'Tidak ada data kupon untuk preview. Silakan refresh dashboard.',
+              ),
               backgroundColor: Colors.orange,
             ),
           );
@@ -93,272 +122,120 @@ class _TransactionPageState extends State<TransactionPage> {
         return;
       }
 
-      // Create a new Excel workbook and worksheet
-      var excel = Excel.createExcel();
-      var sheet = excel['Kupon Minus'];
-
-      // Define cell styles
-      var headerStyle = CellStyle(
-        bold: true,
-        horizontalAlign: HorizontalAlign.Center,
-        verticalAlign: VerticalAlign.Center,
-        textWrapping: TextWrapping.WrapText,
-      );
-
-      var dataStyle = CellStyle(
-        horizontalAlign: HorizontalAlign.Left,
-        verticalAlign: VerticalAlign.Center,
-        textWrapping: TextWrapping.WrapText,
-      );
-
-      var numberStyle = CellStyle(
-        horizontalAlign: HorizontalAlign.Right,
-        verticalAlign: VerticalAlign.Center,
-      );
-
-      // Adding header
-      var headers = [
-        'Nomor Kupon',
-        'Jenis Kupon',
-        'Jenis BBM',
-        'Satker',
-        'Kuota Satker',
-        'Kuota Sisa',
-        'Minus',
-      ];
-
-      // Write headers
-      for (var i = 0; i < headers.length; i++) {
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
-          ..value = TextCellValue(headers[i])
-          ..cellStyle = headerStyle;
-      }
-
-      // Adding data rows
-      var rowIndex = 1;
-      for (final m in kuponMinusList) {
-        var row = [
-          m['nomor_kupon']?.toString() ?? '',
-          _jenisKuponMap[m['jenis_kupon_id']] ?? 'Unknown',
-          _jenisBBMMap[m['jenis_bbm_id']] ?? 'Unknown',
-          m['nama_satker']?.toString() ?? '',
-          m['kuota_satker']?.toString() ?? '0',
-          m['kuota_sisa']?.toString() ?? '0',
-          m['minus']?.toString() ?? '0',
-        ];
-
-        // Write row data with appropriate styles
-        for (var i = 0; i < row.length; i++) {
-          var cell = sheet.cell(
-            CellIndex.indexByColumnRow(columnIndex: i, rowIndex: rowIndex),
-          );
-
-          if (i >= 4) {
-            // Numeric columns
-            final numValue = double.tryParse(row[i].toString()) ?? 0.0;
-            cell
-              ..value = DoubleCellValue(numValue)
-              ..cellStyle = numberStyle;
-          } else {
-            cell
-              ..value = TextCellValue(row[i].toString())
-              ..cellStyle = dataStyle;
-          }
-        }
-        rowIndex++;
-      }
-
-      // Remove default Sheet1 if exists
-      if (excel.sheets.containsKey('Sheet1')) {
-        excel.delete('Sheet1');
-      }
-
-      // Save file
-      final outputFile = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save Excel file',
-        fileName: 'kupon_minus_${DateTime.now().millisecondsSinceEpoch}.xlsx',
-        allowedExtensions: ['xlsx'],
-        type: FileType.custom,
-      );
-
-      if (outputFile != null) {
-        final file = File(outputFile);
-        await file.writeAsBytes(excel.encode()!);
-
-        if (context.mounted) {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('File kupon minus berhasil disimpan'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } else {
-        if (context.mounted) {
-          Navigator.pop(context);
-        }
-      }
-    } catch (e) {
-      if (context.mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
+      // Show export format selection dialog
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.table_chart, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Pilih Format Export'),
+            ],
           ),
-        );
-      }
-    }
-  }
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Pilih format Excel yang ingin di-export:',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.folder_special, color: Colors.green),
+                title: const Text('Data Kupon (4 Sheet)'),
+                subtitle: const Text(
+                  'RAN.PM, DUK.PM, RAN.DX, DUK.DX - Semua kupon',
+                  style: TextStyle(fontSize: 12),
+                ),
+                tileColor: Colors.green.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.green.shade200),
+                ),
+                onTap: () => Navigator.pop(context, 'kupon'),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.remove_circle, color: Colors.red),
+                title: const Text('Kupon Minus (4 Sheet)'),
+                subtitle: const Text(
+                  'RAN.PM, DUK.PM, RAN.DX, DUK.DX - Hanya kupon minus',
+                  style: TextStyle(fontSize: 12),
+                ),
+                tileColor: Colors.red.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.red.shade200),
+                ),
+                onTap: () => Navigator.pop(context, 'minus'),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.business, color: Colors.orange),
+                title: const Text('Data Satker (2 Sheet)'),
+                subtitle: const Text(
+                  'Pertamax, Dexlite - Rekap per satker',
+                  style: TextStyle(fontSize: 12),
+                ),
+                tileColor: Colors.orange.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.orange.shade200),
+                ),
+                onTap: () => Navigator.pop(context, 'satker'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
+            ),
+          ],
+        ),
+      );
 
-  Future<void> _exportToExcel(BuildContext context) async {
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
+      if (choice == null || !mounted) return;
 
-    try {
+      // Navigate to ExportPreviewPage with selected format
+      // Export dari Data Transaksi: fill transaksi data sesuai filter
       final transaksiProvider = Provider.of<TransaksiProvider>(
         context,
         listen: false,
       );
-      final dashboardProvider = Provider.of<DashboardProvider>(
+
+      await Navigator.push(
         context,
-        listen: false,
+        MaterialPageRoute(
+          builder: (context) => ExportPreviewPage(
+            allKupons: dashboardProvider.kuponList,
+            jenisBBMMap: _jenisBBMMap,
+            exportType: choice,
+            getNopolByKendaraanId: (choice == 'kupon' || choice == 'minus')
+                ? _getNopolByKendaraanId
+                : null,
+            getJenisRanmorByKendaraanId:
+                (choice == 'kupon' || choice == 'minus')
+                ? _getJenisRanmorByKendaraanId
+                : null,
+            fillTransaksiData: true, // Isi kolom tanggal dengan data transaksi
+            filterBulan: transaksiProvider.filterBulan,
+            filterTahun: transaksiProvider.filterTahun,
+            filterTanggalMulai: _filterTanggalMulai,
+            filterTanggalSelesai: _filterTanggalSelesai,
+          ),
+        ),
       );
-
-      final transaksi = transaksiProvider.transaksiList;
-
-      // Create a new Excel workbook and worksheet
-      var excel = Excel.createExcel();
-      var sheet = excel['Transaksi BBM'];
-
-      // Define cell styles
-      var headerStyle = CellStyle(
-        bold: true,
-        horizontalAlign: HorizontalAlign.Center,
-        verticalAlign: VerticalAlign.Center,
-        textWrapping: TextWrapping.WrapText,
-      );
-
-      var dataStyle = CellStyle(
-        horizontalAlign: HorizontalAlign.Left,
-        verticalAlign: VerticalAlign.Center,
-        textWrapping: TextWrapping.WrapText,
-      );
-
-      var numberStyle = CellStyle(
-        horizontalAlign: HorizontalAlign.Right,
-        verticalAlign: VerticalAlign.Center,
-      );
-
-      // Adding header
-      var headers = [
-        'Tanggal',
-        'No. Kupon',
-        'No. Pol',
-        'Jenis BBM',
-        'Jenis Kupon',
-        'Jatah Liter',
-        'Sisa Liter',
-      ];
-
-      // Write headers
-      for (var i = 0; i < headers.length; i++) {
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
-          ..value = TextCellValue(headers[i])
-          ..cellStyle = headerStyle;
-      }
-
-      // Adding data rows
-      var rowIndex = 1;
-      for (final t in transaksi) {
-        // Find corresponding kupon
-        final kupon = dashboardProvider.kuponList.firstWhere(
-          (k) => k.kuponId == t.kuponId,
-          orElse: () => dashboardProvider.kuponList.first,
-        );
-
-        // Get kendaraan data from repository
-        final kendaraanRepo = getIt<KendaraanRepository>();
-        final kendaraan = kupon.kendaraanId != null
-            ? await kendaraanRepo.getKendaraanById(kupon.kendaraanId!)
-            : null;
-
-        // Format nopol dengan format standar nomor-kode
-        final noPolWithKode = kendaraan != null
-            ? '${kendaraan.noPolNomor}-${kendaraan.noPolKode}'
-            : 'N/A';
-
-        var row = [
-          t.tanggalTransaksi,
-          t.nomorKupon,
-          noPolWithKode,
-          _jenisBBMMap[t.jenisBbmId] ?? 'Unknown',
-          _jenisKuponMap[kupon.jenisKuponId] ?? 'Unknown',
-          t.jumlahLiter.toDouble(),
-          kupon.kuotaSisa.toDouble(),
-        ];
-
-        // Write row data with appropriate styles
-        for (var i = 0; i < row.length; i++) {
-          var cell = sheet.cell(
-            CellIndex.indexByColumnRow(columnIndex: i, rowIndex: rowIndex),
-          );
-
-          if (i >= 5) {
-            // Numeric columns (Jatah Liter & Sisa Liter)
-            cell
-              ..value = DoubleCellValue(row[i] as double)
-              ..cellStyle = numberStyle;
-          } else {
-            cell
-              ..value = TextCellValue(row[i].toString())
-              ..cellStyle = dataStyle;
-          }
-        }
-        rowIndex++;
-      }
-
-      // Save file
-      final outputFile = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save Excel file',
-        fileName: 'transaksi_bbm.xlsx',
-        allowedExtensions: ['xlsx'],
-        type: FileType.custom,
-      );
-
-      if (outputFile != null) {
-        final file = File(outputFile);
-        await file.writeAsBytes(excel.encode()!);
-
-        if (context.mounted) {
-          // Show success message
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('File berhasil disimpan'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      }
     } catch (e) {
       if (context.mounted) {
-        // Show error message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
+            content: Text('Error saat membuka preview: $e'),
             backgroundColor: Colors.red,
           ),
         );
-      }
-    } finally {
-      // Hide loading indicator
-      if (context.mounted) {
-        Navigator.pop(context);
       }
     }
   }
@@ -366,6 +243,7 @@ class _TransactionPageState extends State<TransactionPage> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     Future.microtask(() {
       Provider.of<TransaksiProvider>(
         context,
@@ -375,6 +253,12 @@ class _TransactionPageState extends State<TransactionPage> {
       // Fetch kupon list untuk dropdown (ambil semua kupon: Ranjen + Dukungan)
       Provider.of<DashboardProvider>(context, listen: false).fetchKupons();
     });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _selectDateRange(BuildContext context) async {
@@ -433,6 +317,16 @@ class _TransactionPageState extends State<TransactionPage> {
             onPressed: () => _showDeletedTransaksiDialog(context),
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.list_alt), text: 'Data Transaksi'),
+            Tab(icon: Icon(Icons.warning), text: 'Kupon Minus'),
+          ],
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -449,7 +343,9 @@ class _TransactionPageState extends State<TransactionPage> {
                       labelText: 'Bulan',
                       border: OutlineInputBorder(),
                     ),
-                    initialValue: Provider.of<TransaksiProvider>(context).filterBulan,
+                    initialValue: Provider.of<TransaksiProvider>(
+                      context,
+                    ).filterBulan,
                     items: [
                       for (int i = 1; i <= 12; i++)
                         DropdownMenuItem(
@@ -473,7 +369,9 @@ class _TransactionPageState extends State<TransactionPage> {
                       labelText: 'Tahun',
                       border: OutlineInputBorder(),
                     ),
-                    initialValue: Provider.of<TransaksiProvider>(context).filterTahun,
+                    initialValue: Provider.of<TransaksiProvider>(
+                      context,
+                    ).filterTahun,
                     items: [2024, 2025]
                         .map(
                           (e) => DropdownMenuItem(
@@ -524,17 +422,17 @@ class _TransactionPageState extends State<TransactionPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Data Transaksi',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
                 ElevatedButton.icon(
                   onPressed: _exportTransaksi,
                   icon: const Icon(Icons.download),
                   label: const Text('Export Transaksi'),
                 ),
                 ElevatedButton.icon(
-                  onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 1, jenisKuponId: 1),
+                  onPressed: () => _showTambahTransaksiDialog(
+                    context,
+                    jenisBbm: 1,
+                    jenisKuponId: 1,
+                  ),
                   icon: const Icon(Icons.add),
                   label: const Text('Ranjen - Pertamax'),
                   style: ElevatedButton.styleFrom(
@@ -543,7 +441,11 @@ class _TransactionPageState extends State<TransactionPage> {
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 1, jenisKuponId: 2),
+                  onPressed: () => _showTambahTransaksiDialog(
+                    context,
+                    jenisBbm: 1,
+                    jenisKuponId: 2,
+                  ),
                   icon: const Icon(Icons.add),
                   label: const Text('Dukungan - Pertamax'),
                   style: ElevatedButton.styleFrom(
@@ -552,7 +454,11 @@ class _TransactionPageState extends State<TransactionPage> {
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 2, jenisKuponId: 1),
+                  onPressed: () => _showTambahTransaksiDialog(
+                    context,
+                    jenisBbm: 2,
+                    jenisKuponId: 1,
+                  ),
                   icon: const Icon(Icons.add),
                   label: const Text('Ranjen - Pertamina Dex'),
                   style: ElevatedButton.styleFrom(
@@ -561,7 +467,11 @@ class _TransactionPageState extends State<TransactionPage> {
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 2, jenisKuponId: 2),
+                  onPressed: () => _showTambahTransaksiDialog(
+                    context,
+                    jenisBbm: 2,
+                    jenisKuponId: 2,
+                  ),
                   icon: const Icon(Icons.add),
                   label: const Text('Dukungan - Pertamina Dex'),
                   style: ElevatedButton.styleFrom(
@@ -572,23 +482,18 @@ class _TransactionPageState extends State<TransactionPage> {
               ],
             ),
             const SizedBox(height: 16),
-            Expanded(child: _buildTransaksiTable(context)),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Kupon Minus',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () => _exportKuponMinusToExcel(context),
-                  icon: const Icon(Icons.download),
-                  label: const Text('Export Kupon Minus'),
-                ),
-              ],
+            // TAB VIEW: DATA TRANSAKSI dan KUPON MINUS
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  // TAB 1: DATA TRANSAKSI
+                  _buildTransaksiTable(context),
+                  // TAB 2: KUPON MINUS
+                  _buildKuponMinusTable(context),
+                ],
+              ),
             ),
-            Expanded(child: _buildKuponMinusTable(context)),
           ],
         ),
       ),
@@ -596,141 +501,147 @@ class _TransactionPageState extends State<TransactionPage> {
   }
 
   void _exportTransaksi() async {
-    final provider = Provider.of<TransaksiProvider>(context, listen: false);
+    if (!mounted) return;
+
     final dashboardProvider = Provider.of<DashboardProvider>(
       context,
       listen: false,
     );
-    final transaksi = provider.transaksiList;
 
-    if (transaksi.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tidak ada data transaksi untuk diexport.'),
-        ),
-      );
-      return;
-    }
-
+    // Use kuponList from dashboard provider for visual preview
     if (dashboardProvider.kuponList.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Data kupon tidak tersedia. Mohon refresh halaman.'),
+          content: Text(
+            'Tidak ada data kupon untuk preview. Silakan refresh dashboard.',
+          ),
         ),
       );
       return;
     }
 
-    final excel = Excel.createExcel();
-    final sheet = excel['Transaksi'];
-
-    // Styling untuk header
-    var headerStyle = CellStyle(
-      bold: true,
-      horizontalAlign: HorizontalAlign.Center,
-    );
-
-    // Menambahkan header dengan style
-    var headers = [
-      'Tanggal',
-      'Nomor Kupon',
-      'No Pol',
-      'Jenis BBM',
-      'Jenis Kupon',
-      'Jumlah Ambil',
-      'Jumlah Sisa',
-    ];
-
-    sheet.appendRow(headers.map((header) => TextCellValue(header)).toList());
-
-    // Applying style to header row
-    for (var i = 0; i < headers.length; i++) {
-      var cell = sheet.cell(
-        CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0),
-      );
-      cell.cellStyle = headerStyle;
-    }
-
-    // Auto size columns
-    for (var i = 0; i < headers.length; i++) {
-      sheet.setColumnAutoFit(i);
-    }
-
-    // Data style
-    var dataStyle = CellStyle(
-      horizontalAlign: HorizontalAlign.Left,
-      verticalAlign: VerticalAlign.Center,
-    );
-
-    // Adding data rows
-    for (final t in transaksi) {
-      // Find corresponding kupon
-      final matchingKupons = dashboardProvider.kuponList.where(
-        (k) => k.kuponId == t.kuponId,
-      );
-      if (matchingKupons.isEmpty) {
-        // Skip this transaction if no matching kupon found
-        continue;
-      }
-      final kupon = matchingKupons.first;
-
-      // Get kendaraan data from repository
-      final kendaraanRepo = getIt<KendaraanRepository>();
-      final kendaraan = kupon.kendaraanId != null
-          ? await kendaraanRepo.getKendaraanById(kupon.kendaraanId!)
-          : null;
-
-      // Format nopol with VIII pattern
-      final noPolWithKode = kendaraan != null
-          ? '${kendaraan.noPolNomor}-VIII'
-          : 'N/A';
-
-      var row = [
-        TextCellValue(t.tanggalTransaksi),
-        TextCellValue(t.nomorKupon),
-        TextCellValue(noPolWithKode),
-        TextCellValue(_jenisBBMMap[t.jenisBbmId] ?? 'Unknown'),
-        TextCellValue(_jenisKuponMap[kupon.jenisKuponId] ?? 'Unknown'),
-        DoubleCellValue(t.jumlahLiter),
-        DoubleCellValue(kupon.kuotaSisa),
-      ];
-
-      sheet.appendRow(row);
-
-      // Apply style to data cells
-      for (var i = 0; i < row.length; i++) {
-        var cell = sheet.cell(
-          CellIndex.indexByColumnRow(
-            columnIndex: i,
-            rowIndex: sheet.maxRows - 1,
+    // Show export format selection dialog
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.table_chart, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Pilih Format Export'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Pilih format Excel yang ingin di-export:',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.folder_special, color: Colors.green),
+              title: const Text('Data Kupon (4 Sheet)'),
+              subtitle: const Text(
+                'RAN.PM, DUK.PM, RAN.DX, DUK.DX - Semua kupon',
+                style: TextStyle(fontSize: 12),
+              ),
+              tileColor: Colors.green.shade50,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: Colors.green.shade200),
+              ),
+              onTap: () => Navigator.pop(context, 'kupon'),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.remove_circle, color: Colors.red),
+              title: const Text('Kupon Minus (4 Sheet)'),
+              subtitle: const Text(
+                'RAN.PM, DUK.PM, RAN.DX, DUK.DX - Hanya kupon minus',
+                style: TextStyle(fontSize: 12),
+              ),
+              tileColor: Colors.red.shade50,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: Colors.red.shade200),
+              ),
+              onTap: () => Navigator.pop(context, 'minus'),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.business, color: Colors.orange),
+              title: const Text('Data Satker (2 Sheet)'),
+              subtitle: const Text(
+                'Pertamax, Dexlite - Rekap per satker',
+                style: TextStyle(fontSize: 12),
+              ),
+              tileColor: Colors.orange.shade50,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: Colors.orange.shade200),
+              ),
+              onTap: () => Navigator.pop(context, 'satker'),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.table_rows, color: Colors.purple),
+              title: const Text('Gabungan (6 Sheet)'),
+              subtitle: const Text(
+                'Kupon + Satker - Semua data',
+                style: TextStyle(fontSize: 12),
+              ),
+              tileColor: Colors.purple.shade50,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: Colors.purple.shade200),
+              ),
+              onTap: () => Navigator.pop(context, 'combined'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
           ),
-        );
-        cell.cellStyle = dataStyle;
-      }
-    }
-    if (excel.sheets.containsKey('Sheet1')) {
-      excel.delete('Sheet1');
-    }
-    String? outputPath = await FilePicker.platform.saveFile(
-      dialogTitle: 'Simpan file Excel',
-      fileName:
-          'export_transaksi_${DateTime.now().millisecondsSinceEpoch}.xlsx',
-      type: FileType.custom,
-      allowedExtensions: ['xlsx'],
+        ],
+      ),
     );
-    if (outputPath == null) return;
-    final fileBytes = excel.encode();
-    if (fileBytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gagal membuat file Excel.')),
-      );
-      return;
-    }
-    final file = File(outputPath);
-    await file.writeAsBytes(fileBytes, flush: true);
-    ScaffoldMessenger.of(
+
+    if (choice == null || !mounted) return;
+
+    // Navigate to ExportPreviewPage with selected format
+    // Export dari Data Transaksi: fill transaksi data sesuai filter
+    final transaksiProvider = Provider.of<TransaksiProvider>(
       context,
-    ).showSnackBar(SnackBar(content: Text('Export berhasil: $outputPath')));
+      listen: false,
+    );
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ExportPreviewPage(
+          allKupons: dashboardProvider.kuponList,
+          jenisBBMMap: _jenisBBMMap,
+          exportType: choice,
+          getNopolByKendaraanId:
+              (choice == 'kupon' || choice == 'minus' || choice == 'combined')
+              ? _getNopolByKendaraanId
+              : null,
+          getJenisRanmorByKendaraanId:
+              (choice == 'kupon' || choice == 'minus' || choice == 'combined')
+              ? _getJenisRanmorByKendaraanId
+              : null,
+          fillTransaksiData: true, // Isi kolom tanggal dengan data transaksi
+          filterBulan: transaksiProvider.filterBulan,
+          filterTahun: transaksiProvider.filterTahun,
+          filterTanggalMulai: _filterTanggalMulai,
+          filterTanggalSelesai: _filterTanggalSelesai,
+        ),
+      ),
+    );
   }
 
   Future<void> _showTambahTransaksiDialog(
@@ -748,13 +659,15 @@ class _TransactionPageState extends State<TransactionPage> {
     );
     // Filter kuponList sesuai jenisBbm dan jenisKuponId
     final List<KuponEntity> kuponList = dashboardProvider.kuponList
-        .where((k) => k.jenisBbmId == jenisBbm && k.jenisKuponId == jenisKuponId)
+        .where(
+          (k) => k.jenisBbmId == jenisBbm && k.jenisKuponId == jenisKuponId,
+        )
         .toList();
     final Map<int, String> jenisKuponMap = {1: 'RANJEN', 2: 'DUKUNGAN'};
     final List<String> kuponOptions = kuponList
         .map(
           (k) =>
-              '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/${k.namaSatker}/${jenisKuponMap[k.jenisKuponId] ?? k.jenisKuponId} (${k.kuotaSisa.toStringAsFixed(0)} L)',
+              '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/${k.namaSatker}/${jenisKuponMap[k.jenisKuponId] ?? k.jenisKuponId} (${k.kuotaSisa.toInt()} L)',
         )
         .toList();
     final formKey = GlobalKey<FormState>();
@@ -847,7 +760,7 @@ class _TransactionPageState extends State<TransactionPage> {
                   final jenisKuponNama =
                       jenisKuponMap[k.jenisKuponId] ?? k.jenisKuponId;
                   final formatLengkap =
-                      '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/${k.namaSatker}/$jenisKuponNama (${k.kuotaSisa.toStringAsFixed(0)} L)';
+                      '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/${k.namaSatker}/$jenisKuponNama (${k.kuotaSisa.toInt()} L)';
                   if (formatLengkap == nomorKupon) {
                     kupon = k;
                     break;
@@ -891,6 +804,7 @@ class _TransactionPageState extends State<TransactionPage> {
                   nomorKupon: kupon.nomorKupon,
                   namaSatker: kupon.namaSatker,
                   jenisBbmId: jenisBbm,
+                  jenisKuponId: jenisKuponId,
                   tanggalTransaksi: tanggalController.text,
                   jumlahLiter: jumlahLiter ?? 0,
                   createdAt: DateTime.now().toIso8601String(),
@@ -936,6 +850,7 @@ class _TransactionPageState extends State<TransactionPage> {
                       nomorKupon: t.nomorKupon,
                       namaSatker: t.namaSatker,
                       jenisBbmId: t.jenisBbmId,
+                      jenisKuponId: t.jenisKuponId,
                       tanggalTransaksi: t.tanggalTransaksi,
                       jumlahLiter: t.jumlahLiter,
                       createdAt: t.createdAt,
@@ -968,145 +883,218 @@ class _TransactionPageState extends State<TransactionPage> {
         if (filteredList.isEmpty) {
           return const Center(child: Text('Tidak ada data transaksi.'));
         }
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columns: const [
-              DataColumn(label: Text('Tanggal')),
-              DataColumn(label: Text('Nomor Kupon')),
-              DataColumn(label: Text('Satker')),
-              DataColumn(label: Text('Jenis BBM')),
-              DataColumn(label: Text('Jenis Kupon')),
-              DataColumn(label: Text('Jumlah (L)')),
-              DataColumn(label: Text('Aksi')),
-            ],
-            rows: filteredList
-                .map(
-                  (t) => DataRow(
-                    cells: [
-                      DataCell(Text(t.tanggalTransaksi)),
-                      DataCell(Text(t.nomorKupon)),
-                      DataCell(Text(t.namaSatker)),
-                      DataCell(Text(_jenisBBMMap[t.jenisBbmId] ?? 'Unknown')),
-                      DataCell(
-                        Text('RANJEN'),
-                      ), // We need to update this with actual jenis kupon
-                      DataCell(Text(t.jumlahLiter.toString())),
-                      DataCell(
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.info_outline),
-                              onPressed: () async {
-                                final dashboardProvider =
-                                    Provider.of<DashboardProvider>(
-                                      context,
-                                      listen: false,
-                                    );
-                                final kuponList = dashboardProvider.kupons
-                                    .where((k) => k.kuponId == t.kuponId)
-                                    .toList();
-                                if (kuponList.isNotEmpty) {
-                                  final kupon = kuponList.first;
-                                  await showDialog(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: const Text('Detail Kupon'),
-                                      content: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text('Nomor: ${kupon.nomorKupon}'),
-                                          Text('Satker: ${kupon.namaSatker}'),
-                                          Text(
-                                            'Jenis: ${_jenisKuponMap[kupon.jenisKuponId] ?? "Unknown"}',
-                                          ),
-                                          Text(
-                                            'BBM: ${_jenisBBMMap[kupon.jenisBbmId] ?? "Unknown"}',
-                                          ),
-                                          Text(
-                                            'Kuota Awal: ${kupon.kuotaAwal} L',
-                                          ),
-                                          Text(
-                                            'Kuota Sisa: ${kupon.kuotaSisa} L',
-                                          ),
-                                          Text('Status: ${kupon.status}'),
-                                          Text(
-                                            'Periode: ${_getBulanName(kupon.bulanTerbit)} ${kupon.tahunTerbit}',
-                                          ),
-                                          Text(
-                                            'Berlaku s/d: ${_getExpiredDate(kupon.bulanTerbit, kupon.tahunTerbit)}',
-                                          ),
-                                        ],
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(context),
-                                          child: const Text('Tutup'),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }
-                              },
+
+        // Pagination logic
+        final totalItems = filteredList.length;
+        final totalPages = (totalItems / _itemsPerPage).ceil();
+        if (_currentPageTransaksi > totalPages)
+          _currentPageTransaksi = totalPages;
+        if (_currentPageTransaksi < 1) _currentPageTransaksi = 1;
+
+        final startIndex = (_currentPageTransaksi - 1) * _itemsPerPage;
+        final endIndex = (startIndex + _itemsPerPage).clamp(0, totalItems);
+        final paginatedList = filteredList.sublist(startIndex, endIndex);
+
+        return Column(
+          children: [
+            Expanded(
+              child: Card(
+                elevation: 2,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.vertical,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columnSpacing: 24,
+                      headingRowColor: WidgetStateProperty.all(
+                        Colors.blue.shade50,
+                      ),
+                      columns: const [
+                        DataColumn(
+                          label: Text(
+                            'Tanggal',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Nomor Kupon',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Satker',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Jenis BBM',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Jenis Kupon',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Jumlah (L)',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Aksi',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                      rows: paginatedList.asMap().entries.map((entry) {
+                        final t = entry.value;
+                        // Get jenis kupon directly from transaksi entity
+                        final jenisKuponNama = t.jenisKuponId == 1
+                            ? 'RANJEN'
+                            : 'DUKUNGAN';
+
+                        return DataRow(
+                          cells: [
+                            DataCell(Text(t.tanggalTransaksi)),
+                            DataCell(Text(t.nomorKupon)),
+                            DataCell(Text(t.namaSatker)),
+                            DataCell(
+                              Text(_jenisBBMMap[t.jenisBbmId] ?? 'Unknown'),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.edit),
-                              onPressed: () =>
-                                  _showEditTransaksiDialog(context, t),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete),
-                              onPressed: () async {
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Hapus Transaksi'),
-                                    content: const Text(
-                                      'Yakin ingin menghapus transaksi ini?',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.of(ctx).pop(false),
-                                        child: const Text('Batal'),
-                                      ),
-                                      ElevatedButton(
-                                        onPressed: () =>
-                                            Navigator.of(ctx).pop(true),
-                                        child: const Text('Hapus'),
-                                      ),
-                                    ],
+                            DataCell(Text(jenisKuponNama)),
+                            DataCell(Text('${t.jumlahLiter.toInt()} L')),
+                            DataCell(
+                              Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.info_outline),
+                                    onPressed: () async {
+                                      final dashboardProvider =
+                                          Provider.of<DashboardProvider>(
+                                            context,
+                                            listen: false,
+                                          );
+                                      final kuponList = dashboardProvider.kupons
+                                          .where((k) => k.kuponId == t.kuponId)
+                                          .toList();
+                                      if (kuponList.isNotEmpty) {
+                                        final kupon = kuponList.first;
+                                        await showDialog(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
+                                            title: const Text('Detail Kupon'),
+                                            content: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Nomor: ${kupon.nomorKupon}',
+                                                ),
+                                                Text(
+                                                  'Satker: ${kupon.namaSatker}',
+                                                ),
+                                                Text(
+                                                  'Jenis: ${_jenisKuponMap[kupon.jenisKuponId] ?? "Unknown"}',
+                                                ),
+                                                Text(
+                                                  'BBM: ${_jenisBBMMap[kupon.jenisBbmId] ?? "Unknown"}',
+                                                ),
+                                                Text(
+                                                  'Kuota Awal: ${kupon.kuotaAwal.toInt()} L',
+                                                ),
+                                                Text(
+                                                  'Kuota Sisa: ${kupon.kuotaSisa.toInt()} L',
+                                                ),
+                                                Text('Status: ${kupon.status}'),
+                                                Text(
+                                                  'Periode: ${_getBulanName(kupon.bulanTerbit)} ${kupon.tahunTerbit}',
+                                                ),
+                                                Text(
+                                                  'Berlaku s/d: ${_getExpiredDate(kupon.bulanTerbit, kupon.tahunTerbit)}',
+                                                ),
+                                              ],
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(context),
+                                                child: const Text('Tutup'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }
+                                    },
                                   ),
-                                );
-                                if (confirm == true) {
-                                  final transaksiProvider =
-                                      Provider.of<TransaksiProvider>(
-                                        context,
-                                        listen: false,
+                                  IconButton(
+                                    icon: const Icon(Icons.edit),
+                                    onPressed: () =>
+                                        _showEditTransaksiDialog(context, t),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete),
+                                    onPressed: () async {
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          title: const Text('Hapus Transaksi'),
+                                          content: const Text(
+                                            'Yakin ingin menghapus transaksi ini?',
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.of(ctx).pop(false),
+                                              child: const Text('Batal'),
+                                            ),
+                                            ElevatedButton(
+                                              onPressed: () =>
+                                                  Navigator.of(ctx).pop(true),
+                                              child: const Text('Hapus'),
+                                            ),
+                                          ],
+                                        ),
                                       );
-                                  await transaksiProvider.deleteTransaksi(
-                                    t.transaksiId,
-                                  );
-                                  final dashboardProvider =
-                                      Provider.of<DashboardProvider>(
-                                        context,
-                                        listen: false,
-                                      );
-                                  await dashboardProvider.fetchKupons();
-                                }
-                              },
+                                      if (confirm == true) {
+                                        final transaksiProvider =
+                                            Provider.of<TransaksiProvider>(
+                                              context,
+                                              listen: false,
+                                            );
+                                        await transaksiProvider.deleteTransaksi(
+                                          t.transaksiId,
+                                        );
+                                        final dashboardProvider =
+                                            Provider.of<DashboardProvider>(
+                                              context,
+                                              listen: false,
+                                            );
+                                        await dashboardProvider.fetchKupons();
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
-                        ),
-                      ),
-                    ],
+                        );
+                      }).toList(),
+                    ),
                   ),
-                )
-                .toList(),
-          ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildPaginationControls(context, true),
+          ],
         );
       },
     );
@@ -1123,7 +1111,7 @@ class _TransactionPageState extends State<TransactionPage> {
     final formKey = GlobalKey<FormState>();
     final tanggalController = TextEditingController(text: t.tanggalTransaksi);
     final jumlahController = TextEditingController(
-      text: t.jumlahLiter.toString(),
+      text: t.jumlahLiter.toInt().toString(),
     );
     await showDialog(
       context: context,
@@ -1188,10 +1176,10 @@ class _TransactionPageState extends State<TransactionPage> {
                     nomorKupon: t.nomorKupon,
                     namaSatker: t.namaSatker,
                     jenisBbmId: t.jenisBbmId, // Keep original BBM type
+                    jenisKuponId: t.jenisKuponId,
                     tanggalTransaksi: tanggalController.text,
                     jumlahLiter:
-                        double.tryParse(jumlahController.text) ??
-                        t.jumlahLiter,
+                        double.tryParse(jumlahController.text) ?? t.jumlahLiter,
                     createdAt: t.createdAt,
                     updatedAt: DateTime.now().toIso8601String(),
                     isDeleted: t.isDeleted,
@@ -1274,7 +1262,7 @@ class _TransactionPageState extends State<TransactionPage> {
                             DataCell(
                               Text(_jenisBBMMap[jenisBbmId] ?? 'Unknown'),
                             ),
-                            DataCell(Text(jumlahLiter.toString())),
+                            DataCell(Text('${jumlahLiter.toInt()} L')),
                             DataCell(
                               IconButton(
                                 icon: const Icon(Icons.restore),
@@ -1373,56 +1361,243 @@ class _TransactionPageState extends State<TransactionPage> {
   Widget _buildKuponMinusTable(BuildContext context) {
     return Consumer<TransaksiProvider>(
       builder: (context, provider, _) {
-        final minus = provider.kuponMinusList;
-        if (minus.isEmpty) {
+        final allMinus = provider.kuponMinusList;
+        if (allMinus.isEmpty) {
           return const Center(child: Text('Tidak ada kupon minus.'));
         }
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columns: const [
-              DataColumn(label: Text('Nomor Kupon')),
-              DataColumn(label: Text('Jenis Kupon')),
-              DataColumn(label: Text('Jenis BBM')),
-              DataColumn(label: Text('Satker')),
-              DataColumn(label: Text('Kuota Satker')),
-              DataColumn(label: Text('Kuota Sisa')),
-              DataColumn(label: Text('Minus')),
-            ],
-            rows: minus.map((m) {
-              // Safe parsing untuk jenis_kupon_id
-              int jenisKuponId = 0;
-              if (m['jenis_kupon_id'] is int) {
-                jenisKuponId = m['jenis_kupon_id'];
-              } else if (m['jenis_kupon_id'] is double) {
-                jenisKuponId = (m['jenis_kupon_id'] as double).toInt();
-              } else if (m['jenis_kupon_id'] is String) {
-                jenisKuponId =
-                    int.tryParse(m['jenis_kupon_id'].toString()) ?? 0;
-              }
 
-              // Safe parsing untuk jenis_bbm_id
-              int jenisBbmId = 0;
-              if (m['jenis_bbm_id'] is int) {
-                jenisBbmId = m['jenis_bbm_id'];
-              } else if (m['jenis_bbm_id'] is double) {
-                jenisBbmId = (m['jenis_bbm_id'] as double).toInt();
-              } else if (m['jenis_bbm_id'] is String) {
-                jenisBbmId = int.tryParse(m['jenis_bbm_id'].toString()) ?? 0;
-              }
+        // Pagination logic
+        final totalItems = allMinus.length;
+        final totalPages = (totalItems / _itemsPerPage).ceil();
+        if (_currentPageKuponMinus > totalPages)
+          _currentPageKuponMinus = totalPages;
+        if (_currentPageKuponMinus < 1) _currentPageKuponMinus = 1;
 
-              return DataRow(
-                cells: [
-                  DataCell(Text(m['nomor_kupon']?.toString() ?? '')),
-                  DataCell(Text(_jenisKuponMap[jenisKuponId] ?? 'Unknown')),
-                  DataCell(Text(_jenisBBMMap[jenisBbmId] ?? 'Unknown')),
-                  DataCell(Text(m['nama_satker']?.toString() ?? '')),
-                  DataCell(Text('${m['kuota_satker'] ?? 0} L')),
-                  DataCell(Text('${m['kuota_sisa'] ?? 0} L')),
-                  DataCell(Text('${m['minus'] ?? 0} L')),
-                ],
-              );
-            }).toList(),
+        final startIndex = (_currentPageKuponMinus - 1) * _itemsPerPage;
+        final endIndex = (startIndex + _itemsPerPage).clamp(0, totalItems);
+        final minus = allMinus.sublist(startIndex, endIndex);
+
+        return Column(
+          children: [
+            Expanded(
+              child: Card(
+                elevation: 2,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.vertical,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columnSpacing: 24,
+                      headingRowColor: WidgetStateProperty.all(
+                        Colors.red.shade50,
+                      ),
+                      columns: const [
+                        DataColumn(
+                          label: Text(
+                            'Nomor Kupon',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Jenis Kupon',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Jenis BBM',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Satker',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Kuota Satker',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Kuota Sisa',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            'Minus',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                      rows: minus.map((m) {
+                        // Safe parsing untuk jenis_kupon_id
+                        int jenisKuponId = 0;
+                        if (m['jenis_kupon_id'] is int) {
+                          jenisKuponId = m['jenis_kupon_id'];
+                        } else if (m['jenis_kupon_id'] is double) {
+                          jenisKuponId = (m['jenis_kupon_id'] as double)
+                              .toInt();
+                        } else if (m['jenis_kupon_id'] is String) {
+                          jenisKuponId =
+                              int.tryParse(m['jenis_kupon_id'].toString()) ?? 0;
+                        }
+
+                        // Safe parsing untuk jenis_bbm_id
+                        int jenisBbmId = 0;
+                        if (m['jenis_bbm_id'] is int) {
+                          jenisBbmId = m['jenis_bbm_id'];
+                        } else if (m['jenis_bbm_id'] is double) {
+                          jenisBbmId = (m['jenis_bbm_id'] as double).toInt();
+                        } else if (m['jenis_bbm_id'] is String) {
+                          jenisBbmId =
+                              int.tryParse(m['jenis_bbm_id'].toString()) ?? 0;
+                        }
+
+                        return DataRow(
+                          cells: [
+                            DataCell(Text(m['nomor_kupon']?.toString() ?? '')),
+                            DataCell(
+                              Text(_jenisKuponMap[jenisKuponId] ?? 'Unknown'),
+                            ),
+                            DataCell(
+                              Text(_jenisBBMMap[jenisBbmId] ?? 'Unknown'),
+                            ),
+                            DataCell(Text(m['nama_satker']?.toString() ?? '')),
+                            DataCell(Text('${m['kuota_satker'] ?? 0} L')),
+                            DataCell(Text('${m['kuota_sisa'] ?? 0} L')),
+                            DataCell(Text('${m['minus'] ?? 0} L')),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildPaginationControls(context, false),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPaginationControls(BuildContext context, bool isTransaksi) {
+    return Consumer<TransaksiProvider>(
+      builder: (context, provider, _) {
+        final totalItems = isTransaksi
+            ? provider.transaksiList.length
+            : provider.kuponMinusList.length;
+        final currentPage = isTransaksi
+            ? _currentPageTransaksi
+            : _currentPageKuponMinus;
+        final totalPages = (totalItems / _itemsPerPage).ceil();
+
+        if (totalItems == 0) return const SizedBox.shrink();
+
+        final startItem = (currentPage - 1) * _itemsPerPage + 1;
+        final endItem = (currentPage * _itemsPerPage).clamp(0, totalItems);
+
+        return Card(
+          elevation: 1,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Menampilkan $startItem - $endItem dari $totalItems data',
+                  style: const TextStyle(fontSize: 14),
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.first_page),
+                      onPressed: currentPage > 1
+                          ? () {
+                              setState(() {
+                                if (isTransaksi) {
+                                  _currentPageTransaksi = 1;
+                                } else {
+                                  _currentPageKuponMinus = 1;
+                                }
+                              });
+                            }
+                          : null,
+                      tooltip: 'Halaman Pertama',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left),
+                      onPressed: currentPage > 1
+                          ? () {
+                              setState(() {
+                                if (isTransaksi) {
+                                  _currentPageTransaksi--;
+                                } else {
+                                  _currentPageKuponMinus--;
+                                }
+                              });
+                            }
+                          : null,
+                      tooltip: 'Halaman Sebelumnya',
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Halaman $currentPage dari $totalPages',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right),
+                      onPressed: currentPage < totalPages
+                          ? () {
+                              setState(() {
+                                if (isTransaksi) {
+                                  _currentPageTransaksi++;
+                                } else {
+                                  _currentPageKuponMinus++;
+                                }
+                              });
+                            }
+                          : null,
+                      tooltip: 'Halaman Berikutnya',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.last_page),
+                      onPressed: currentPage < totalPages
+                          ? () {
+                              setState(() {
+                                if (isTransaksi) {
+                                  _currentPageTransaksi = totalPages;
+                                } else {
+                                  _currentPageKuponMinus = totalPages;
+                                }
+                              });
+                            }
+                          : null,
+                      tooltip: 'Halaman Terakhir',
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         );
       },

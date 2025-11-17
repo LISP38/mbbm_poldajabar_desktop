@@ -33,7 +33,7 @@ class DatabaseDatasource {
     return await dbFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 6,
+        version: 7,
         onConfigure: (db) async {
           print('DEBUG: onConfigure called');
           await db.execute('PRAGMA foreign_keys = ON;');
@@ -198,59 +198,251 @@ class DatabaseDatasource {
               WHERE is_deleted = 0;
             ''');
           }
+
+          if (oldVersion < 7) {
+            print('DEBUG: Migrating to TRUE STAR SCHEMA v7');
+
+            // Step 1: Backup existing data
+            await db.execute(
+              'CREATE TABLE fact_kupon_backup AS SELECT * FROM fact_kupon',
+            );
+            await db.execute(
+              'CREATE TABLE fact_transaksi_backup AS SELECT * FROM fact_transaksi',
+            );
+
+            // Step 2: Drop legacy tables and unused star schema tables
+            await db.execute('DROP TABLE IF EXISTS fact_purchasing');
+            await db.execute('DROP TABLE IF EXISTS import_history');
+            await db.execute('DROP TABLE IF EXISTS import_details');
+
+            // Step 3: Create dim_kupon (master kupon)
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS dim_kupon (
+                kupon_key INTEGER PRIMARY KEY AUTOINCREMENT,
+                nomor_kupon TEXT NOT NULL,
+                satker_id INTEGER NOT NULL,
+                kendaraan_id INTEGER,
+                jenis_bbm_id INTEGER NOT NULL,
+                jenis_kupon_id INTEGER NOT NULL,
+                bulan_terbit INTEGER NOT NULL,
+                tahun_terbit INTEGER NOT NULL,
+                tanggal_mulai TEXT NOT NULL,
+                tanggal_sampai TEXT NOT NULL,
+                kuota_awal REAL NOT NULL,
+                status TEXT DEFAULT 'Aktif',
+                valid_from TEXT DEFAULT CURRENT_TIMESTAMP,
+                valid_to TEXT,
+                is_current INTEGER DEFAULT 1,
+                FOREIGN KEY (satker_id) REFERENCES dim_satker(satker_id),
+                FOREIGN KEY (kendaraan_id) REFERENCES dim_kendaraan(kendaraan_id),
+                FOREIGN KEY (jenis_bbm_id) REFERENCES dim_jenis_bbm(jenis_bbm_id),
+                FOREIGN KEY (jenis_kupon_id) REFERENCES dim_jenis_kupon(jenis_kupon_id)
+              )
+            ''');
+
+            // Step 4: Migrate fact_kupon to dim_kupon
+            await db.execute('''
+              INSERT INTO dim_kupon (
+                nomor_kupon, satker_id, kendaraan_id, jenis_bbm_id, jenis_kupon_id,
+                bulan_terbit, tahun_terbit, tanggal_mulai, tanggal_sampai, kuota_awal, status
+              )
+              SELECT 
+                nomor_kupon, satker_id, kendaraan_id, jenis_bbm_id, jenis_kupon_id,
+                bulan_terbit, tahun_terbit, tanggal_mulai, tanggal_sampai, kuota_awal, status
+              FROM fact_kupon_backup
+              WHERE is_deleted = 0
+            ''');
+
+            // Step 5: Create fact_kupon_snapshot
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS fact_kupon_snapshot (
+                snapshot_key INTEGER PRIMARY KEY AUTOINCREMENT,
+                kupon_key INTEGER NOT NULL,
+                date_key INTEGER,
+                snapshot_date TEXT NOT NULL,
+                kuota_awal REAL NOT NULL,
+                kuota_terpakai REAL NOT NULL DEFAULT 0,
+                kuota_sisa REAL NOT NULL,
+                jumlah_transaksi INTEGER DEFAULT 0,
+                status_kupon TEXT,
+                FOREIGN KEY (kupon_key) REFERENCES dim_kupon(kupon_key),
+                FOREIGN KEY (date_key) REFERENCES dim_date(date_key)
+              )
+            ''');
+
+            // Step 6: Recreate fact_transaksi with proper FK to dim_kupon
+            await db.execute('DROP TABLE IF EXISTS fact_transaksi');
+            await db.execute('''
+              CREATE TABLE fact_transaksi (
+                transaksi_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kupon_key INTEGER NOT NULL,
+                satker_id INTEGER NOT NULL,
+                kendaraan_id INTEGER,
+                jenis_bbm_id INTEGER NOT NULL,
+                jenis_kupon_id INTEGER NOT NULL,
+                date_key INTEGER,
+                jumlah_liter REAL NOT NULL,
+                tanggal_transaksi TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                is_deleted INTEGER DEFAULT 0,
+                FOREIGN KEY (kupon_key) REFERENCES dim_kupon(kupon_key),
+                FOREIGN KEY (satker_id) REFERENCES dim_satker(satker_id),
+                FOREIGN KEY (kendaraan_id) REFERENCES dim_kendaraan(kendaraan_id),
+                FOREIGN KEY (jenis_bbm_id) REFERENCES dim_jenis_bbm(jenis_bbm_id),
+                FOREIGN KEY (jenis_kupon_id) REFERENCES dim_jenis_kupon(jenis_kupon_id),
+                FOREIGN KEY (date_key) REFERENCES dim_date(date_key)
+              )
+            ''');
+
+            // Step 7: Migrate transactions with lookup to dim_kupon
+            await db.execute('''
+              INSERT INTO fact_transaksi (
+                kupon_key, satker_id, kendaraan_id, jenis_bbm_id, jenis_kupon_id,
+                jumlah_liter, tanggal_transaksi, created_at, updated_at, is_deleted
+              )
+              SELECT 
+                (SELECT dk.kupon_key FROM dim_kupon dk 
+                 WHERE dk.nomor_kupon = ft.nomor_kupon 
+                 AND dk.is_current = 1 LIMIT 1) as kupon_key,
+                (SELECT fk.satker_id FROM fact_kupon_backup fk 
+                 WHERE fk.kupon_id = ft.kupon_id LIMIT 1) as satker_id,
+                (SELECT fk.kendaraan_id FROM fact_kupon_backup fk 
+                 WHERE fk.kupon_id = ft.kupon_id LIMIT 1) as kendaraan_id,
+                ft.jenis_bbm_id,
+                (SELECT fk.jenis_kupon_id FROM fact_kupon_backup fk 
+                 WHERE fk.kupon_id = ft.kupon_id LIMIT 1) as jenis_kupon_id,
+                ft.jumlah_liter,
+                ft.tanggal_transaksi,
+                ft.created_at,
+                ft.updated_at,
+                ft.is_deleted
+              FROM fact_transaksi_backup ft
+              WHERE (SELECT dk.kupon_key FROM dim_kupon dk 
+                     WHERE dk.nomor_kupon = ft.nomor_kupon 
+                     AND dk.is_current = 1 LIMIT 1) IS NOT NULL
+            ''');
+
+            // Step 8: Drop fact_kupon (migrated to dim_kupon)
+            await db.execute('DROP TABLE IF EXISTS fact_kupon');
+
+            // Step 9: Create initial snapshot from current state
+            await db.execute('''
+              INSERT INTO fact_kupon_snapshot (
+                kupon_key, snapshot_date, kuota_awal, kuota_terpakai, kuota_sisa, jumlah_transaksi, status_kupon
+              )
+              SELECT 
+                dk.kupon_key,
+                date('now') as snapshot_date,
+                dk.kuota_awal,
+                COALESCE(SUM(ft.jumlah_liter), 0) as kuota_terpakai,
+                dk.kuota_awal - COALESCE(SUM(ft.jumlah_liter), 0) as kuota_sisa,
+                COUNT(ft.transaksi_id) as jumlah_transaksi,
+                dk.status as status_kupon
+              FROM dim_kupon dk
+              LEFT JOIN fact_transaksi ft ON dk.kupon_key = ft.kupon_key AND ft.is_deleted = 0
+              WHERE dk.is_current = 1
+              GROUP BY dk.kupon_key
+            ''');
+
+            // Step 10: Create indexes
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_dim_kupon_nomor ON dim_kupon(nomor_kupon)',
+            );
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_dim_kupon_satker ON dim_kupon(satker_id)',
+            );
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_dim_kupon_current ON dim_kupon(is_current)',
+            );
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_fact_transaksi_kupon ON fact_transaksi(kupon_key)',
+            );
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_fact_transaksi_date ON fact_transaksi(tanggal_transaksi)',
+            );
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_fact_transaksi_deleted ON fact_transaksi(is_deleted)',
+            );
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_fact_snapshot_kupon ON fact_kupon_snapshot(kupon_key)',
+            );
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_fact_snapshot_date ON fact_kupon_snapshot(snapshot_date)',
+            );
+
+            // Step 11: Drop backup tables
+            await db.execute('DROP TABLE IF EXISTS fact_kupon_backup');
+            await db.execute('DROP TABLE IF EXISTS fact_transaksi_backup');
+
+            print('DEBUG: Star schema migration completed');
+          }
         },
       ),
     );
   }
 
   Future<void> _createDB(Database db, int version) async {
-    print('DEBUG: _createDB called');
+    print('DEBUG: _createDB called - TRUE STAR SCHEMA');
     final batch = db.batch();
 
-    // ---- Dimension tables ----
-    // CREATE TABLE dulu, baru INSERT default data
+    // ===== DIMENSION TABLES =====
+
     batch.execute('''
-      CREATE TABLE IF NOT EXISTS dim_satker (
+      CREATE TABLE dim_satker (
         satker_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nama_satker TEXT NOT NULL,
+        nama_satker TEXT NOT NULL UNIQUE,
         kode_satker TEXT
-      );
+      )
     ''');
-    // Note: Satker data will be populated in _seedMasterData
 
     batch.execute('''
-      CREATE TABLE IF NOT EXISTS dim_jenis_bbm (
+      CREATE TABLE dim_jenis_bbm (
         jenis_bbm_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nama_jenis_bbm TEXT NOT NULL
-      );
+        nama_jenis_bbm TEXT NOT NULL UNIQUE
+      )
     ''');
 
     batch.execute('''
-      CREATE TABLE IF NOT EXISTS dim_jenis_kupon (
+      CREATE TABLE dim_jenis_kupon (
         jenis_kupon_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nama_jenis_kupon TEXT NOT NULL
-      );
+        nama_jenis_kupon TEXT NOT NULL UNIQUE
+      )
     ''');
 
     batch.execute('''
-      CREATE TABLE IF NOT EXISTS dim_kendaraan (
+      CREATE TABLE dim_kendaraan (
         kendaraan_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        satker_id INTEGER, -- denormalized attribute, not enforced as FK
+        satker_id INTEGER,
         jenis_ranmor TEXT,
         no_pol_kode TEXT,
         no_pol_nomor TEXT,
         status_aktif INTEGER DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(no_pol_kode, no_pol_nomor)
-      );
+        UNIQUE(no_pol_kode, no_pol_nomor),
+        FOREIGN KEY (satker_id) REFERENCES dim_satker(satker_id)
+      )
     ''');
 
-    // ---- Fact tables ----
-    // Legacy fact_kupon retained for compatibility. Recommend migrating to dim_kupon + fact_kupon_snapshot.
     batch.execute('''
-      CREATE TABLE IF NOT EXISTS fact_kupon (
-        kupon_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      CREATE TABLE dim_date (
+        date_key INTEGER PRIMARY KEY AUTOINCREMENT,
+        date_value TEXT NOT NULL UNIQUE,
+        year INTEGER,
+        month INTEGER,
+        day INTEGER,
+        week_of_year INTEGER,
+        quarter INTEGER,
+        bulan_terbit INTEGER,
+        tahun_terbit INTEGER
+      )
+    ''');
+
+    batch.execute('''
+      CREATE TABLE dim_kupon (
+        kupon_key INTEGER PRIMARY KEY AUTOINCREMENT,
         nomor_kupon TEXT NOT NULL,
+        satker_id INTEGER NOT NULL,
         kendaraan_id INTEGER,
         jenis_bbm_id INTEGER NOT NULL,
         jenis_kupon_id INTEGER NOT NULL,
@@ -259,249 +451,110 @@ class DatabaseDatasource {
         tanggal_mulai TEXT NOT NULL,
         tanggal_sampai TEXT NOT NULL,
         kuota_awal REAL NOT NULL,
-        kuota_sisa REAL NOT NULL CHECK (kuota_sisa >= -999999),
-        satker_id INTEGER NOT NULL,
-        nama_satker TEXT NOT NULL,
         status TEXT DEFAULT 'Aktif',
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        is_deleted INTEGER DEFAULT 0
-      );
+        valid_from TEXT DEFAULT CURRENT_TIMESTAMP,
+        valid_to TEXT,
+        is_current INTEGER DEFAULT 1,
+        FOREIGN KEY (satker_id) REFERENCES dim_satker(satker_id),
+        FOREIGN KEY (kendaraan_id) REFERENCES dim_kendaraan(kendaraan_id),
+        FOREIGN KEY (jenis_bbm_id) REFERENCES dim_jenis_bbm(jenis_bbm_id),
+        FOREIGN KEY (jenis_kupon_id) REFERENCES dim_jenis_kupon(jenis_kupon_id)
+      )
     ''');
 
-    // Legacy fact_transaksi retained. New star-schema fact_purchasing will be created below.
+    // ===== FACT TABLES =====
+
     batch.execute('''
-      CREATE TABLE IF NOT EXISTS fact_transaksi (
+      CREATE TABLE fact_transaksi (
         transaksi_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        kupon_id INTEGER NOT NULL,
-        nomor_kupon TEXT NOT NULL,
-        nama_satker TEXT NOT NULL,
+        kupon_key INTEGER NOT NULL,
+        satker_id INTEGER NOT NULL,
+        kendaraan_id INTEGER,
         jenis_bbm_id INTEGER NOT NULL,
+        jenis_kupon_id INTEGER NOT NULL,
+        date_key INTEGER,
         jumlah_liter REAL NOT NULL,
         tanggal_transaksi TEXT NOT NULL,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         is_deleted INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'Aktif'
-      );
-    ''');
-
-    // ---- Star schema additions (dimensions + facts following true star schema) ----
-    batch.execute('''
-      CREATE TABLE IF NOT EXISTS dim_kupon (
-        kupon_key INTEGER PRIMARY KEY AUTOINCREMENT,
-        nomor_kupon TEXT NOT NULL,
-        bulan_terbit INTEGER,
-        tahun_terbit INTEGER,
-        tanggal_mulai TEXT,
-        tanggal_sampai TEXT,
-        jenis_bbm_code TEXT,
-        jenis_kupon_code TEXT,
-        kendaraan_code TEXT,
-        status TEXT
-      );
+        FOREIGN KEY (kupon_key) REFERENCES dim_kupon(kupon_key),
+        FOREIGN KEY (satker_id) REFERENCES dim_satker(satker_id),
+        FOREIGN KEY (kendaraan_id) REFERENCES dim_kendaraan(kendaraan_id),
+        FOREIGN KEY (jenis_bbm_id) REFERENCES dim_jenis_bbm(jenis_bbm_id),
+        FOREIGN KEY (jenis_kupon_id) REFERENCES dim_jenis_kupon(jenis_kupon_id),
+        FOREIGN KEY (date_key) REFERENCES dim_date(date_key)
+      )
     ''');
 
     batch.execute('''
-      CREATE TABLE IF NOT EXISTS dim_date (
-        date_key INTEGER PRIMARY KEY AUTOINCREMENT,
-        date_value TEXT NOT NULL,
-        year INTEGER,
-        month INTEGER,
-        day INTEGER,
-        week_of_year INTEGER,
-        quarter INTEGER
-      );
-    ''');
-
-    batch.execute('''
-      CREATE TABLE IF NOT EXISTS fact_purchasing (
-        purchasing_key INTEGER PRIMARY KEY AUTOINCREMENT,
-        kupon_key INTEGER,
-        kendaraan_key INTEGER,
-        satker_key INTEGER,
-        jenis_bbm_key INTEGER,
-        jenis_kupon_key INTEGER,
-        date_key INTEGER,
-        jumlah_diambil REAL DEFAULT 0
-      );
-    ''');
-
-    batch.execute('''
-      CREATE TABLE IF NOT EXISTS fact_kupon_snapshot (
+      CREATE TABLE fact_kupon_snapshot (
         snapshot_key INTEGER PRIMARY KEY AUTOINCREMENT,
-        kupon_key INTEGER,
+        kupon_key INTEGER NOT NULL,
         date_key INTEGER,
-        kuota_awal REAL,
-        kuota_sisa REAL
-      );
+        snapshot_date TEXT NOT NULL,
+        kuota_awal REAL NOT NULL,
+        kuota_terpakai REAL NOT NULL DEFAULT 0,
+        kuota_sisa REAL NOT NULL,
+        jumlah_transaksi INTEGER DEFAULT 0,
+        status_kupon TEXT,
+        FOREIGN KEY (kupon_key) REFERENCES dim_kupon(kupon_key),
+        FOREIGN KEY (date_key) REFERENCES dim_date(date_key)
+      )
     ''');
 
-    // Import history tables
-    batch.execute('''
-      CREATE TABLE IF NOT EXISTS import_history (
-        session_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        file_name TEXT NOT NULL,
-        import_type TEXT NOT NULL,
-        import_date TEXT NOT NULL,
-        expected_period TEXT,
-        total_kupons INTEGER NOT NULL,
-        success_count INTEGER DEFAULT 0,
-        error_count INTEGER DEFAULT 0,
-        duplicate_count INTEGER DEFAULT 0,
-        status TEXT NOT NULL DEFAULT 'PROCESSING',
-        error_message TEXT,
-        metadata TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-      );
-    ''');
+    // ===== INDEXES =====
 
-    batch.execute('''
-      CREATE TABLE IF NOT EXISTS import_details (
-        detail_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        session_id INTEGER NOT NULL,
-        kupon_data TEXT NOT NULL,
-        status TEXT NOT NULL,
-        error_message TEXT,
-        action TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (session_id) REFERENCES import_history(session_id)
-          ON DELETE CASCADE
-      );
-    ''');
+    // Dimension indexes
+    batch.execute(
+      'CREATE INDEX idx_kendaraan_satker ON dim_kendaraan(satker_id)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_kendaraan_nopol ON dim_kendaraan(no_pol_kode, no_pol_nomor)',
+    );
+    batch.execute('CREATE INDEX idx_dim_kupon_nomor ON dim_kupon(nomor_kupon)');
+    batch.execute('CREATE INDEX idx_dim_kupon_satker ON dim_kupon(satker_id)');
+    batch.execute(
+      'CREATE INDEX idx_dim_kupon_current ON dim_kupon(is_current)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_dim_kupon_periode ON dim_kupon(bulan_terbit, tahun_terbit)',
+    );
+    batch.execute('CREATE INDEX idx_dim_date_value ON dim_date(date_value)');
 
-    batch.execute('''
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_fact_kupon_unique_key
-      ON fact_kupon (nomor_kupon, jenis_kupon_id, jenis_bbm_id, satker_id, bulan_terbit, tahun_terbit)
-      WHERE is_deleted = 0;
-    ''');
-
-    // Indexes
+    // Fact table indexes
     batch.execute(
-      'CREATE INDEX IF NOT EXISTS idx_kendaraan_satker ON dim_kendaraan(satker_id);',
+      'CREATE INDEX idx_fact_transaksi_kupon ON fact_transaksi(kupon_key)',
     );
     batch.execute(
-      'CREATE INDEX IF NOT EXISTS idx_kupon_kendaraan ON fact_kupon(kendaraan_id);',
+      'CREATE INDEX idx_fact_transaksi_satker ON fact_transaksi(satker_id)',
     );
     batch.execute(
-      'CREATE INDEX IF NOT EXISTS idx_kupon_status ON fact_kupon(status);',
+      'CREATE INDEX idx_fact_transaksi_date ON fact_transaksi(tanggal_transaksi)',
     );
     batch.execute(
-      'CREATE INDEX IF NOT EXISTS idx_transaksi_kupon ON fact_transaksi(kupon_id);',
+      'CREATE INDEX idx_fact_transaksi_deleted ON fact_transaksi(is_deleted)',
     );
     batch.execute(
-      'CREATE INDEX IF NOT EXISTS idx_import_history_date ON import_history(import_date);',
+      'CREATE INDEX idx_fact_snapshot_kupon ON fact_kupon_snapshot(kupon_key)',
     );
     batch.execute(
-      'CREATE INDEX IF NOT EXISTS idx_import_history_status ON import_history(status);',
-    );
-    batch.execute(
-      'CREATE INDEX IF NOT EXISTS idx_import_details_session ON import_details(session_id);',
+      'CREATE INDEX idx_fact_snapshot_date ON fact_kupon_snapshot(snapshot_date)',
     );
 
     await batch.commit(noResult: true);
-    print('DEBUG: Tables created, seeding master data...');
+    print('DEBUG: Star schema tables created, seeding master data...');
     await _seedMasterData(db);
     print('DEBUG: Master data seeded.');
   }
 
   Future<void> _seedMasterData(Database db) async {
-    print('DEBUG: _seedMasterData called');
-    await db.transaction((txn) async {
-      // dim_jenis_bbm
-      await txn.insert('dim_jenis_bbm', {
-        'jenis_bbm_id': 1,
-        'nama_jenis_bbm': 'Pertamax',
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      await txn.insert('dim_jenis_bbm', {
-        'jenis_bbm_id': 2,
-        'nama_jenis_bbm': 'Pertamina Dex',
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-
-      // dim_jenis_kupon
-      await txn.insert('dim_jenis_kupon', {
-        'jenis_kupon_id': 1,
-        'nama_jenis_kupon': 'Ranjen',
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      await txn.insert('dim_jenis_kupon', {
-        'jenis_kupon_id': 2,
-        'nama_jenis_kupon': 'Dukungan',
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-
-      // dim_satker: now fully dynamic, no hardcoded list
-      // Seed sample dim_satker for star schema
-      await txn.insert('dim_satker', {
-        'nama_satker': 'Pusat Logistik A',
-        'kode_satker': 'SAT-001',
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      await txn.insert('dim_satker', {
-        'nama_satker': 'Satuan Operasi B',
-        'kode_satker': 'SAT-002',
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-
-      // Seed sample dim_kendaraan
-      await txn.insert('dim_kendaraan', {
-        'satker_id': 1,
-        'jenis_ranmor': 'Truk',
-        'no_pol_kode': 'B',
-        'no_pol_nomor': '1234',
-        'status_aktif': 1,
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      await txn.insert('dim_kendaraan', {
-        'satker_id': 2,
-        'jenis_ranmor': 'Mobil',
-        'no_pol_kode': 'D',
-        'no_pol_nomor': '5678',
-        'status_aktif': 1,
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-
-      // Seed sample dim_kupon (new dimension)
-      await txn.insert('dim_kupon', {
-        'nomor_kupon': 'KP-0001',
-        'bulan_terbit': 1,
-        'tahun_terbit': 2025,
-        'tanggal_mulai': '2025-01-01',
-        'tanggal_sampai': '2025-01-31',
-        'jenis_bbm_code': '1',
-        'jenis_kupon_code': '1',
-        'kendaraan_code': 'KV-001',
-        'status': 'Aktif',
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      await txn.insert('dim_kupon', {
-        'nomor_kupon': 'KP-0002',
-        'bulan_terbit': 2,
-        'tahun_terbit': 2025,
-        'tanggal_mulai': '2025-02-01',
-        'tanggal_sampai': '2025-02-28',
-        'jenis_bbm_code': '2',
-        'jenis_kupon_code': '2',
-        'kendaraan_code': 'KV-002',
-        'status': 'Aktif',
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-
-      // Seed sample dim_date
-      await txn.insert('dim_date', {
-        'date_value': '2025-01-15',
-        'year': 2025,
-        'month': 1,
-        'day': 15,
-        'week_of_year': 3,
-        'quarter': 1,
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      await txn.insert('dim_date', {
-        'date_value': '2025-02-10',
-        'year': 2025,
-        'month': 2,
-        'day': 10,
-        'week_of_year': 6,
-        'quarter': 1,
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-
-      // Note: fact_purchasing and fact_kupon_snapshot will be populated through actual transactions
-      // No dummy data needed - tables start empty
-    });
-    print('DEBUG: _seedMasterData finished');
+    print(
+      'DEBUG: _seedMasterData called - no dummy data seeded, tables ready for import',
+    );
+    // All master data (dim_jenis_bbm, dim_jenis_kupon, dim_satker, dim_kendaraan, dim_kupon, dim_date)
+    // will be populated through Excel import or user input
+    // No dummy data needed
   }
 
   // PERBAIKAN: Cek duplikat sebelum insert
@@ -562,7 +615,7 @@ class DatabaseDatasource {
 
         // PERBAIKAN: Cek duplikat berdasarkan unique index
         final duplicateCheck = await db.query(
-          'fact_kupon',
+          'dim_kupon',
           where: '''
             nomor_kupon = ? AND
             jenis_kupon_id = ? AND
@@ -570,7 +623,7 @@ class DatabaseDatasource {
             satker_id = ? AND
             bulan_terbit = ? AND
             tahun_terbit = ? AND
-            is_deleted = 0
+            is_current = 1
           ''',
           whereArgs: [
             k.nomorKupon,
@@ -611,8 +664,8 @@ class DatabaseDatasource {
         final jenisBbmId = k.jenisBbmId;
         final jenisKuponId = k.jenisKuponId;
 
-        // Insert kupon
-        final insertedId = await db.insert('fact_kupon', {
+        // Insert kupon to dim_kupon (star schema)
+        final insertedId = await db.insert('dim_kupon', {
           'nomor_kupon': k.nomorKupon,
           'kendaraan_id': kendaraanId,
           'jenis_bbm_id': jenisBbmId,
@@ -622,13 +675,10 @@ class DatabaseDatasource {
           'tanggal_mulai': k.tanggalMulai,
           'tanggal_sampai': k.tanggalSampai,
           'kuota_awal': k.kuotaAwal,
-          'kuota_sisa': k.kuotaSisa,
           'satker_id': satkerId,
-          'nama_satker': namaSatker,
           'status': k.status,
-          'created_at': k.createdAt,
-          'updated_at': k.updatedAt,
-          'is_deleted': k.isDeleted,
+          'valid_from': DateTime.now().toIso8601String(),
+          'is_current': 1,
         });
 
         if (insertedId > 0) {

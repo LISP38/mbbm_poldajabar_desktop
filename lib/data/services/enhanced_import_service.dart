@@ -159,7 +159,7 @@ class EnhancedImportService {
       );
 
       // If import was successful, don't include validation errors from earlier
-      final importErrors = (result['error'] ?? 0) > 0 
+      final importErrors = (result['error'] ?? 0) > 0
           ? ['Import failed: ${result['error']} errors occurred']
           : <String>[];
 
@@ -169,7 +169,8 @@ class EnhancedImportService {
         errorCount: result['error'] ?? 0,
         duplicateCount: duplicateCount,
         warnings: allWarnings,
-        errors: importErrors,  // Only include import errors, not validation warnings
+        errors:
+            importErrors, // Only include import errors, not validation warnings
         metadata: allMetadata,
       );
     } catch (e) {
@@ -188,11 +189,16 @@ class EnhancedImportService {
     required List<KendaraanModel> newKendaraans,
   }) async {
     int successCount = 0;
+    int skippedCount = 0;
+    int versionedCount = 0;
     int errorCount = 0;
     List<String> errorMessages = [];
 
     final db = await _databaseDatasource.database;
     final Map<String, int> kendaraanIdMap = {};
+
+    // Auto-insert master data (dim_jenis_bbm, dim_jenis_kupon, dim_satker) if not exist
+    await _ensureMasterDataExists(db, newKupons, newKendaraans);
 
     print('Processing ${newKendaraans.length} kendaraans...');
     for (final kendaraan in newKendaraans) {
@@ -251,55 +257,137 @@ class EnhancedImportService {
         int? kendaraanId = null;
 
         if (kupon.jenisKuponId == 1) {
-          // Ranjen
-          // Alternatif: Coba temukan kendaraan model yang sesuai dari newKendaraans berdasarkan satker
-          // Kita gunakan informasi yang diparsing dari Excel row untuk membuat kunci pencocokan
-          // Misalnya, jika kupon Ranjen memiliki kendaraanId null, kita cari dari newKendaraans berdasarkan satker
-          // Jika kupon Ranjen memiliki kendaraanId (karena _parseRow berhasil membuatnya), kita gunakan itu
-          if (kupon.kendaraanId != null) {
-            kendaraanId = kupon.kendaraanId;
+          // Ranjen - use kendaraanId from kupon (parsed from Excel)
+          kendaraanId = kupon.kendaraanId;
+          if (kendaraanId != null) {
             print(
-              'Using kendaraanId from KuponModel for Ranjen ${kupon.nomorKupon}: ${kendaraanId}',
+              'Processing RANJEN ${kupon.nomorKupon} with kendaraan_id: $kendaraanId',
             );
           } else {
-            // Jika kendaraanId null, coba cari di map berdasarkan kombinasi lain (ini bisa kompleks)
-            // Lebih baik memastikan _parseRow selalu menghasilkan kendaraanId untuk Ranjen
-            // Jika tidak, berarti data kendaraan tidak ditemukan/valid
+            // RANJEN with null kendaraanId - still insert but log warning
             print(
-              'ERROR: Ranjen ${kupon.nomorKupon} has null kendaraanId and no matching kendaraan found in newKendaraans map.',
+              '⚠️ WARNING: RANJEN ${kupon.nomorKupon} has null kendaraan_id (will be inserted, can be fixed later via UI)',
             );
-            errorCount++;
-            errorMessages.add(
-              'Ranjen ${kupon.nomorKupon} (${kupon.namaSatker}) failed: Kendaraan not found or invalid.',
-            );
-            continue; // Lanjutkan ke kupon berikutnya
           }
-
-          // Validasi apakah kendaraanId ditemukan di map (jika pencocokan manual dilakukan)
-          // if (kendaraanId == null || kendaraanId == 0) {
-          //    print('ERROR: Ranjen ${kupon.nomorKupon} has null kendaraanId after mapping.');
-          //    errorCount++;
-          //    errorMessages.add('Ranjen ${kupon.nomorKupon} (${kupon.namaSatker}) failed: Kendaraan not found in map.');
-          //    continue; // Lanjutkan ke kupon berikutnya
-          // }
         } else if (kupon.jenisKuponId == 2) {
-          // Dukungan - selalu set kendaraan_id = null
-          // Satker sudah ditentukan dari parsing Excel
+          // Dukungan - always set kendaraan_id = null
           kendaraanId = null;
           print(
             'Processing DUKUNGAN ${kupon.nomorKupon} (${kupon.namaSatker}), kendaraan_id will be null.',
           );
         }
 
-        // Sekarang coba insert kupon
+        // Insert kupon ke dim_kupon (star schema) with SCD Type 2
         final updatedKupon = kupon.copyWith(kendaraanId: kendaraanId);
 
-        await db.insert(
-          'fact_kupon',
-          updatedKupon.toMap(),
-          conflictAlgorithm: ConflictAlgorithm
-              .replace, // Atau ConflictAlgorithm.abort jika ingin gagal saat duplikat
+        // Check if EXACT same kupon already exists (true duplicate check)
+        // Handle NULL kendaraan_id properly for DUKUNGAN kupons
+        String whereClause;
+        List<dynamic> whereArgs;
+
+        if (updatedKupon.kendaraanId == null) {
+          // For DUKUNGAN or RANJEN without kendaraan_id
+          whereClause = '''
+            nomor_kupon = ? AND 
+            bulan_terbit = ? AND 
+            tahun_terbit = ? AND 
+            satker_id = ? AND 
+            jenis_bbm_id = ? AND 
+            jenis_kupon_id = ? AND 
+            kendaraan_id IS NULL AND
+            is_current = 1
+          ''';
+          whereArgs = [
+            updatedKupon.nomorKupon,
+            updatedKupon.bulanTerbit,
+            updatedKupon.tahunTerbit,
+            updatedKupon.satkerId,
+            updatedKupon.jenisBbmId,
+            updatedKupon.jenisKuponId,
+          ];
+        } else {
+          // For RANJEN with kendaraan_id
+          whereClause = '''
+            nomor_kupon = ? AND 
+            bulan_terbit = ? AND 
+            tahun_terbit = ? AND 
+            satker_id = ? AND 
+            jenis_bbm_id = ? AND 
+            jenis_kupon_id = ? AND 
+            kendaraan_id = ? AND
+            is_current = 1
+          ''';
+          whereArgs = [
+            updatedKupon.nomorKupon,
+            updatedKupon.bulanTerbit,
+            updatedKupon.tahunTerbit,
+            updatedKupon.satkerId,
+            updatedKupon.jenisBbmId,
+            updatedKupon.jenisKuponId,
+            updatedKupon.kendaraanId,
+          ];
+        }
+
+        final exactDuplicate = await db.query(
+          'dim_kupon',
+          where: whereClause,
+          whereArgs: whereArgs,
         );
+
+        if (exactDuplicate.isNotEmpty) {
+          // TRUE DUPLICATE - skip insert
+          skippedCount++;
+          print(
+            '⏭️ SKIPPED: Kupon ${updatedKupon.nomorKupon} already exists with same attributes (true duplicate)',
+          );
+          continue;
+        }
+
+        // Check if kupon with same nomor exists but different attributes (version change)
+        // IMPORTANT: Must include jenis_kupon_id and jenis_bbm_id to identify the correct kupon
+        // because same nomor_kupon can exist for different jenis (RANJEN vs DUKUNGAN) and BBM types
+        final existingVersion = await db.query(
+          'dim_kupon',
+          where: '''
+            nomor_kupon = ? AND 
+            jenis_kupon_id = ? AND 
+            jenis_bbm_id = ? AND 
+            is_current = 1
+          ''',
+          whereArgs: [
+            updatedKupon.nomorKupon,
+            updatedKupon.jenisKuponId,
+            updatedKupon.jenisBbmId,
+          ],
+        );
+
+        if (existingVersion.isNotEmpty) {
+          // VERSION CHANGE - Expire old record (SCD Type 2)
+          versionedCount++;
+          await db.update(
+            'dim_kupon',
+            {'is_current': 0, 'valid_to': DateTime.now().toIso8601String()},
+            where: 'nomor_kupon = ? AND is_current = 1',
+            whereArgs: [updatedKupon.nomorKupon],
+          );
+          print(
+            '🔄 VERSIONING: Kupon ${updatedKupon.nomorKupon} has changes, creating new version',
+          );
+        }
+
+        // Insert new version
+        final map = updatedKupon.toMap();
+        map['valid_from'] = DateTime.now().toIso8601String();
+        map['is_current'] = 1;
+        map.remove('kupon_id'); // Auto-increment as kupon_key
+        map.remove('kupon_key'); // Auto-increment
+        map.remove('is_deleted'); // Not in dim_kupon
+        map.remove('updated_at'); // Not in dim_kupon
+        map.remove('created_at'); // Use valid_from
+        map.remove('kuota_sisa'); // In fact_kupon_snapshot
+        map.remove('nama_satker'); // Denormalized from dim_satker
+
+        await db.insert('dim_kupon', map);
 
         successCount++;
         print(
@@ -312,14 +400,105 @@ class EnhancedImportService {
       }
     }
 
-    print(
-      'Import completed with $successCount successful and $errorCount failed kupons',
-    );
+    print('\n' + '=' * 60);
+    print('📊 IMPORT SUMMARY:');
+    print('   Total processed: ${newKupons.length} kupons');
+    print('   ✅ Successfully inserted: $successCount');
+    print('   ⏭️ Skipped (duplicates): $skippedCount');
+    print('   🔄 Versioned (updated): $versionedCount');
+    print('   ❌ Failed (errors): $errorCount');
+    print('=' * 60 + '\n');
+
     if (errorMessages.isNotEmpty) {
       print('Error messages:');
       errorMessages.forEach((msg) => print(' - $msg'));
     }
 
-    return {'success': successCount, 'error': errorCount};
+    return {
+      'success': successCount,
+      'skipped': skippedCount,
+      'versioned': versionedCount,
+      'error': errorCount,
+    };
+  }
+
+  /// Ensure master data exists before importing kupons
+  /// Auto-insert dim_jenis_bbm, dim_jenis_kupon, and dim_satker if not exist
+  Future<void> _ensureMasterDataExists(
+    Database db,
+    List<KuponModel> kupons,
+    List<KendaraanModel> kendaraans,
+  ) async {
+    // Collect unique values from kupons
+    final jenisBbmIds = kupons.map((k) => k.jenisBbmId).toSet();
+    final jenisKuponIds = kupons.map((k) => k.jenisKuponId).toSet();
+    final satkerIds = {
+      ...kupons.map((k) => k.satkerId),
+      ...kendaraans.map((k) => k.satkerId),
+    }.toSet();
+
+    print('Ensuring master data exists...');
+
+    // Insert dim_jenis_bbm if not exist
+    for (final jenisBbmId in jenisBbmIds) {
+      final existing = await db.query(
+        'dim_jenis_bbm',
+        where: 'jenis_bbm_id = ?',
+        whereArgs: [jenisBbmId],
+      );
+      if (existing.isEmpty) {
+        await db.insert('dim_jenis_bbm', {
+          'jenis_bbm_id': jenisBbmId,
+          'nama_jenis_bbm': 'Jenis BBM $jenisBbmId', // Default name
+        });
+        print('✅ Auto-inserted dim_jenis_bbm: $jenisBbmId');
+      }
+    }
+
+    // Insert dim_jenis_kupon if not exist
+    for (final jenisKuponId in jenisKuponIds) {
+      final existing = await db.query(
+        'dim_jenis_kupon',
+        where: 'jenis_kupon_id = ?',
+        whereArgs: [jenisKuponId],
+      );
+      if (existing.isEmpty) {
+        final namaJenis = jenisKuponId == 1
+            ? 'Ranjen'
+            : jenisKuponId == 2
+            ? 'Dukungan'
+            : 'Jenis Kupon $jenisKuponId';
+        await db.insert('dim_jenis_kupon', {
+          'jenis_kupon_id': jenisKuponId,
+          'nama_jenis_kupon': namaJenis,
+        });
+        print('✅ Auto-inserted dim_jenis_kupon: $jenisKuponId ($namaJenis)');
+      }
+    }
+
+    // Insert dim_satker if not exist
+    for (final satkerId in satkerIds) {
+      final existing = await db.query(
+        'dim_satker',
+        where: 'satker_id = ?',
+        whereArgs: [satkerId],
+      );
+      if (existing.isEmpty) {
+        // Find satker name from kupons
+        final kuponWithSatker = kupons.firstWhere(
+          (k) => k.satkerId == satkerId,
+          orElse: () => kupons.first,
+        );
+        final satkerName = kuponWithSatker.namaSatker;
+        await db.insert('dim_satker', {
+          'satker_id': satkerId,
+          'nama_satker': satkerName,
+          'kode_satker': 'SAT-${satkerId.toString().padLeft(3, '0')}',
+        });
+        print('✅ Auto-inserted dim_satker: $satkerId ($satkerName)');
+      }
+    }
+
+    print('Master data check completed.');
   }
 }

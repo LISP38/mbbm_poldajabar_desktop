@@ -20,11 +20,10 @@ class MasterDataRepositoryImpl implements MasterDataRepository {
       SELECT DISTINCT ds.* 
       FROM dim_satker ds
       INNER JOIN dim_kendaraan dk ON dk.satker_id = ds.satker_id
-      INNER JOIN fact_kupon fk ON fk.kendaraan_id = dk.kendaraan_id
+      INNER JOIN dim_kupon fk ON fk.kendaraan_id = dk.kendaraan_id
       WHERE ds.satker_id != 1  -- Exclude KAPOLDA karena sudah diambil di atas
         AND fk.status = 'Aktif' 
-        AND fk.kuota_sisa > 0
-        AND fk.is_deleted = 0
+        AND fk.is_current = 1
       ORDER BY nama_satker
     ''');
     print('DEBUG getAllSatker: Found ${result.length} satkers');

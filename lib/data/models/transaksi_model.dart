@@ -7,6 +7,7 @@ class TransaksiModel extends TransaksiEntity {
     required super.nomorKupon,
     required super.namaSatker,
     required super.jenisBbmId,
+    required super.jenisKuponId,
     required super.tanggalTransaksi,
     required super.jumlahLiter,
     required super.createdAt,
@@ -20,10 +21,11 @@ class TransaksiModel extends TransaksiEntity {
   factory TransaksiModel.fromMap(Map<String, dynamic> map) {
     return TransaksiModel(
       transaksiId: map['transaksi_id'] as int,
-      kuponId: map['kupon_id'] as int,
+      kuponId: (map['kupon_key'] ?? map['kupon_id']) as int,
       nomorKupon: (map['kupon_nomor'] ?? map['nomor_kupon']) as String,
       namaSatker: (map['kupon_satker'] ?? map['nama_satker']) as String,
       jenisBbmId: (map['kupon_jenis_bbm'] ?? map['jenis_bbm_id']) as int,
+      jenisKuponId: (map['kupon_jenis_kupon'] ?? map['jenis_kupon_id']) as int,
       tanggalTransaksi: map['tanggal_transaksi'] as String,
       jumlahLiter: (map['jumlah_liter'] as num).toDouble(),
       createdAt: map['created_at'] as String,
@@ -37,16 +39,14 @@ class TransaksiModel extends TransaksiEntity {
 
   Map<String, dynamic> toMap() {
     final map = {
-      'kupon_id': kuponId,
-      'nomor_kupon': nomorKupon,
-      'nama_satker': namaSatker,
+      'kupon_key': kuponId,
       'jenis_bbm_id': jenisBbmId,
+      'jenis_kupon_id': jenisKuponId,
       'jumlah_liter': jumlahLiter,
       'tanggal_transaksi': tanggalTransaksi,
       'created_at': createdAt,
       'updated_at': updatedAt,
       'is_deleted': isDeleted,
-      'status': status,
     };
 
     // Only include transaksi_id if it's not 0 (for updates)

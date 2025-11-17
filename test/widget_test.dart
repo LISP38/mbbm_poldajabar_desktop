@@ -5,7 +5,6 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -32,7 +31,8 @@ void main() {
             create: (_) => DashboardProvider(di.getIt<KuponRepository>()),
           ),
           ChangeNotifierProvider(
-            create: (_) => TransaksiProvider(di.getIt<TransaksiRepositoryImpl>()),
+            create: (_) =>
+                TransaksiProvider(di.getIt<TransaksiRepositoryImpl>()),
           ),
           ChangeNotifierProvider(
             create: (_) => KuponProvider(di.getIt<KuponRepository>()),
@@ -40,7 +40,9 @@ void main() {
           ChangeNotifierProvider(
             create: (_) => MasterDataProvider(di.getIt<MasterDataRepository>()),
           ),
-          ChangeNotifierProvider(create: (_) => di.getIt<EnhancedImportProvider>()),
+          ChangeNotifierProvider(
+            create: (_) => di.getIt<EnhancedImportProvider>(),
+          ),
         ],
         child: const MyApp(),
       ),

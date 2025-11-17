@@ -110,6 +110,7 @@ class _TransaksiBBMFormState extends State<TransaksiBBMForm> {
                       nomorKupon: widget.initialData!.nomorKupon,
                       namaSatker: widget.initialData!.namaSatker,
                       jenisBbmId: widget.initialData!.jenisBbmId,
+                      jenisKuponId: widget.initialData!.jenisKuponId,
                       tanggalTransaksi: widget.initialData!.tanggalTransaksi,
                       jumlahLiter: double.parse(_literController.text),
                       createdAt: widget.initialData!.createdAt,

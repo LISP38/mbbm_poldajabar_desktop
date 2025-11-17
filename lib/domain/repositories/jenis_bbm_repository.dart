@@ -1,4 +1,3 @@
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../entities/jenis_bbm_entity.dart';
 
 abstract class JenisBbmRepository {

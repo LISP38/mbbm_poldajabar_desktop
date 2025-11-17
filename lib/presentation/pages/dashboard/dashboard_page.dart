@@ -6,8 +6,8 @@ import '../../../core/di/dependency_injection.dart';
 import '../../../domain/entities/kendaraan_entity.dart';
 import '../../../domain/entities/kupon_entity.dart';
 import '../../../data/models/kendaraan_model.dart';
-import '../../../domain/repositories/kendaraan_repository.dart';
 import '../../../data/services/export_service.dart';
+import '../../../domain/repositories/kendaraan_repository.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../providers/master_data_provider.dart';
 import '../../providers/transaksi_provider.dart';
@@ -235,7 +235,8 @@ class _DashboardPageState extends State<DashboardPage>
   //   );
   // }
 
-  String _getNopolByKendaraanId(int? kendaraanId) {
+  // Sync version for local use
+  String _getNopolSync(int? kendaraanId) {
     // Handle DUKUNGAN coupons that don't have kendaraan
     if (kendaraanId == null) return '-';
 
@@ -251,6 +252,11 @@ class _DashboardPageState extends State<DashboardPage>
     );
     if (kendaraan.kendaraanId == 0) return '-';
     return '${kendaraan.noPolNomor}-${kendaraan.noPolKode}';
+  }
+
+  // Async wrapper for export preview
+  Future<String?> _getNopolByKendaraanId(int? kendaraanId) async {
+    return _getNopolSync(kendaraanId);
   }
 
   void _resetFilters() {
@@ -289,11 +295,11 @@ class _DashboardPageState extends State<DashboardPage>
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Row(
+          title: const Row(
             children: [
-              const Icon(Icons.file_download, color: Colors.blue),
-              const SizedBox(width: 8),
-              const Text('Export Data'),
+              Icon(Icons.file_download, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Export Data'),
             ],
           ),
           content: Column(
@@ -301,8 +307,13 @@ class _DashboardPageState extends State<DashboardPage>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Pilih jenis data yang ingin di-export:',
+                'Export data kupon ke Excel',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Anda akan dapat memilih format export pada langkah berikutnya.',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -312,44 +323,13 @@ class _DashboardPageState extends State<DashboardPage>
                     Navigator.of(context).pop();
                     await _exportDataKupon();
                   },
-                  icon: const Icon(Icons.description),
-                  label: const Text('Data Kupon (4 Sheet)'),
+                  icon: const Icon(Icons.table_chart),
+                  label: const Text('Lanjutkan Export'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.all(12),
                   ),
-                ),
-              ),
-              const Padding(
-                padding: EdgeInsets.only(left: 16, top: 4),
-                child: Text(
-                  'RAN.PX, DUK.PX, RAN.DX, DUK.DX',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.maxFinite,
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    Navigator.of(context).pop();
-                    await _exportDataSatker();
-                  },
-                  icon: const Icon(Icons.business),
-                  label: const Text('Data Satker (2 Sheet)'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.all(12),
-                  ),
-                ),
-              ),
-              const Padding(
-                padding: EdgeInsets.only(left: 16, top: 4),
-                child: Text(
-                  'REKAP.PX, REKAP.DX',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ),
               const SizedBox(height: 16),
@@ -391,9 +371,12 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  // Ganti fungsi _exportDataKupon yang ada dengan ini
+  // Export Master Data Kupon - tanpa kolom tanggal
   Future<void> _exportDataKupon() async {
     try {
+      if (!mounted) return;
+
+      // Tampilkan loading saat fetch data
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -402,7 +385,7 @@ class _DashboardPageState extends State<DashboardPage>
             children: [
               CircularProgressIndicator(),
               SizedBox(width: 16),
-              Text('Menyiapkan Data Kupon (4 Sheet)...'),
+              Text('Memuat data kupon...'),
             ],
           ),
         ),
@@ -410,117 +393,58 @@ class _DashboardPageState extends State<DashboardPage>
 
       final provider = Provider.of<DashboardProvider>(context, listen: false);
 
-      // --- PERBAIKAN: Pastikan data dari kedua tab sudah dimuat ---
-      print('[EXPORT] Memastikan data Ranjen dan Dukungan sudah dimuat...');
-
-      // Jika data Ranjen kosong, ambil dulu
+      // Pastikan data dari kedua tab sudah dimuat
       if (provider.ranjenKupons.isEmpty) {
-        print('[EXPORT] Data Ranjen kosong, mengambil data...');
         await provider.fetchRanjenKupons();
-      } else {
-        print('[EXPORT] Data Ranjen sudah ada.');
       }
-
-      // Jika data Dukungan kosong, ambil dulu
       if (provider.dukunganKupons.isEmpty) {
-        print('[EXPORT] Data Dukungan kosong, mengambil data...');
         await provider.fetchDukunganKupons();
-      } else {
-        print('[EXPORT] Data Dukungan sudah ada.');
       }
 
-      print(
-        '[EXPORT] Total data yang akan diekspor: ${provider.allKuponsForExport.length}',
-      );
+      if (!mounted) return;
+      Navigator.of(context).pop(); // Tutup loading dialog
 
-      // Sekarang, periksa lagi apakah data gabungan benar-benar kosong
       if (provider.allKuponsForExport.isEmpty) {
-        Navigator.of(context).pop(); // Tutup dialog loading
         _showMessage('Tidak ada data kupon untuk di-export', isError: true);
         return;
       }
 
-      final success = await ExportService.exportDataKupon(
+      // Tampilkan loading saat export
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Mengekspor master data kupon...'),
+            ],
+          ),
+        ),
+      );
+
+      // Export menggunakan fungsi master data (9 kolom, tanpa tanggal)
+      final success = await ExportService.exportMasterDataKupon(
         allKupons: provider.allKuponsForExport,
-        jenisBBMMap: _jenisBBMMap,
         getNopolByKendaraanId: _getNopolByKendaraanId,
         getJenisRanmorByKendaraanId: _getJenisRanmorByKendaraanId,
       );
 
-      Navigator.of(context).pop(); // Tutup dialog loading
+      if (!mounted) return;
+      Navigator.of(context).pop(); // Tutup loading dialog
 
       if (success) {
-        _showMessage(
-          'Data Kupon berhasil di-export! (RAN.PX, DUK.PX, RAN.DX, DUK.DX)',
-        );
+        _showMessage('Master data kupon berhasil di-export');
       } else {
-        _showMessage('Export dibatalkan atau gagal', isError: true);
+        _showMessage('Export dibatalkan atau terjadi kesalahan', isError: true);
       }
     } catch (e) {
-      Navigator.of(context).pop(); // Tutup dialog loading jika terjadi error
-      _showMessage('Error saat export data: $e', isError: true);
-    }
-  }
-
-  // Ganti fungsi _exportDataSatker yang ada dengan ini
-  Future<void> _exportDataSatker() async {
-    try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          content: Row(
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 16),
-              Text('Menyiapkan Data Satker (2 Sheet)...'),
-            ],
-          ),
-        ),
-      );
-
-      final provider = Provider.of<DashboardProvider>(context, listen: false);
-
-      // --- PERBAIKAN: Pastikan data dari kedua tab sudah dimuat ---
-      print(
-        '[EXPORT SATKER] Memastikan data Ranjen dan Dukungan sudah dimuat...',
-      );
-
-      if (provider.ranjenKupons.isEmpty) {
-        print('[EXPORT SATKER] Data Ranjen kosong, mengambil data...');
-        await provider.fetchRanjenKupons();
+      if (mounted) {
+        Navigator.of(context).pop(); // Tutup dialog loading jika terjadi error
+        _showMessage('Error saat export data: $e', isError: true);
       }
-
-      if (provider.dukunganKupons.isEmpty) {
-        print('[EXPORT SATKER] Data Dukungan kosong, mengambil data...');
-        await provider.fetchDukunganKupons();
-      }
-
-      print(
-        '[EXPORT SATKER] Total data yang akan diekspor: ${provider.allKuponsForExport.length}',
-      );
-
-      if (provider.allKuponsForExport.isEmpty) {
-        Navigator.of(context).pop(); // Tutup dialog loading
-        _showMessage('Tidak ada data kupon untuk di-export', isError: true);
-        return;
-      }
-
-      final success = await ExportService.exportDataSatker(
-        allKupons: provider.allKuponsForExport,
-        jenisBBMMap: _jenisBBMMap,
-      );
-
-      Navigator.of(context).pop(); // Tutup dialog loading
-
-      if (success) {
-        _showMessage('Data Satker berhasil di-export! (REKAP.PX, REKAP.DX)');
-      } else {
-        _showMessage('Export dibatalkan atau gagal', isError: true);
-      }
-    } catch (e) {
-      Navigator.of(context).pop(); // Tutup dialog loading jika terjadi error
-      _showMessage('Error saat export data: $e', isError: true);
     }
   }
 
@@ -1118,12 +1042,10 @@ class _DashboardPageState extends State<DashboardPage>
                           _jenisBBMMap[k.jenisBbmId] ?? k.jenisBbmId.toString(),
                         ),
                       ),
-                      DataCell(Text(_getNopolByKendaraanId(k.kendaraanId))),
-                      DataCell(
-                        Text(_getJenisRanmorByKendaraanId(k.kendaraanId)),
-                      ),
+                      DataCell(Text(_getNopolSync(k.kendaraanId))),
+                      DataCell(Text(_getJenisRanmorSync(k.kendaraanId))),
                       DataCell(Text('${k.bulanTerbit}/${k.tahunTerbit}')),
-                      DataCell(Text('${k.kuotaSisa.toStringAsFixed(2)} L')),
+                      DataCell(Text('${k.kuotaSisa.toInt()} L')),
                       DataCell(
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -1230,12 +1152,10 @@ class _DashboardPageState extends State<DashboardPage>
                           _jenisBBMMap[k.jenisBbmId] ?? k.jenisBbmId.toString(),
                         ),
                       ),
-                      DataCell(Text(_getNopolByKendaraanId(k.kendaraanId))),
-                      DataCell(
-                        Text(_getJenisRanmorByKendaraanId(k.kendaraanId)),
-                      ),
+                      DataCell(Text(_getNopolSync(k.kendaraanId))),
+                      DataCell(Text(_getJenisRanmorSync(k.kendaraanId))),
                       DataCell(Text('${k.bulanTerbit}/${k.tahunTerbit}')),
-                      DataCell(Text('${k.kuotaSisa.toStringAsFixed(2)} L')),
+                      DataCell(Text('${k.kuotaSisa.toInt()} L')),
                       DataCell(
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -1391,7 +1311,8 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  String _getJenisRanmorByKendaraanId(int? kendaraanId) {
+  // Sync version for local use
+  String _getJenisRanmorSync(int? kendaraanId) {
     if (kendaraanId == null) return '-';
 
     final kendaraan = _kendaraanList.firstWhere(
@@ -1406,6 +1327,11 @@ class _DashboardPageState extends State<DashboardPage>
     );
     if (kendaraan.kendaraanId == 0) return '-';
     return kendaraan.jenisRanmor;
+  }
+
+  // Async wrapper for export preview
+  Future<String?> _getJenisRanmorByKendaraanId(int? kendaraanId) async {
+    return _getJenisRanmorSync(kendaraanId);
   }
 
   Future<void> _showKuponDetailDialog(
@@ -1461,14 +1387,8 @@ class _DashboardPageState extends State<DashboardPage>
                   'Jenis Kupon',
                   kupon.jenisKuponId == 1 ? 'RANJEN' : 'DUKUNGAN',
                 ),
-                _buildDetailRow(
-                  'Kuota Awal',
-                  '${kupon.kuotaAwal.toStringAsFixed(2)} L',
-                ),
-                _buildDetailRow(
-                  'Kuota Sisa',
-                  '${kupon.kuotaSisa.toStringAsFixed(2)} L',
-                ),
+                _buildDetailRow('Kuota Awal', '${kupon.kuotaAwal.toInt()} L'),
+                _buildDetailRow('Kuota Sisa', '${kupon.kuotaSisa.toInt()} L'),
                 _buildDetailRow('Status', kupon.status),
                 _buildDetailRow(
                   'Tanggal Terbit',
@@ -1497,7 +1417,7 @@ class _DashboardPageState extends State<DashboardPage>
                             (t) => DataRow(
                               cells: [
                                 DataCell(Text(t.tanggalTransaksi)),
-                                DataCell(Text('${t.jumlahLiter} L')),
+                                DataCell(Text('${t.jumlahLiter.toInt()} L')),
                               ],
                             ),
                           )

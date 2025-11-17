@@ -122,6 +122,7 @@ class DashboardActions extends StatelessWidget {
             nomorKupon: kupon.nomorKupon,
             namaSatker: kupon.namaSatker,
             jenisBbmId: jenisBbmId,
+            jenisKuponId: kupon.jenisKuponId,
             tanggalTransaksi: now.substring(0, 10),
             jumlahLiter: jumlahLiter,
             createdAt: now,

@@ -14,7 +14,11 @@ class FakeTransaksiRepository extends TransaksiRepositoryImpl {
   FakeTransaksiRepository() : super(DatabaseDatasource());
 
   @override
-  Future<List<TransaksiEntity>> getAllTransaksi({int? bulan, int? tahun, int? isDeleted}) async {
+  Future<List<TransaksiEntity>> getAllTransaksi({
+    int? bulan,
+    int? tahun,
+    int? isDeleted,
+  }) async {
     return _items.where((t) => (isDeleted ?? 0) == t.isDeleted).toList();
   }
 
@@ -27,6 +31,7 @@ class FakeTransaksiRepository extends TransaksiRepositoryImpl {
       nomorKupon: model.nomorKupon,
       namaSatker: model.namaSatker,
       jenisBbmId: model.jenisBbmId,
+      jenisKuponId: model.jenisKuponId,
       tanggalTransaksi: model.tanggalTransaksi,
       jumlahLiter: model.jumlahLiter,
       createdAt: model.createdAt,
@@ -47,48 +52,56 @@ class FakeTransaksiRepository extends TransaksiRepositoryImpl {
 }
 
 void main() {
-  test('TransaksiProvider.addTransaksi appends new transactions and fetches list', () async {
-    final fakeRepo = FakeTransaksiRepository();
-    final provider = TransaksiProvider(fakeRepo);
+  test(
+    'TransaksiProvider.addTransaksi appends new transactions and fetches list',
+    () async {
+      final fakeRepo = FakeTransaksiRepository();
+      final provider = TransaksiProvider(fakeRepo);
 
-    // Initially empty
-    await provider.fetchTransaksiFiltered();
-    expect(provider.transaksiList.length, 0);
+      // Initially empty
+      await provider.fetchTransaksiFiltered();
+      expect(provider.transaksiList.length, 0);
 
-    // Add first transaksi
-    final t1 = TransaksiModel(
-      transaksiId: 0,
-      kuponId: 1,
-      nomorKupon: 'A-001',
-      namaSatker: 'SATKER A',
-      jenisBbmId: 1,
-      tanggalTransaksi: '2025-10-01',
-      jumlahLiter: 10,
-      createdAt: DateTime.now().toIso8601String(),
-      updatedAt: DateTime.now().toIso8601String(),
-    );
+      // Add first transaksi
+      final t1 = TransaksiModel(
+        transaksiId: 0,
+        kuponId: 1,
+        nomorKupon: 'A-001',
+        namaSatker: 'SATKER A',
+        jenisBbmId: 1,
+        jenisKuponId: 1,
+        tanggalTransaksi: '2025-10-01',
+        jumlahLiter: 10,
+        createdAt: DateTime.now().toIso8601String(),
+        updatedAt: DateTime.now().toIso8601String(),
+      );
 
-    await provider.addTransaksi(t1);
-    expect(provider.transaksiList.length, 1);
-    expect(provider.transaksiList.first.nomorKupon, 'A-001');
+      await provider.addTransaksi(t1);
+      expect(provider.transaksiList.length, 1);
+      expect(provider.transaksiList.first.nomorKupon, 'A-001');
 
-    // Add second transaksi
-    final t2 = TransaksiModel(
-      transaksiId: 0,
-      kuponId: 2,
-      nomorKupon: 'B-002',
-      namaSatker: 'SATKER B',
-      jenisBbmId: 1,
-      tanggalTransaksi: '2025-10-02',
-      jumlahLiter: 5,
-      createdAt: DateTime.now().toIso8601String(),
-      updatedAt: DateTime.now().toIso8601String(),
-    );
+      // Add second transaksi
+      final t2 = TransaksiModel(
+        transaksiId: 0,
+        kuponId: 2,
+        nomorKupon: 'B-002',
+        namaSatker: 'SATKER B',
+        jenisBbmId: 1,
+        jenisKuponId: 2,
+        tanggalTransaksi: '2025-10-02',
+        jumlahLiter: 5,
+        createdAt: DateTime.now().toIso8601String(),
+        updatedAt: DateTime.now().toIso8601String(),
+      );
 
-    await provider.addTransaksi(t2);
+      await provider.addTransaksi(t2);
 
-    // Expect two entries now
-    expect(provider.transaksiList.length, 2);
-    expect(provider.transaksiList.map((e) => e.nomorKupon).toList(), containsAll(['A-001', 'B-002']));
-  });
+      // Expect two entries now
+      expect(provider.transaksiList.length, 2);
+      expect(
+        provider.transaksiList.map((e) => e.nomorKupon).toList(),
+        containsAll(['A-001', 'B-002']),
+      );
+    },
+  );
 }

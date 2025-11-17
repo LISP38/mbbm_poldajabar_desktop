@@ -23,7 +23,7 @@ class KuponModel extends KuponEntity {
 
   factory KuponModel.fromMap(Map<String, dynamic> map) {
     return KuponModel(
-      kuponId: map['kupon_id'] as int,
+      kuponId: (map['kupon_key'] ?? map['kupon_id']) as int,
       nomorKupon: map['nomor_kupon'] as String,
       kendaraanId: map['kendaraan_id'] as int?, // Nullable for DUKUNGAN
       jenisBbmId: map['jenis_bbm_id'] as int,
@@ -103,9 +103,9 @@ class KuponModel extends KuponEntity {
       'updated_at': updatedAt,
       'is_deleted': isDeleted,
     };
-    // Hanya sertakan kupon_id jika > 0 (untuk update, bukan insert baru)
+    // Hanya sertakan kupon_key jika > 0 (untuk update, bukan insert baru)
     if (kuponId > 0) {
-      map['kupon_id'] = kuponId;
+      map['kupon_key'] = kuponId;
     }
     return map;
   }
