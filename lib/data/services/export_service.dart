@@ -539,6 +539,220 @@ class ExportService {
     }
   }
 
+  // Export Transaksi Rekap (4 sheets: RAN.PX, DUK.PX, RAN.DX, DUK.DX)
+  // Setiap sheet berisi SUM per Satker (tidak per kupon)
+  static Future<bool> exportTransaksiRekap({
+    required List<KuponEntity> allKupons,
+    required Map<int, String> jenisBBMMap,
+  }) async {
+    try {
+      final excel = Excel.createExcel();
+
+      // Buat sheets terlebih dahulu
+      excel['RAN.PX'];
+      excel['DUK.PX'];
+      excel['RAN.DX'];
+      excel['DUK.DX'];
+
+      // Hapus sheet default setelah membuat sheet baru
+      if (excel.sheets.containsKey('Sheet1')) {
+        excel.delete('Sheet1');
+      }
+
+      // Filter hanya kupon yang ada transaksi
+      final kuponsWithTransaction = allKupons
+          .where((k) => k.kuotaSisa < k.kuotaAwal)
+          .toList();
+
+      // Filter berdasarkan jenis kupon dan BBM
+      final ranPertamax = kuponsWithTransaction
+          .where((k) => k.jenisKuponId == 1 && k.jenisBbmId == 1)
+          .toList();
+      final dukPertamax = kuponsWithTransaction
+          .where((k) => k.jenisKuponId == 2 && k.jenisBbmId == 1)
+          .toList();
+      final ranDex = kuponsWithTransaction
+          .where((k) => k.jenisKuponId == 1 && k.jenisBbmId == 2)
+          .toList();
+      final dukDex = kuponsWithTransaction
+          .where((k) => k.jenisKuponId == 2 && k.jenisBbmId == 2)
+          .toList();
+
+      // Buat sheets rekap untuk setiap kombinasi
+      _createTransaksiRekapSheet(
+        excel,
+        'RAN.PX',
+        ranPertamax,
+        'RANJEN - PERTAMAX',
+      );
+      _createTransaksiRekapSheet(
+        excel,
+        'DUK.PX',
+        dukPertamax,
+        'DUKUNGAN - PERTAMAX',
+      );
+      _createTransaksiRekapSheet(
+        excel,
+        'RAN.DX',
+        ranDex,
+        'RANJEN - PERTAMINA DEX',
+      );
+      _createTransaksiRekapSheet(
+        excel,
+        'DUK.DX',
+        dukDex,
+        'DUKUNGAN - PERTAMINA DEX',
+      );
+
+      // Save file
+      final now = DateTime.now();
+      final timestamp =
+          '${now.day.toString().padLeft(2, '0')}${now.month.toString().padLeft(2, '0')}${now.year}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}';
+
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: 'Simpan Transaksi Rekap',
+        fileName: 'Transaksi_Rekap_$timestamp.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (result != null) {
+        final file = File(result);
+        await file.writeAsBytes(excel.encode()!);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      // Logger akan ditambahkan jika diperlukan
+      return false;
+    }
+  }
+
+  // Buat sheet Transaksi Rekap per Satker (untuk satu kombinasi jenis kupon + BBM)
+  static void _createTransaksiRekapSheet(
+    Excel excel,
+    String sheetName,
+    List<KuponEntity> kupons,
+    String title,
+  ) {
+    final sheet = excel[sheetName];
+
+    final now = DateTime.now();
+    final currentMonth = now.month;
+    final currentYear = now.year;
+
+    // BARIS 1: Header periode dan judul
+    sheet.cell(CellIndex.indexByString('A1')).value = TextCellValue(
+      '$title - PERIODE $currentMonth-$currentYear',
+    );
+    sheet.cell(CellIndex.indexByString('A1')).cellStyle = CellStyle(
+      bold: true,
+      fontSize: 14,
+      fontColorHex: ExcelColor.white,
+      backgroundColorHex: ExcelColor.blue700,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
+    );
+    // Merge cells A1 sampai kolom D untuk periode
+    sheet.merge(
+      CellIndex.indexByString('A1'),
+      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: 0),
+    );
+
+    // Group by satker
+    final satkerMap = <String, List<KuponEntity>>{};
+    for (final kupon in kupons) {
+      final satker = kupon.namaSatker;
+      if (!satkerMap.containsKey(satker)) {
+        satkerMap[satker] = [];
+      }
+      satkerMap[satker]!.add(kupon);
+    }
+
+    // Sort satker: CADANGAN paling bawah
+    final sortedSatkerKeys = satkerMap.keys.toList()
+      ..sort((a, b) {
+        if (a.toUpperCase() == 'CADANGAN') return 1;
+        if (b.toUpperCase() == 'CADANGAN') return -1;
+        return a.compareTo(b);
+      });
+
+    // BARIS 2: Header kolom dengan styling yang konsisten
+    final headers = ['SATKER', 'KUOTA', 'PEMAKAIAN', 'SALDO'];
+    for (int i = 0; i < headers.length; i++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 1),
+      );
+      cell.value = TextCellValue(headers[i]);
+      cell.cellStyle = CellStyle(
+        bold: true,
+        fontSize: 12,
+        fontColorHex: ExcelColor.white,
+        backgroundColorHex: ExcelColor.blue600,
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+    }
+
+    // Data dengan styling yang konsisten
+    int rowIndex = 2;
+    double grandTotalKuota = 0;
+    double grandTotalPemakaian = 0;
+    double grandTotalSaldo = 0;
+
+    // DATA SATKER (sorted, CADANGAN paling bawah)
+    for (final satker in sortedSatkerKeys) {
+      final kuponList = satkerMap[satker]!;
+      final totalKuota = kuponList.fold<double>(
+        0,
+        (sum, k) => sum + k.kuotaAwal,
+      );
+      final totalSisa = kuponList.fold<double>(
+        0,
+        (sum, k) => sum + k.kuotaSisa,
+      );
+      final totalPemakaian = totalKuota - totalSisa;
+      final isEvenRow = (rowIndex % 2) == 0;
+
+      grandTotalKuota += totalKuota;
+      grandTotalPemakaian += totalPemakaian;
+      grandTotalSaldo += totalSisa;
+
+      _addSatkerRow(
+        sheet,
+        rowIndex,
+        satker,
+        totalKuota,
+        totalPemakaian,
+        totalSisa,
+        isEvenRow,
+        false,
+      );
+      rowIndex++;
+    }
+
+    // GRAND TOTAL
+    _addSatkerRow(
+      sheet,
+      rowIndex,
+      'GRAND TOTAL',
+      grandTotalKuota,
+      grandTotalPemakaian,
+      grandTotalSaldo,
+      false,
+      true,
+      isGrandTotal: true,
+    );
+  }
+
   // Buat sheet Ranjen dengan format 3 baris header yang bersih
   static Future<void> _createRanjenSheet(
     Excel excel,
@@ -890,6 +1104,126 @@ class ExportService {
         }
       }
     }
+
+    // BARIS SUM: Setelah semua data, tambahkan baris total
+    final sumRow = kupons.length + 3;
+
+    // Hitung total
+    double totalKuota = 0;
+    double totalPemakaian = 0;
+    double totalSaldo = 0;
+    Map<int, double> totalPerTanggal = {};
+
+    for (final kupon in kupons) {
+      totalKuota += kupon.kuotaAwal;
+      totalPemakaian += (kupon.kuotaAwal - kupon.kuotaSisa);
+      totalSaldo += kupon.kuotaSisa;
+
+      // Sum per tanggal
+      final kuponTransaksi = transaksiByDate[kupon.kuponId] ?? {};
+      for (final entry in kuponTransaksi.entries) {
+        totalPerTanggal[entry.key] =
+            (totalPerTanggal[entry.key] ?? 0) + entry.value;
+      }
+    }
+
+    // Style untuk baris total
+    final totalStyle = CellStyle(
+      bold: true,
+      fontSize: 11,
+      fontColorHex: ExcelColor.white,
+      backgroundColorHex: ExcelColor.blue800,
+      horizontalAlign: HorizontalAlign.Right,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Thin),
+      rightBorder: Border(borderStyle: BorderStyle.Thin),
+    );
+
+    // Kolom NO - label "TOTAL"
+    final totalLabelCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: sumRow),
+    );
+    totalLabelCell.value = TextCellValue('TOTAL');
+    totalLabelCell.cellStyle = CellStyle(
+      bold: true,
+      fontSize: 11,
+      fontColorHex: ExcelColor.white,
+      backgroundColorHex: ExcelColor.blue800,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Thin),
+      rightBorder: Border(borderStyle: BorderStyle.Thin),
+    );
+
+    // Merge kolom NO sampai SATKER untuk label TOTAL
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: sumRow),
+      CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: sumRow),
+    );
+
+    // Kolom KUOTA
+    final sumKuotaCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: sumRow),
+    );
+    sumKuotaCell.value = IntCellValue(totalKuota.toInt());
+    sumKuotaCell.cellStyle = totalStyle;
+
+    // Kolom PEMAKAIAN
+    final sumPemakaianCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: sumRow),
+    );
+    sumPemakaianCell.value = IntCellValue(totalPemakaian.toInt());
+    sumPemakaianCell.cellStyle = CellStyle(
+      bold: true,
+      fontSize: 11,
+      fontColorHex: ExcelColor.black,
+      backgroundColorHex: ExcelColor.yellow200,
+      horizontalAlign: HorizontalAlign.Right,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Thin),
+      rightBorder: Border(borderStyle: BorderStyle.Thin),
+    );
+
+    // Kolom SALDO
+    final sumSaldoCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: sumRow),
+    );
+    sumSaldoCell.value = IntCellValue(totalSaldo.toInt());
+    sumSaldoCell.cellStyle = totalStyle;
+
+    // Kolom tanggal - sum per tanggal
+    for (int col = 8; col <= 71; col++) {
+      final sumDateCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: col, rowIndex: sumRow),
+      );
+      final columnOffset = col - 7;
+      final totalTanggal = totalPerTanggal[columnOffset] ?? 0;
+
+      if (totalTanggal > 0) {
+        sumDateCell.value = IntCellValue(totalTanggal.toInt());
+        sumDateCell.cellStyle = CellStyle(
+          bold: true,
+          fontSize: 10,
+          fontColorHex: ExcelColor.black,
+          backgroundColorHex: ExcelColor.yellow200,
+          horizontalAlign: HorizontalAlign.Right,
+          verticalAlign: VerticalAlign.Center,
+          bottomBorder: Border(borderStyle: BorderStyle.Medium),
+          topBorder: Border(borderStyle: BorderStyle.Medium),
+          leftBorder: Border(borderStyle: BorderStyle.Thin),
+          rightBorder: Border(borderStyle: BorderStyle.Thin),
+        );
+      } else {
+        sumDateCell.value = TextCellValue('');
+        sumDateCell.cellStyle = totalStyle;
+      }
+    }
   }
 
   // Buat sheet Dukungan dengan format yang sama
@@ -1185,6 +1519,126 @@ class ExportService {
             rightBorder: Border(borderStyle: BorderStyle.Thin),
           );
         }
+      }
+    }
+
+    // BARIS SUM: Setelah semua data, tambahkan baris total
+    final sumRow = kupons.length + 3;
+
+    // Hitung total
+    double totalKuota = 0;
+    double totalPemakaian = 0;
+    double totalSaldo = 0;
+    Map<int, double> totalPerTanggal = {};
+
+    for (final kupon in kupons) {
+      totalKuota += kupon.kuotaAwal;
+      totalPemakaian += (kupon.kuotaAwal - kupon.kuotaSisa);
+      totalSaldo += kupon.kuotaSisa;
+
+      // Sum per tanggal
+      final kuponTransaksi = transaksiByDate[kupon.kuponId] ?? {};
+      for (final entry in kuponTransaksi.entries) {
+        totalPerTanggal[entry.key] =
+            (totalPerTanggal[entry.key] ?? 0) + entry.value;
+      }
+    }
+
+    // Style untuk baris total
+    final totalStyle = CellStyle(
+      bold: true,
+      fontSize: 11,
+      fontColorHex: ExcelColor.white,
+      backgroundColorHex: ExcelColor.blue800,
+      horizontalAlign: HorizontalAlign.Right,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Thin),
+      rightBorder: Border(borderStyle: BorderStyle.Thin),
+    );
+
+    // Kolom NO - label "TOTAL"
+    final totalLabelCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: sumRow),
+    );
+    totalLabelCell.value = TextCellValue('TOTAL');
+    totalLabelCell.cellStyle = CellStyle(
+      bold: true,
+      fontSize: 11,
+      fontColorHex: ExcelColor.white,
+      backgroundColorHex: ExcelColor.blue800,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Thin),
+      rightBorder: Border(borderStyle: BorderStyle.Thin),
+    );
+
+    // Merge kolom NO sampai SATKER untuk label TOTAL
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: sumRow),
+      CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: sumRow),
+    );
+
+    // Kolom KUOTA
+    final sumKuotaCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: sumRow),
+    );
+    sumKuotaCell.value = IntCellValue(totalKuota.toInt());
+    sumKuotaCell.cellStyle = totalStyle;
+
+    // Kolom PEMAKAIAN
+    final sumPemakaianCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: sumRow),
+    );
+    sumPemakaianCell.value = IntCellValue(totalPemakaian.toInt());
+    sumPemakaianCell.cellStyle = CellStyle(
+      bold: true,
+      fontSize: 11,
+      fontColorHex: ExcelColor.black,
+      backgroundColorHex: ExcelColor.yellow200,
+      horizontalAlign: HorizontalAlign.Right,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Thin),
+      rightBorder: Border(borderStyle: BorderStyle.Thin),
+    );
+
+    // Kolom SALDO
+    final sumSaldoCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: sumRow),
+    );
+    sumSaldoCell.value = IntCellValue(totalSaldo.toInt());
+    sumSaldoCell.cellStyle = totalStyle;
+
+    // Kolom tanggal - sum per tanggal
+    for (int col = 5; col <= 69; col++) {
+      final sumDateCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: col, rowIndex: sumRow),
+      );
+      final columnOffset = col - 4;
+      final totalTanggal = totalPerTanggal[columnOffset] ?? 0;
+
+      if (totalTanggal > 0) {
+        sumDateCell.value = IntCellValue(totalTanggal.toInt());
+        sumDateCell.cellStyle = CellStyle(
+          bold: true,
+          fontSize: 10,
+          fontColorHex: ExcelColor.black,
+          backgroundColorHex: ExcelColor.yellow200,
+          horizontalAlign: HorizontalAlign.Right,
+          verticalAlign: VerticalAlign.Center,
+          bottomBorder: Border(borderStyle: BorderStyle.Medium),
+          topBorder: Border(borderStyle: BorderStyle.Medium),
+          leftBorder: Border(borderStyle: BorderStyle.Thin),
+          rightBorder: Border(borderStyle: BorderStyle.Thin),
+        );
+      } else {
+        sumDateCell.value = TextCellValue('');
+        sumDateCell.cellStyle = totalStyle;
       }
     }
   }

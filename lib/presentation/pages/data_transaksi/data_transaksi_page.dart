@@ -8,7 +8,6 @@ import '../../../domain/entities/transaksi_entity.dart';
 import '../../../domain/repositories/kendaraan_repository.dart';
 import '../../../core/di/dependency_injection.dart';
 import 'show_detail_transaksi_dialog.dart';
-import '../export/export_preview_page.dart';
 
 class DataTransaksiPage extends StatefulWidget {
   const DataTransaksiPage({super.key});
@@ -52,33 +51,6 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
 
   // Cache untuk No Pol berdasarkan kuponId
   final Map<int, String> _noPolCache = {};
-
-  // Helper functions for preview page
-  Future<String?> _getNopolByKendaraanId(int? kendaraanId) async {
-    if (kendaraanId == null) return null;
-    try {
-      final kendaraanRepo = getIt<KendaraanRepository>();
-      final kendaraan = await kendaraanRepo.getKendaraanById(kendaraanId);
-      if (kendaraan != null) {
-        return '${kendaraan.noPolNomor}-${kendaraan.noPolKode}';
-      }
-    } catch (e) {
-      debugPrint('Error getting nopol: $e');
-    }
-    return null;
-  }
-
-  Future<String?> _getJenisRanmorByKendaraanId(int? kendaraanId) async {
-    if (kendaraanId == null) return null;
-    try {
-      final kendaraanRepo = getIt<KendaraanRepository>();
-      final kendaraan = await kendaraanRepo.getKendaraanById(kendaraanId);
-      return kendaraan?.jenisRanmor;
-    } catch (e) {
-      debugPrint('Error getting jenis ranmor: $e');
-    }
-    return null;
-  }
 
   @override
   void initState() {
@@ -558,154 +530,6 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
     );
   }
 
-  // Export function for Transaksi table
-  Future<void> _exportTransaksiToExcel() async {
-    if (!mounted) return;
-
-    try {
-      final dashboardProvider = Provider.of<DashboardProvider>(
-        context,
-        listen: false,
-      );
-
-      // Use kuponList from dashboard provider for visual preview
-      if (dashboardProvider.kuponList.isEmpty) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Tidak ada data kupon untuk preview. Silakan refresh dashboard.',
-              ),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-        return;
-      }
-
-      // Show export format selection dialog
-      final choice = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.table_chart, color: Colors.blue),
-              SizedBox(width: 8),
-              Text('Pilih Format Export'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Pilih format Excel yang ingin di-export:',
-                style: TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: const Icon(Icons.folder_special, color: Colors.green),
-                title: const Text('Data Kupon (4 Sheet)'),
-                subtitle: const Text(
-                  'RAN.PM, DUK.PM, RAN.DX, DUK.DX - Semua kupon',
-                  style: TextStyle(fontSize: 12),
-                ),
-                tileColor: Colors.green.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.green.shade200),
-                ),
-                onTap: () => Navigator.pop(context, 'kupon'),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                leading: const Icon(Icons.business, color: Colors.orange),
-                title: const Text('Data Satker (2 Sheet)'),
-                subtitle: const Text(
-                  'Pertamax, Dexlite - Rekap per satker',
-                  style: TextStyle(fontSize: 12),
-                ),
-                tileColor: Colors.orange.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.orange.shade200),
-                ),
-                onTap: () => Navigator.pop(context, 'satker'),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                leading: const Icon(Icons.table_rows, color: Colors.purple),
-                title: const Text('Gabungan (6 Sheet)'),
-                subtitle: const Text(
-                  'Kupon + Satker - Semua data',
-                  style: TextStyle(fontSize: 12),
-                ),
-                tileColor: Colors.purple.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.purple.shade200),
-                ),
-                onTap: () => Navigator.pop(context, 'combined'),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                leading: const Icon(Icons.remove_circle, color: Colors.red),
-                title: const Text('Kupon Minus (4 Sheet)'),
-                subtitle: const Text(
-                  'RAN.PM, DUK.PM, RAN.DX, DUK.DX - Hanya kupon minus',
-                  style: TextStyle(fontSize: 12),
-                ),
-                tileColor: Colors.red.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.red.shade200),
-                ),
-                onTap: () => Navigator.pop(context, 'minus'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal'),
-            ),
-          ],
-        ),
-      );
-
-      if (choice == null || !mounted) return;
-
-      // Navigate to ExportPreviewPage with selected format
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ExportPreviewPage(
-            allKupons: dashboardProvider.kuponList,
-            jenisBBMMap: _jenisBBMMap,
-            exportType: choice,
-            getNopolByKendaraanId:
-                (choice == 'kupon' || choice == 'combined' || choice == 'minus')
-                ? _getNopolByKendaraanId
-                : null,
-            getJenisRanmorByKendaraanId:
-                (choice == 'kupon' || choice == 'combined' || choice == 'minus')
-                ? _getJenisRanmorByKendaraanId
-                : null,
-          ),
-        ),
-      );
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saat membuka preview: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
   // Build Kupon Minus Table widget
   Widget _buildKuponMinusTable(BuildContext context) {
     return Consumer<TransaksiProvider>(
@@ -855,24 +679,6 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            ElevatedButton.icon(
-                              onPressed: _exportTransaksiToExcel,
-                              icon: const Icon(
-                                Icons.file_download,
-                                color: Colors.white,
-                              ),
-                              label: const Text(
-                                'Export',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
                               ),
                             ),
                           ],

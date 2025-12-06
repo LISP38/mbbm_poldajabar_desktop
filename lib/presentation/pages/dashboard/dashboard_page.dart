@@ -29,6 +29,25 @@ class _DashboardPageState extends State<DashboardPage>
   final List<int> _tahunList = [2024, 2025]; // TODO: Dynamic tahun
   List<KendaraanEntity> _kendaraanList = [];
 
+  // Helper untuk nama bulan
+  String _getBulanName(int bulan) {
+    const namaBulan = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    return namaBulan[bulan - 1];
+  }
+
   // Tab controller
   late TabController _tabController;
 
@@ -616,14 +635,14 @@ class _DashboardPageState extends State<DashboardPage>
                       child: DropdownButtonFormField<int>(
                         value: _selectedBulan,
                         decoration: const InputDecoration(
-                          labelText: 'Bulan',
+                          labelText: 'Bulan Terbit',
                           border: OutlineInputBorder(),
                         ),
                         items: _bulanList
                             .map(
                               (b) => DropdownMenuItem(
                                 value: b,
-                                child: Text(b.toString()),
+                                child: Text(_getBulanName(b)),
                               ),
                             )
                             .toList(),
@@ -636,7 +655,7 @@ class _DashboardPageState extends State<DashboardPage>
                       child: DropdownButtonFormField<int>(
                         value: _selectedTahun,
                         decoration: const InputDecoration(
-                          labelText: 'Tahun',
+                          labelText: 'Tahun Terbit',
                           border: OutlineInputBorder(),
                         ),
                         items: _tahunList
@@ -856,7 +875,7 @@ class _DashboardPageState extends State<DashboardPage>
                             .map(
                               (b) => DropdownMenuItem(
                                 value: b,
-                                child: Text(b.toString()),
+                                child: Text(_getBulanName(b)),
                               ),
                             )
                             .toList(),

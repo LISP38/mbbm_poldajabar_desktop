@@ -98,148 +98,6 @@ class _TransactionPageState extends State<TransactionPage>
     return null;
   }
 
-  Future<void> _exportToExcel(BuildContext context) async {
-    if (!mounted) return;
-
-    try {
-      final dashboardProvider = Provider.of<DashboardProvider>(
-        context,
-        listen: false,
-      );
-
-      // Use kuponList from dashboard provider for visual preview
-      if (dashboardProvider.kuponList.isEmpty) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Tidak ada data kupon untuk preview. Silakan refresh dashboard.',
-              ),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-        return;
-      }
-
-      // Show export format selection dialog
-      final choice = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.table_chart, color: Colors.blue),
-              SizedBox(width: 8),
-              Text('Pilih Format Export'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Pilih format Excel yang ingin di-export:',
-                style: TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: const Icon(Icons.folder_special, color: Colors.green),
-                title: const Text('Data Kupon (4 Sheet)'),
-                subtitle: const Text(
-                  'RAN.PM, DUK.PM, RAN.DX, DUK.DX - Semua kupon',
-                  style: TextStyle(fontSize: 12),
-                ),
-                tileColor: Colors.green.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.green.shade200),
-                ),
-                onTap: () => Navigator.pop(context, 'kupon'),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                leading: const Icon(Icons.remove_circle, color: Colors.red),
-                title: const Text('Kupon Minus (4 Sheet)'),
-                subtitle: const Text(
-                  'RAN.PM, DUK.PM, RAN.DX, DUK.DX - Hanya kupon minus',
-                  style: TextStyle(fontSize: 12),
-                ),
-                tileColor: Colors.red.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.red.shade200),
-                ),
-                onTap: () => Navigator.pop(context, 'minus'),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                leading: const Icon(Icons.business, color: Colors.orange),
-                title: const Text('Data Satker (2 Sheet)'),
-                subtitle: const Text(
-                  'Pertamax, Dexlite - Rekap per satker',
-                  style: TextStyle(fontSize: 12),
-                ),
-                tileColor: Colors.orange.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.orange.shade200),
-                ),
-                onTap: () => Navigator.pop(context, 'satker'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal'),
-            ),
-          ],
-        ),
-      );
-
-      if (choice == null || !mounted) return;
-
-      // Navigate to ExportPreviewPage with selected format
-      // Export dari Data Transaksi: fill transaksi data sesuai filter
-      final transaksiProvider = Provider.of<TransaksiProvider>(
-        context,
-        listen: false,
-      );
-
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ExportPreviewPage(
-            allKupons: dashboardProvider.kuponList,
-            jenisBBMMap: _jenisBBMMap,
-            exportType: choice,
-            getNopolByKendaraanId: (choice == 'kupon' || choice == 'minus')
-                ? _getNopolByKendaraanId
-                : null,
-            getJenisRanmorByKendaraanId:
-                (choice == 'kupon' || choice == 'minus')
-                ? _getJenisRanmorByKendaraanId
-                : null,
-            fillTransaksiData: true, // Isi kolom tanggal dengan data transaksi
-            filterBulan: transaksiProvider.filterBulan,
-            filterTahun: transaksiProvider.filterTahun,
-            filterTanggalMulai: _filterTanggalMulai,
-            filterTanggalSelesai: _filterTanggalSelesai,
-          ),
-        ),
-      );
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saat membuka preview: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -306,11 +164,6 @@ class _TransactionPageState extends State<TransactionPage>
       appBar: AppBar(
         title: const Text('Data Transaksi'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.download),
-            tooltip: 'Export Excel',
-            onPressed: () => _exportToExcel(context),
-          ),
           IconButton(
             icon: const Icon(Icons.history),
             tooltip: 'Riwayat Transaksi Terhapus',
@@ -531,75 +384,92 @@ class _TransactionPageState extends State<TransactionPage>
             Text('Pilih Format Export'),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Pilih format Excel yang ingin di-export:',
-              style: TextStyle(fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.folder_special, color: Colors.green),
-              title: const Text('Data Kupon (4 Sheet)'),
-              subtitle: const Text(
-                'RAN.PM, DUK.PM, RAN.DX, DUK.DX - Semua kupon',
-                style: TextStyle(fontSize: 12),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Pilih format Excel yang ingin di-export:',
+                style: TextStyle(fontSize: 14),
               ),
-              tileColor: Colors.green.shade50,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: BorderSide(color: Colors.green.shade200),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.summarize, color: Colors.teal),
+                title: const Text('Transaksi Rekap (4 Sheet)'),
+                subtitle: const Text(
+                  'RAN.PX, DUK.PX, RAN.DX, DUK.DX - SUM per Satker',
+                  style: TextStyle(fontSize: 12),
+                ),
+                tileColor: Colors.teal.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.teal.shade200),
+                ),
+                onTap: () => Navigator.pop(context, 'transaksi_rekap'),
               ),
-              onTap: () => Navigator.pop(context, 'kupon'),
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              leading: const Icon(Icons.remove_circle, color: Colors.red),
-              title: const Text('Kupon Minus (4 Sheet)'),
-              subtitle: const Text(
-                'RAN.PM, DUK.PM, RAN.DX, DUK.DX - Hanya kupon minus',
-                style: TextStyle(fontSize: 12),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.folder_special, color: Colors.green),
+                title: const Text('Transaksi Detail (4 Sheet)'),
+                subtitle: const Text(
+                  'RAN.PX, DUK.PX, RAN.DX, DUK.DX - Detail per kupon',
+                  style: TextStyle(fontSize: 12),
+                ),
+                tileColor: Colors.green.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.green.shade200),
+                ),
+                onTap: () => Navigator.pop(context, 'kupon'),
               ),
-              tileColor: Colors.red.shade50,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: BorderSide(color: Colors.red.shade200),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.remove_circle, color: Colors.red),
+                title: const Text('Kupon Minus (4 Sheet)'),
+                subtitle: const Text(
+                  'RAN.PM, DUK.PM, RAN.DX, DUK.DX - Hanya kupon minus',
+                  style: TextStyle(fontSize: 12),
+                ),
+                tileColor: Colors.red.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.red.shade200),
+                ),
+                onTap: () => Navigator.pop(context, 'minus'),
               ),
-              onTap: () => Navigator.pop(context, 'minus'),
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              leading: const Icon(Icons.business, color: Colors.orange),
-              title: const Text('Data Satker (2 Sheet)'),
-              subtitle: const Text(
-                'Pertamax, Dexlite - Rekap per satker',
-                style: TextStyle(fontSize: 12),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.business, color: Colors.orange),
+                title: const Text('Data Satker (2 Sheet)'),
+                subtitle: const Text(
+                  'Pertamax, Dexlite - Rekap per satker',
+                  style: TextStyle(fontSize: 12),
+                ),
+                tileColor: Colors.orange.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.orange.shade200),
+                ),
+                onTap: () => Navigator.pop(context, 'satker'),
               ),
-              tileColor: Colors.orange.shade50,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: BorderSide(color: Colors.orange.shade200),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.table_rows, color: Colors.purple),
+                title: const Text('Gabungan (6 Sheet)'),
+                subtitle: const Text(
+                  'Kupon + Satker - Semua data',
+                  style: TextStyle(fontSize: 12),
+                ),
+                tileColor: Colors.purple.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.purple.shade200),
+                ),
+                onTap: () => Navigator.pop(context, 'combined'),
               ),
-              onTap: () => Navigator.pop(context, 'satker'),
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              leading: const Icon(Icons.table_rows, color: Colors.purple),
-              title: const Text('Gabungan (6 Sheet)'),
-              subtitle: const Text(
-                'Kupon + Satker - Semua data',
-                style: TextStyle(fontSize: 12),
-              ),
-              tileColor: Colors.purple.shade50,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: BorderSide(color: Colors.purple.shade200),
-              ),
-              onTap: () => Navigator.pop(context, 'combined'),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -1093,10 +963,61 @@ class _TransactionPageState extends State<TransactionPage>
               ),
             ),
             const SizedBox(height: 8),
-            _buildPaginationControls(context, true),
+            // Total pengeluaran dan pagination dalam satu baris
+            Row(
+              children: [
+                // Total pengeluaran (ringkas)
+                Expanded(child: _buildTotalPengeluaranRingkas(filteredList)),
+                const SizedBox(width: 16),
+                // Pagination controls
+                _buildPaginationControls(context, true),
+              ],
+            ),
           ],
         );
       },
+    );
+  }
+
+  // Widget ringkas untuk total pengeluaran (sejajar dengan pagination)
+  Widget _buildTotalPengeluaranRingkas(List<TransaksiModel> transaksiList) {
+    // Hitung total keseluruhan
+    final double totalKeseluruhan = transaksiList.fold(
+      0.0,
+      (sum, t) => sum + t.jumlahLiter,
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.summarize, color: Colors.blue.shade700, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            'Total: ',
+            style: TextStyle(fontSize: 14, color: Colors.blue.shade800),
+          ),
+          Text(
+            '${totalKeseluruhan.toInt()} L',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue.shade800,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '(${transaksiList.length} transaksi)',
+            style: TextStyle(fontSize: 12, color: Colors.blue.shade600),
+          ),
+        ],
+      ),
     );
   }
 
