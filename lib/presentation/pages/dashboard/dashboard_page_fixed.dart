@@ -16,16 +16,13 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   // Filter state
-  int? _selectedBulan;
-  int? _selectedTahun;
-
-  final List<int> _bulanList = List.generate(12, (i) => i + 1);
-  final List<int> _tahunList = [DateTime.now().year, DateTime.now().year + 1];
+  String _selectedBulan = '';
+  String _selectedTahun = '';
+  String _selectedJenisBbm = '';
 
   List<KendaraanEntity> _kendaraanList = [];
 
-  // Map jenis BBM untuk tampilan
-  final Map<int, String> _jenisBBMMap = {1: 'Pertamax', 2: 'Pertamina Dex'};
+  // Note: jenis BBM names come from `DashboardProvider.jenisBbmMap` at runtime
 
   // Map jenis kupon untuk tampilan
   final Map<int, String> _jenisKuponMap = {1: 'Ranjen', 2: 'Dukungan'};
@@ -62,6 +59,10 @@ class _DashboardPageState extends State<DashboardPage> {
       setState(() {
         _kendaraanList = kendaraanList;
       });
+
+      // Load dynamic filter options from DB and jenis BBM names
+      Provider.of<DashboardProvider>(context, listen: false).loadFilterOptions();
+      Provider.of<DashboardProvider>(context, listen: false).fetchJenisBbm();
 
       // Get initial dashboard data after widget is mounted
       Provider.of<DashboardProvider>(context, listen: false).fetchKupons();
@@ -115,31 +116,60 @@ class _DashboardPageState extends State<DashboardPage> {
                             borderRadius: BorderRadius.circular(4),
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: DropdownButton<int>(
-                            isExpanded: true,
-                            value: _selectedBulan,
-                            hint: const Text('Pilih Bulan'),
-                            underline: Container(),
-                            items: _bulanList.map((bulan) {
-                              return DropdownMenuItem<int>(
-                                value: bulan,
-                                child: Text(_getBulanName(bulan)),
+                          child: Consumer<DashboardProvider>(
+                            builder: (context, dash, _) {
+                              final bulanItems = [''] + dash.bulanTerbitList;
+                              return DropdownButton<String>(
+                                isExpanded: true,
+                                value: _selectedBulan.isEmpty ? '' : _selectedBulan,
+                                hint: const Text('Pilih Bulan'),
+                                underline: Container(),
+                                items: bulanItems.map((b) {
+                                  if (b.isEmpty) {
+                                    return const DropdownMenuItem<String>(
+                                      value: '',
+                                      child: Text('Semua'),
+                                    );
+                                  }
+                                  final monthNum = int.tryParse(b);
+                                  final label = monthNum != null ? _getBulanName(monthNum) : b;
+                                  return DropdownMenuItem<String>(
+                                    value: b,
+                                    child: Text(label),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedBulan = value ?? '';
+                                  });
+                                  final parsed = int.tryParse(value ?? '');
+                                  // update transaksi filter
+                                  if (parsed != null) {
+                                    Provider.of<TransaksiProvider>(
+                                      context,
+                                      listen: false,
+                                    ).setBulan(parsed);
+                                    Provider.of<TransaksiProvider>(
+                                      context,
+                                      listen: false,
+                                    ).fetchTransaksiFiltered();
+                                  } else {
+                                    Provider.of<TransaksiProvider>(
+                                      context,
+                                      listen: false,
+                                    ).setBulan(0);
+                                    Provider.of<TransaksiProvider>(
+                                      context,
+                                      listen: false,
+                                    ).resetFilter();
+                                  }
+
+                                  // update dashboard provider filter and refresh
+                                  final dashProv = Provider.of<DashboardProvider>(context, listen: false);
+                                  dashProv.bulanTerbit = parsed;
+                                  dashProv.fetchKupons();
+                                },
                               );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedBulan = value;
-                              });
-                              if (value != null) {
-                                Provider.of<TransaksiProvider>(
-                                  context,
-                                  listen: false,
-                                ).setBulan(value);
-                                Provider.of<TransaksiProvider>(
-                                  context,
-                                  listen: false,
-                                ).fetchTransaksiFiltered();
-                              }
                             },
                           ),
                         ),
@@ -152,31 +182,56 @@ class _DashboardPageState extends State<DashboardPage> {
                             borderRadius: BorderRadius.circular(4),
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: DropdownButton<int>(
-                            isExpanded: true,
-                            value: _selectedTahun,
-                            hint: const Text('Pilih Tahun'),
-                            underline: Container(),
-                            items: _tahunList.map((tahun) {
-                              return DropdownMenuItem<int>(
-                                value: tahun,
-                                child: Text(tahun.toString()),
+                          child: Consumer<DashboardProvider>(
+                            builder: (context, dash, _) {
+                              final tahunItems = [''] + dash.tahunTerbitList;
+                              return DropdownButton<String>(
+                                isExpanded: true,
+                                value: _selectedTahun.isEmpty ? '' : _selectedTahun,
+                                hint: const Text('Pilih Tahun'),
+                                underline: Container(),
+                                items: tahunItems.map((y) {
+                                  if (y.isEmpty) {
+                                    return const DropdownMenuItem<String>(
+                                      value: '',
+                                      child: Text('Semua'),
+                                    );
+                                  }
+                                  return DropdownMenuItem<String>(
+                                    value: y,
+                                    child: Text(y.toString()),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedTahun = value ?? '';
+                                  });
+                                  final parsed = int.tryParse(value ?? '');
+                                  if (parsed != null) {
+                                    Provider.of<TransaksiProvider>(
+                                      context,
+                                      listen: false,
+                                    ).setTahun(parsed);
+                                    Provider.of<TransaksiProvider>(
+                                      context,
+                                      listen: false,
+                                    ).fetchTransaksiFiltered();
+                                  } else {
+                                    Provider.of<TransaksiProvider>(
+                                      context,
+                                      listen: false,
+                                    ).setTahun(0);
+                                    Provider.of<TransaksiProvider>(
+                                      context,
+                                      listen: false,
+                                    ).resetFilter();
+                                  }
+
+                                  final dashProv = Provider.of<DashboardProvider>(context, listen: false);
+                                  dashProv.tahunTerbit = parsed;
+                                  dashProv.fetchKupons();
+                                },
                               );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedTahun = value;
-                              });
-                              if (value != null) {
-                                Provider.of<TransaksiProvider>(
-                                  context,
-                                  listen: false,
-                                ).setTahun(value);
-                                Provider.of<TransaksiProvider>(
-                                  context,
-                                  listen: false,
-                                ).fetchTransaksiFiltered();
-                              }
                             },
                           ),
                         ),
@@ -190,6 +245,51 @@ class _DashboardPageState extends State<DashboardPage> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
+                      // Jenis BBM dropdown (dynamic)
+                      Consumer<DashboardProvider>(builder: (context, dash, _) {
+                        final items = [''] + dash.jenisBbmList;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: DropdownButton<String>(
+                            value: _selectedJenisBbm.isEmpty ? '' : _selectedJenisBbm,
+                            underline: Container(),
+                            hint: const Text('Jenis BBM'),
+                            items: items.map((name) {
+                              if (name.isEmpty) {
+                                return const DropdownMenuItem<String>(
+                                  value: '',
+                                  child: Text('Semua'),
+                                );
+                              }
+                              return DropdownMenuItem<String>(
+                                value: name,
+                                child: Text(name),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedJenisBbm = value ?? '';
+                              });
+                              final selectedName = value ?? '';
+                              final map = dash.jenisBbmMap;
+                              int? id;
+                              try {
+                                id = map.entries.firstWhere((e) => e.value == selectedName).key;
+                              } catch (_) {
+                                id = null;
+                              }
+                              final dashProv = Provider.of<DashboardProvider>(context, listen: false);
+                              dashProv.jenisBBM = id?.toString() ?? '';
+                              dashProv.fetchKupons();
+                            },
+                          ),
+                        );
+                      }),
+                      const SizedBox(width: 8),
                       ElevatedButton.icon(
                         onPressed: () {
                           // TODO: Implement search
@@ -205,8 +305,9 @@ class _DashboardPageState extends State<DashboardPage> {
                       ElevatedButton.icon(
                         onPressed: () {
                           setState(() {
-                            _selectedBulan = null;
-                            _selectedTahun = null;
+                            _selectedBulan = '';
+                            _selectedTahun = '';
+                            _selectedJenisBbm = '';
                           });
                           Provider.of<TransaksiProvider>(
                             context,
@@ -220,6 +321,12 @@ class _DashboardPageState extends State<DashboardPage> {
                             context,
                             listen: false,
                           ).fetchKuponMinus();
+                          // Reset dashboard provider filters too
+                          final dashProv = Provider.of<DashboardProvider>(context, listen: false);
+                          dashProv.jenisBBM = '';
+                          dashProv.bulanTerbit = null;
+                          dashProv.tahunTerbit = null;
+                          dashProv.fetchKupons();
                         },
                         icon: const Icon(Icons.refresh),
                         label: const Text('Reset'),
@@ -365,7 +472,11 @@ class _DashboardPageState extends State<DashboardPage> {
                       DataCell(Text(t.tanggalTransaksi)),
                       DataCell(Text(t.nomorKupon)),
                       DataCell(
-                        Text(t.jenisBbm == '1' ? 'Pertamax' : 'Pertamina Dex'),
+                        Builder(builder: (context) {
+                          final jbMap = Provider.of<DashboardProvider>(context, listen: false).jenisBbmMap;
+                          final id = int.tryParse(t.jenisBbm) ?? 0;
+                          return Text(jbMap[id] ?? t.jenisBbm);
+                        }),
                       ),
                       DataCell(Text(t.jumlahDiambil.toString())),
                       DataCell(
@@ -434,10 +545,11 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                   DataCell(Text(m['nama_satker'] as String)),
                   DataCell(
-                    Text(
-                      _jenisBBMMap[m['jenis_bbm_id'] as int] ??
-                          (m['jenis_bbm_id'] as int).toString(),
-                    ),
+                    Builder(builder: (context) {
+                      final jbMap = Provider.of<DashboardProvider>(context, listen: false).jenisBbmMap;
+                      final id = m['jenis_bbm_id'] as int;
+                      return Text(jbMap[id] ?? id.toString());
+                    }),
                   ),
                   DataCell(Text((m['minus_amount'] as int).toString())),
                   DataCell(
@@ -503,7 +615,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   DataCell(Text(k.nomorKupon)),
                   DataCell(Text(k.namaSatker)),
                   DataCell(
-                    Text(_jenisBBMMap[k.jenisBbmId] ?? k.jenisBbmId.toString()),
+                    Text(provider.jenisBbmMap[k.jenisBbmId] ?? k.jenisBbmId.toString()),
                   ),
                   DataCell(
                     Text(

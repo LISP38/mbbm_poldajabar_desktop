@@ -12,17 +12,35 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
   @override
   Future<List<KendaraanEntity>> getAllKendaraan() async {
     final db = await dbHelper.database;
-    final result = await db.query('dim_kendaraan');
+    final result = await db.rawQuery('''
+      SELECT
+        dk.kendaraan_id,
+        dk.satker_id,
+        COALESCE(dk.jenis_ranmor, '') AS jenis_ranmor,
+        COALESCE(dk.no_pol_kode, '') AS no_pol_kode,
+        COALESCE(dk.no_pol_nomor, '') AS no_pol_nomor,
+        dk.status_aktif
+      FROM dim_kendaraan dk
+    ''');
     return result.map((map) => KendaraanModel.fromMap(map)).toList();
   }
 
   @override
   Future<KendaraanEntity?> getKendaraanById(int kendaraanId) async {
     final db = await dbHelper.database;
-    final result = await db.query(
-      'dim_kendaraan',
-      where: 'kendaraan_id = ?',
-      whereArgs: [kendaraanId],
+    final result = await db.rawQuery(
+      '''
+      SELECT
+        dk.kendaraan_id,
+        dk.satker_id,
+        COALESCE(dk.jenis_ranmor, '') AS jenis_ranmor,
+        COALESCE(dk.no_pol_kode, '') AS no_pol_kode,
+        COALESCE(dk.no_pol_nomor, '') AS no_pol_nomor,
+        dk.status_aktif
+      FROM dim_kendaraan dk
+      WHERE dk.kendaraan_id = ?
+    ''',
+      [kendaraanId],
     );
     if (result.isNotEmpty) {
       return KendaraanModel.fromMap(result.first);
@@ -67,10 +85,20 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
     String noPolNomor,
   ) async {
     final db = await dbHelper.database;
-    final result = await db.query(
-      'dim_kendaraan',
-      where: 'no_pol_kode = ? AND no_pol_nomor = ?',
-      whereArgs: [noPolKode, noPolNomor],
+    final result = await db.rawQuery(
+      '''
+      SELECT
+        dk.kendaraan_id,
+        dk.satker_id,
+        COALESCE(dk.jenis_ranmor, '') AS jenis_ranmor,
+        COALESCE(dk.no_pol_kode, '') AS no_pol_kode,
+        COALESCE(dk.no_pol_nomor, '') AS no_pol_nomor,
+        dk.status_aktif
+      FROM dim_kendaraan dk
+      WHERE (dk.no_pol_kode = ? AND dk.no_pol_nomor = ?) OR (dk.no_pol_kode = ? AND dk.no_pol_nomor = ?)
+      LIMIT 1
+    ''',
+      [noPolKode, noPolNomor, noPolKode, noPolNomor],
     );
     if (result.isNotEmpty) {
       return KendaraanModel.fromMap(result.first);

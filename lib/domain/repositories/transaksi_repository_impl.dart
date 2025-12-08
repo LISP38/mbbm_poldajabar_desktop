@@ -14,19 +14,53 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
     int? bulan,
     int? tahun,
     int? isDeleted,
+    String? satker,
   }) async {
     try {
       final db = await dbHelper.database;
 
-      // Use fact_transaksi + dim_kupon (star schema)
-      final result = await db.rawQuery('''
+      // Build dynamic WHERE clauses based on provided filters
+      final where = <String>[];
+      final args = <dynamic>[];
+
+      if (isDeleted != null) {
+        where.add('t.is_deleted = ?');
+        args.add(isDeleted);
+      } else {
+        where.add('t.is_deleted = 0');
+      }
+
+      if (bulan != null) {
+        // tanggal_transaksi stored as 'YYYY-MM-DD'
+        final bulanStr = bulan.toString().padLeft(2, '0');
+        where.add("substr(t.tanggal_transaksi,6,2) = ?");
+        args.add(bulanStr);
+      }
+
+      if (tahun != null) {
+        where.add("substr(t.tanggal_transaksi,1,4) = ?");
+        args.add(tahun.toString());
+      }
+
+      if (satker != null && satker.isNotEmpty) {
+        where.add('ds.nama_satker = ?');
+        args.add(satker);
+      }
+
+      final whereClause = where.isNotEmpty ? 'WHERE ' + where.join(' AND ') : '';
+
+      final sql = '''
         SELECT 
+          t.transaksi_id,
+          t.kupon_key,
           t.transaksi_id,
           t.kupon_key,
           dk.nomor_kupon as kupon_nomor,
           ds.nama_satker as kupon_satker,
           t.jenis_bbm_id,
+          dbb.nama_jenis_bbm AS jenis_bbm_name,
           t.jenis_kupon_id,
+          dku.nama_jenis_kupon AS jenis_kupon_name,
           t.tanggal_transaksi,
           t.jumlah_liter,
           t.created_at,
@@ -38,9 +72,16 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         FROM fact_transaksi t
         LEFT JOIN dim_kupon dk ON t.kupon_key = dk.kupon_key AND dk.is_current = 1
         LEFT JOIN dim_satker ds ON t.satker_id = ds.satker_id
-        WHERE t.is_deleted = 0
+        LEFT JOIN dim_jenis_bbm dbb ON t.jenis_bbm_id = dbb.jenis_bbm_id
+        LEFT JOIN dim_jenis_kupon dku ON t.jenis_kupon_id = dku.jenis_kupon_id
+        LEFT JOIN dim_kendaraan dk2 ON t.kendaraan_id = dk2.kendaraan_id
+        
+        -- Note: additional labels available: nopol (dn.nomor-dn.kode or dk2.no_pol_nomor-dk2.no_pol_kode) and jenis_ranmor
+        $whereClause
         ORDER BY t.tanggal_transaksi DESC, t.created_at DESC
-      ''');
+      ''';
+
+      final result = await db.rawQuery(sql, args);
 
       return result.map((map) => TransaksiModel.fromMap(map)).toList();
     } catch (e) {
@@ -60,7 +101,9 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           dk.nomor_kupon as kupon_nomor,
           ds.nama_satker as kupon_satker,
           t.jenis_bbm_id,
+          dbb.nama_jenis_bbm AS jenis_bbm_name,
           t.jenis_kupon_id,
+          dku.nama_jenis_kupon AS jenis_kupon_name,
           t.tanggal_transaksi,
           t.jumlah_liter,
           t.created_at,
@@ -72,6 +115,9 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         FROM fact_transaksi t
         LEFT JOIN dim_kupon dk ON t.kupon_key = dk.kupon_key AND dk.is_current = 1
         LEFT JOIN dim_satker ds ON t.satker_id = ds.satker_id
+        LEFT JOIN dim_jenis_bbm dbb ON t.jenis_bbm_id = dbb.jenis_bbm_id
+        LEFT JOIN dim_jenis_kupon dku ON t.jenis_kupon_id = dku.jenis_kupon_id
+        LEFT JOIN dim_kendaraan dk2 ON t.kendaraan_id = dk2.kendaraan_id
         WHERE t.transaksi_id = ?
       ''',
         [transaksiId],
@@ -297,10 +343,22 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> getKuponMinus() async {
+  Future<List<Map<String, dynamic>>> getKuponMinus({String? satker}) async {
     try {
       final db = await dbHelper.database;
-      final result = await db.rawQuery('''
+
+      final where = <String>[];
+      final args = <dynamic>[];
+      where.add('fks.kuota_sisa < 0');
+      where.add('dk.is_current = 1');
+      if (satker != null && satker.isNotEmpty) {
+        where.add('ds.nama_satker = ?');
+        args.add(satker);
+      }
+
+      final whereClause = 'WHERE ' + where.join(' AND ');
+
+      final sql = '''
         SELECT 
           dk.kupon_key,
           dk.nomor_kupon,
@@ -308,7 +366,9 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           ds.nama_satker,
           dk.kendaraan_id,
           dk.jenis_bbm_id,
+          dbb.nama_jenis_bbm AS jenis_bbm_name,
           dk.jenis_kupon_id,
+          dku.nama_jenis_kupon AS jenis_kupon_name,
           dk.kuota_awal,
           fks.kuota_terpakai as total_liter,
           fks.kuota_sisa,
@@ -316,6 +376,8 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           dk.status
         FROM dim_kupon dk
         LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
+        LEFT JOIN dim_jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
+        LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
         LEFT JOIN (
           SELECT kupon_key, kuota_sisa, kuota_terpakai
           FROM fact_kupon_snapshot
@@ -325,12 +387,94 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
             GROUP BY kupon_key
           )
         ) fks ON dk.kupon_key = fks.kupon_key
-        WHERE fks.kuota_sisa < 0 AND dk.is_current = 1
-      ''');
+        $whereClause
+      ''';
 
+      final result = await db.rawQuery(sql, args);
       return result;
     } catch (e) {
       throw Exception('Failed to get kupon minus: $e');
+    }
+  }
+
+  @override
+  Future<List<String>> getDistinctTahunTerbit() async {
+    try {
+      final db = await dbHelper.database;
+      final rows = await db.rawQuery(
+        '''
+        SELECT DISTINCT tahun_terbit AS tahun_terbit FROM dim_tahun_terbit
+        WHERE tahun_terbit IS NOT NULL
+        ORDER BY CAST(tahun_terbit AS INTEGER) ASC
+      ''');
+
+      return rows.map<String>((r) => (r['tahun_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch distinct tahun terbit: $e');
+    }
+  }
+
+  @override
+  Future<List<String>> getDistinctBulanTerbit() async {
+    try {
+      final db = await dbHelper.database;
+      final rows = await db.rawQuery(
+        '''
+        SELECT DISTINCT bulan_terbit AS bulan_terbit FROM dim_tahun_terbit
+        WHERE bulan_terbit IS NOT NULL
+        ORDER BY CAST(bulan_terbit AS INTEGER) ASC
+      ''');
+
+      return rows.map<String>((r) => (r['bulan_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch distinct bulan terbit: $e');
+    }
+  }
+
+  @override
+  Future<List<String>> getDistinctJenisBbm() async {
+    try {
+      final db = await dbHelper.database;
+      final rows = await db.rawQuery(
+        '''
+        SELECT DISTINCT nama_jenis_bbm AS nama FROM dim_jenis_bbm
+        WHERE nama_jenis_bbm IS NOT NULL
+        ORDER BY nama_jenis_bbm COLLATE NOCASE ASC
+      ''');
+
+      return rows.map<String>((r) => (r['nama']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch distinct jenis BBM: $e');
+    }
+  }
+
+  @override
+  Future<String?> getLastTransaksiDate() async {
+    try {
+      final db = await dbHelper.database;
+      final result = await db.rawQuery('''
+        SELECT tanggal_transaksi FROM fact_transaksi
+        WHERE is_deleted = 0 AND tanggal_transaksi IS NOT NULL AND tanggal_transaksi != ''
+        ORDER BY created_at DESC
+        LIMIT 1
+      ''');
+      if (result.isNotEmpty) {
+        return result.first['tanggal_transaksi'] as String?;
+      }
+
+      // Fallback: if star-schema fact_purchasing + dim_date used
+      final result2 = await db.rawQuery('''
+        SELECT dd.date_value as tanggal FROM fact_purchasing fp
+        LEFT JOIN dim_date dd ON fp.date_key = dd.date_key
+        WHERE dd.date_value IS NOT NULL
+        ORDER BY dd.date_value DESC LIMIT 1
+      ''');
+      if (result2.isNotEmpty) return result2.first['tanggal'] as String?;
+
+      return null;
+    } catch (e) {
+      // Silently return null on failure, UI will fallback to today
+      return null;
     }
   }
 

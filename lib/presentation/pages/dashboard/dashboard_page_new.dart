@@ -377,49 +377,56 @@ class _DashboardPageState extends State<DashboardPage> {
 
         return SingleChildScrollView(
           scrollDirection: Axis.vertical,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('Tanggal')),
-                DataColumn(label: Text('Nomor Kupon')),
-                DataColumn(label: Text('Jenis BBM')),
-                DataColumn(label: Text('Jumlah (L)')),
-                DataColumn(label: Text('Status')),
-              ],
-              rows: transaksi
-                  .map(
-                    (t) => DataRow(
-                      cells: [
-                        DataCell(Text(t.tanggalTransaksi)),
-                        DataCell(Text(t.nomorKupon)),
-                        DataCell(
-                          Text(t.jenisBbm == '1' ? 'Pertamax' : 'Pertamina Dex'),
-                        ),
-                        DataCell(Text(t.jumlahDiambil.toString())),
-                        DataCell(
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: t.status == 'completed'
-                                  ? Colors.green
-                                  : Colors.blue,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              t.status == 'completed' ? 'Selesai' : 'Proses',
-                              style: const TextStyle(color: Colors.white),
-                            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  child: DataTable(
+                    columns: const [
+                      DataColumn(label: Text('Tanggal')),
+                      DataColumn(label: Text('Nomor Kupon')),
+                      DataColumn(label: Text('Jenis BBM')),
+                      DataColumn(label: Text('Jumlah (L)')),
+                      DataColumn(label: Text('Status')),
+                    ],
+                    rows: transaksi
+                        .map(
+                          (t) => DataRow(
+                            cells: [
+                              DataCell(Text(t.tanggalTransaksi)),
+                              DataCell(Text(t.nomorKupon)),
+                              DataCell(
+                                Text(t.jenisBbm == '1' ? 'Pertamax' : 'Pertamina Dex'),
+                              ),
+                              DataCell(Text(t.jumlahDiambil.toString())),
+                              DataCell(
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: t.status == 'completed'
+                                        ? Colors.green
+                                        : Colors.blue,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    t.status == 'completed' ? 'Selesai' : 'Proses',
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
-                  )
-                  .toList(),
-            ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              );
+            },
           ),
         );
       },
@@ -444,54 +451,61 @@ class _DashboardPageState extends State<DashboardPage> {
 
         return SingleChildScrollView(
           scrollDirection: Axis.vertical,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('No.')),
-                DataColumn(label: Text('NoPol')),
-                DataColumn(label: Text('Satker')),
-                DataColumn(label: Text('Jenis BBM')),
-                DataColumn(label: Text('Jumlah Minus')),
-                DataColumn(label: Text('Status')),
-              ],
-              rows: minusData.asMap().entries.map((entry) {
-                final i = entry.key + 1;
-                final m = entry.value;
-                return DataRow(
-                  cells: [
-                    DataCell(Text(i.toString())),
-                    DataCell(
-                      Text(_getNopolByKendaraanId(m['kendaraan_id'] as int)),
-                    ),
-                    DataCell(Text(m['nama_satker'] as String)),
-                    DataCell(
-                      Text(
-                        _jenisBBMMap[m['jenis_bbm_id'] as int] ??
-                            (m['jenis_bbm_id'] as int).toString(),
-                      ),
-                    ),
-                    DataCell(Text((m['minus_amount'] as int).toString())),
-                    DataCell(
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Text(
-                          'Minus',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
-            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  child: DataTable(
+                    columns: const [
+                      DataColumn(label: Text('No.')),
+                      DataColumn(label: Text('NoPol')),
+                      DataColumn(label: Text('Satker')),
+                      DataColumn(label: Text('Jenis BBM')),
+                      DataColumn(label: Text('Jumlah Minus')),
+                      DataColumn(label: Text('Status')),
+                    ],
+                    rows: minusData.asMap().entries.map((entry) {
+                      final i = entry.key + 1;
+                      final m = entry.value;
+                      return DataRow(
+                        cells: [
+                          DataCell(Text(i.toString())),
+                          DataCell(
+                            Text(_getNopolByKendaraanId(m['kendaraan_id'] as int)),
+                          ),
+                          DataCell(Text(m['nama_satker'] as String)),
+                          DataCell(
+                            Text(
+                              _jenisBBMMap[m['jenis_bbm_id'] as int] ??
+                                  (m['jenis_bbm_id'] as int).toString(),
+                            ),
+                          ),
+                          DataCell(Text((m['minus_amount'] as int).toString())),
+                          DataCell(
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Text(
+                                'Minus',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              );
+            },
           ),
         );
       },

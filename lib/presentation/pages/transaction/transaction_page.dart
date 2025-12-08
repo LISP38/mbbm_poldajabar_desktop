@@ -109,7 +109,9 @@ class _TransactionPageState extends State<TransactionPage>
       ).fetchTransaksiFiltered();
       Provider.of<TransaksiProvider>(context, listen: false).fetchKuponMinus();
       // Fetch kupon list untuk dropdown (ambil semua kupon: Ranjen + Dukungan)
-      Provider.of<DashboardProvider>(context, listen: false).fetchKupons();
+      final dash = Provider.of<DashboardProvider>(context, listen: false);
+      dash.fetchKupons();
+      dash.fetchSatkers();
     });
   }
 
@@ -189,67 +191,67 @@ class _TransactionPageState extends State<TransactionPage>
             // FILTER SECTION
             Row(
               children: [
-                SizedBox(
-                  width: 180,
-                  child: DropdownButtonFormField<int>(
-                    decoration: const InputDecoration(
-                      labelText: 'Bulan',
-                      border: OutlineInputBorder(),
-                    ),
-                    initialValue: Provider.of<TransaksiProvider>(
-                      context,
-                    ).filterBulan,
-                    items: [
-                      for (int i = 1; i <= 12; i++)
-                        DropdownMenuItem(
-                          value: i,
-                          child: Text(_getBulanName(i)),
-                        ),
-                    ],
-                    onChanged: (val) {
-                      Provider.of<TransaksiProvider>(
-                        context,
-                        listen: false,
-                      ).setFilterTransaksi(bulan: val);
-                    },
-                  ),
-                ),
                 const SizedBox(width: 12),
                 SizedBox(
-                  width: 120,
-                  child: DropdownButtonFormField<int>(
-                    decoration: const InputDecoration(
-                      labelText: 'Tahun',
-                      border: OutlineInputBorder(),
-                    ),
-                    initialValue: Provider.of<TransaksiProvider>(
-                      context,
-                    ).filterTahun,
-                    items: [2024, 2025]
-                        .map(
-                          (e) => DropdownMenuItem(
-                            value: e,
-                            child: Text(e.toString()),
+                  width: 260,
+                  child: Consumer2<DashboardProvider, TransaksiProvider>(
+                    builder: (context, dash, tprov, _) {
+                      final satkerList = dash.satkerList;
+                      final current = tprov.filterSatker ?? '';
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: current.isEmpty ? '' : current,
+                              decoration: const InputDecoration(
+                                labelText: 'Satker',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: [
+                                const DropdownMenuItem(value: '', child: Text('Semua Satker')),
+                                ...satkerList.map((s) => DropdownMenuItem(value: s, child: Text(s))),
+                              ],
+                              onChanged: (val) {
+                                final satker = (val == null || val.isEmpty) ? null : val;
+                                Provider.of<TransaksiProvider>(context, listen: false)
+                                    .setFilterTransaksi(satker: satker);
+                              },
+                            ),
                           ),
-                        )
-                        .toList(),
-                    onChanged: (val) {
-                      Provider.of<TransaksiProvider>(
-                        context,
-                        listen: false,
-                      ).setFilterTransaksi(tahun: val);
+                          const SizedBox(width: 8),
+                          // Reset Satker filter button
+                          IconButton(
+                            tooltip: 'Reset Satker Filter',
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              Provider.of<TransaksiProvider>(context, listen: false)
+                                  .clearSatkerFilter();
+                            },
+                          ),
+                        ],
+                      );
                     },
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Filter Tanggal
-                OutlinedButton.icon(
-                  onPressed: () => _selectDateRange(context),
-                  icon: const Icon(Icons.date_range),
-                  label: Text(
-                    _filterTanggalMulai != null && _filterTanggalSelesai != null
-                        ? '${_filterTanggalMulai!.day}/${_filterTanggalMulai!.month}/${_filterTanggalMulai!.year} - ${_filterTanggalSelesai!.day}/${_filterTanggalSelesai!.month}/${_filterTanggalSelesai!.year}'
-                        : 'Pilih Range Tanggal',
+                IntrinsicWidth(
+                  child: GestureDetector(
+                    onTap: () => _selectDateRange(context),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: "Range Tanggal",
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
+                      child: Text(
+                        _filterTanggalMulai != null && _filterTanggalSelesai != null
+                            ? '${_filterTanggalMulai!.day}/${_filterTanggalMulai!.month}/${_filterTanggalMulai!.year}'
+                              ' - '
+                              '${_filterTanggalSelesai!.day}/${_filterTanggalSelesai!.month}/${_filterTanggalSelesai!.year}'
+                            : 'Pilih Range Tanggal',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
                   ),
                 ),
                 if (_filterTanggalMulai != null)
@@ -258,17 +260,6 @@ class _TransactionPageState extends State<TransactionPage>
                     tooltip: 'Hapus Filter Tanggal',
                     onPressed: _clearDateFilter,
                   ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Provider.of<TransaksiProvider>(
-                      context,
-                      listen: false,
-                    ).fetchTransaksiFiltered();
-                  },
-                  icon: const Icon(Icons.search),
-                  label: const Text('Cari'),
-                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -542,6 +533,17 @@ class _TransactionPageState extends State<TransactionPage>
         .toList();
     final formKey = GlobalKey<FormState>();
     final tanggalController = TextEditingController();
+    // Prefill tanggal dengan tanggal transaksi terakhir secara global (date-only)
+    try {
+      final lastDate = await transaksiProvider.getLastTransaksiDate();
+      if (lastDate != null && lastDate.isNotEmpty) {
+        tanggalController.text = lastDate.substring(0, 10);
+      } else {
+        tanggalController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      }
+    } catch (e) {
+      tanggalController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    }
     String? nomorKupon;
     double? jumlahLiter;
     await showDialog(

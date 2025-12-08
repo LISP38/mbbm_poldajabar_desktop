@@ -12,8 +12,33 @@ class TransaksiProvider extends ChangeNotifier {
 
   int? filterBulan;
   int? filterTahun;
+  String? filterSatker;
 
   TransaksiProvider(this._transaksiRepository);
+
+  // --- Filter dropdown options (from dim_tahun_terbit)
+  List<String> daftarTahun = [];
+  List<String> daftarBulan = [];
+
+  List<String> get availableTahun => daftarTahun;
+  List<String> get availableBulan => daftarBulan;
+
+  /// Load distinct bulan & tahun values from `dim_tahun_terbit` table.
+  Future<void> loadFilterOptions() async {
+    try {
+      final bulan = await _transaksiRepository.getDistinctBulanTerbit();
+      final tahun = await _transaksiRepository.getDistinctTahunTerbit();
+
+      daftarBulan = bulan;
+      daftarTahun = tahun;
+      notifyListeners();
+    } catch (e) {
+      // On error, keep lists empty and notify so UI can fallback if needed
+      daftarBulan = [];
+      daftarTahun = [];
+      notifyListeners();
+    }
+  }
 
   List<TransaksiEntity> get transaksiList => _transaksiList;
   List<TransaksiEntity> get deletedTransaksiList => _deletedTransaksiList;
@@ -50,13 +75,22 @@ class TransaksiProvider extends ChangeNotifier {
     _transaksiList = await _transaksiRepository.getAllTransaksi(
       bulan: filterBulan,
       tahun: filterTahun,
+      satker: filterSatker,
     );
     notifyListeners();
   }
 
   Future<void> fetchKuponMinus() async {
-    _kuponMinusList = await _transaksiRepository.getKuponMinus();
+    _kuponMinusList = await _transaksiRepository.getKuponMinus(satker: filterSatker);
     notifyListeners();
+  }
+
+  Future<String?> getLastTransaksiDate() async {
+    try {
+      return await _transaksiRepository.getLastTransaksiDate();
+    } catch (e) {
+      return null;
+    }
   }
 
   Future<void> addTransaksi(TransaksiEntity transaksi) async {
@@ -97,12 +131,25 @@ class TransaksiProvider extends ChangeNotifier {
   void resetFilter() {
     filterBulan = null;
     filterTahun = null;
+    filterSatker = null;
     notifyListeners();
   }
 
-  void setFilterTransaksi({int? bulan, int? tahun}) {
+  void setFilterTransaksi({int? bulan, int? tahun, String? satker}) {
     filterBulan = bulan ?? filterBulan;
     filterTahun = tahun ?? filterTahun;
+    // Allow explicit set (including setting to null) by passing satker param.
+    filterSatker = satker;
     fetchTransaksiFiltered();
+    // Also refresh kupon-minus list to reflect satker filter
+    fetchKuponMinus();
+  }
+
+  /// Clear only the satker filter and refresh transactions.
+  void clearSatkerFilter() {
+    filterSatker = null;
+    fetchTransaksiFiltered();
+    fetchKuponMinus();
+    notifyListeners();
   }
 }

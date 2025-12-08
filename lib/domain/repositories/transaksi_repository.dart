@@ -5,11 +5,16 @@ abstract class TransaksiRepository {
     int? bulan,
     int? tahun,
     int? isDeleted,
+    String? satker,
   });
   Future<TransaksiEntity?> getTransaksiById(int transaksiId);
   Future<void> insertTransaksi(TransaksiEntity transaksi);
   Future<void> updateTransaksi(TransaksiEntity transaksi);
   Future<void> deleteTransaksi(int transaksiId);
-  Future<List<Map<String, dynamic>>> getKuponMinus();
+  Future<List<Map<String, dynamic>>> getKuponMinus({String? satker});
   Future<void> restoreTransaksi(int transaksiId);
+  Future<String?> getLastTransaksiDate();
+  Future<List<String>> getDistinctTahunTerbit();
+  Future<List<String>> getDistinctBulanTerbit();
+  Future<List<String>> getDistinctJenisBbm();
 }

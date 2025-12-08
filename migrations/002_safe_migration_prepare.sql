@@ -58,6 +58,8 @@ CREATE TABLE IF NOT EXISTS dim_jenis_kupon (
   nama_jenis_kupon TEXT NOT NULL
 );
 
+-- Note: dim_jenis_ranmor and dim_nopol intentionally omitted (merged into dim_kendaraan)
+
 CREATE TABLE IF NOT EXISTS dim_kendaraan (
   kendaraan_id INTEGER PRIMARY KEY AUTOINCREMENT,
   satker_id INTEGER,
@@ -88,6 +90,13 @@ CREATE TABLE IF NOT EXISTS dim_date (
   day INTEGER,
   week_of_year INTEGER,
   quarter INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS dim_tahun_terbit (
+  tahun_terbit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  bulan_terbit INTEGER NOT NULL,
+  tahun_terbit INTEGER NOT NULL,
+  UNIQUE(bulan_terbit, tahun_terbit)
 );
 
 CREATE TABLE IF NOT EXISTS fact_purchasing (

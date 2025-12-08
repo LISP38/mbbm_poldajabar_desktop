@@ -15,6 +15,13 @@ class DashboardProvider extends ChangeNotifier {
 
   // Master data lists
   List<String> _satkerList = [];
+  List<int> _bulanList = [];
+  List<int> _tahunList = [];
+  // New: lists for dynamic filter options from dim_tahun_terbit
+  List<String> _daftarBulan = [];
+  List<String> _daftarTahun = [];
+  List<String> _jenisBbmList = [];
+  Map<int, String> _jenisBbmMap = {};
 
   // Filter state
   String? nomorKupon;
@@ -46,6 +53,14 @@ class DashboardProvider extends ChangeNotifier {
   ];
 
   List<String> get satkerList => _satkerList;
+  List<int> get bulanList => _bulanList;
+  List<int> get tahunList => _tahunList;
+  List<String> get daftarBulan => _daftarBulan;
+  List<String> get daftarTahun => _daftarTahun;
+  List<String> get jenisBbmList => _jenisBbmList;
+  List<String> get bulanTerbitList => _daftarBulan;
+  List<String> get tahunTerbitList => _daftarTahun;
+  Map<int, String> get jenisBbmMap => _jenisBbmMap;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isRanjenMode => _isRanjenMode;
@@ -71,6 +86,181 @@ class DashboardProvider extends ChangeNotifier {
     } catch (e) {
       print('[DASHBOARD] Error fetching satkers: $e');
       _satkerList = [];
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchJenisBbm() async {
+    final db = await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+    try {
+      final rows = await db.query('dim_jenis_bbm', orderBy: 'nama_jenis_bbm COLLATE NOCASE ASC');
+      final map = <int, String>{};
+      final list = <String>[];
+      for (final r in rows) {
+        final id = r['jenis_bbm_id'] as int?;
+        final name = (r['nama_jenis_bbm'] as String).trim();
+        list.add(name);
+        if (id != null) map[id] = name;
+      }
+      _jenisBbmList = list;
+      _jenisBbmMap = map;
+      notifyListeners();
+    } catch (e) {
+      print('[DASHBOARD] Error fetching jenis BBM: $e');
+      _jenisBbmList = [];
+      _jenisBbmMap = {};
+      notifyListeners();
+    }
+  }
+
+  // Fetch bulan list from dim_bulan; fall back to 1..12 on error
+  Future<void> fetchBulans() async {
+    final db = await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+    try {
+      // check if dim_bulan exists
+      final exists = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+        ['dim_bulan'],
+      );
+      List<int> months = [];
+      if (exists.isNotEmpty) {
+        final results = await db.query('dim_bulan');
+        months = results.map<int>((row) {
+          final v = row['bulan_id'] ?? row['bulan'] ?? row['bulan_number'] ?? row['id'];
+          if (v is int) return v;
+          if (v is String) return int.tryParse(v) ?? 0;
+          return 0;
+        }).where((v) => v > 0).toList();
+      } else {
+        // fallback to dim_date if available
+        final dateExists = await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+          ['dim_date'],
+        );
+        if (dateExists.isNotEmpty) {
+          final rows = await db.rawQuery(
+            'SELECT DISTINCT bulan_terbit FROM dim_date WHERE bulan_terbit IS NOT NULL ORDER BY bulan_terbit ASC',
+          );
+          months = rows.map<int>((r) {
+            final v = r['bulan_terbit'];
+            if (v is int) return v;
+            if (v is String) return int.tryParse(v) ?? 0;
+            return 0;
+          }).where((v) => v > 0).toList();
+        }
+      }
+
+      if (months.isEmpty) months = List.generate(12, (i) => i + 1);
+      _bulanList = months;
+      notifyListeners();
+    } catch (e) {
+      print('[DASHBOARD] error fetching bulan list: $e');
+      _bulanList = List.generate(12, (i) => i + 1);
+      notifyListeners();
+    }
+  }
+
+  // Fetch tahun list from dim_tahun; fall back to current year +/- 1
+  Future<void> fetchTahuns() async {
+    final db = await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+    try {
+      // check dim_tahun
+      final exists = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+        ['dim_tahun'],
+      );
+      List<int> years = [];
+      if (exists.isNotEmpty) {
+        final results = await db.query('dim_tahun');
+        years = results.map<int>((row) {
+          final v = row['tahun'] ?? row['tahun_id'] ?? row['id'];
+          if (v is int) return v;
+          if (v is String) return int.tryParse(v) ?? 0;
+          return 0;
+        }).where((v) => v > 0).toList();
+      } else {
+        final dateExists = await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+          ['dim_date'],
+        );
+        if (dateExists.isNotEmpty) {
+          final rows = await db.rawQuery(
+            'SELECT DISTINCT tahun_terbit FROM dim_date WHERE tahun_terbit IS NOT NULL ORDER BY tahun_terbit ASC',
+          );
+          years = rows.map<int>((r) {
+            final v = r['tahun_terbit'];
+            if (v is int) return v;
+            if (v is String) return int.tryParse(v) ?? 0;
+            return 0;
+          }).where((v) => v > 0).toList();
+        }
+      }
+
+      if (years.isEmpty) {
+        final y = DateTime.now().year;
+        years = [y, y + 1];
+      }
+      _tahunList = years;
+      notifyListeners();
+    } catch (e) {
+      print('[DASHBOARD] error fetching tahun list: $e');
+      final y = DateTime.now().year;
+      _tahunList = [y, y + 1];
+      notifyListeners();
+    }
+  }
+
+  /// Load distinct `bulan` and `tahun` values from `dim_tahun_terbit`.
+  /// Values are returned as strings to preserve whatever format is stored
+  /// (numeric or textual). UI will map numeric month strings to month names.
+  Future<void> loadFilterOptions() async {
+    final db = await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+    try {
+      // Primary source: dim_tahun_terbit
+      final bulanRows = await db.rawQuery(
+        '''SELECT DISTINCT bulan_terbit AS bulan_terbit FROM dim_tahun_terbit WHERE bulan_terbit IS NOT NULL ORDER BY CAST(bulan_terbit AS INTEGER) ASC''',
+      );
+      final tahunRows = await db.rawQuery(
+        '''SELECT DISTINCT tahun_terbit AS tahun_terbit FROM dim_tahun_terbit WHERE tahun_terbit IS NOT NULL ORDER BY CAST(tahun_terbit AS INTEGER) ASC''',
+      );
+
+      _daftarBulan = bulanRows.map<String>((r) => (r['bulan_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
+      _daftarTahun = tahunRows.map<String>((r) => (r['tahun_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
+
+      // Fallback: try dim_date if primary returned no rows
+      if (_daftarBulan.isEmpty || _daftarTahun.isEmpty) {
+        print('[DASHBOARD] dim_tahun_terbit empty or incomplete, trying dim_date...');
+        final dbRowsB = await db.rawQuery(
+          '''SELECT DISTINCT bulan_terbit AS bulan_terbit FROM dim_date WHERE bulan_terbit IS NOT NULL ORDER BY bulan_terbit ASC''',
+        );
+        final dbRowsT = await db.rawQuery(
+          '''SELECT DISTINCT tahun_terbit AS tahun_terbit FROM dim_date WHERE tahun_terbit IS NOT NULL ORDER BY tahun_terbit ASC''',
+        );
+        final bFallback = dbRowsB.map<String>((r) => (r['bulan_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
+        final tFallback = dbRowsT.map<String>((r) => (r['tahun_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
+        if (_daftarBulan.isEmpty) _daftarBulan = bFallback;
+        if (_daftarTahun.isEmpty) _daftarTahun = tFallback;
+      }
+
+      // Final fallback: try dim_kupon distinct bulan_terbit/tahun_terbit
+      if (_daftarBulan.isEmpty || _daftarTahun.isEmpty) {
+        print('[DASHBOARD] dim_date fallback empty, trying dim_kupon...');
+        final kB = await db.rawQuery(
+          '''SELECT DISTINCT bulan_terbit AS bulan_terbit FROM dim_kupon WHERE bulan_terbit IS NOT NULL ORDER BY bulan_terbit ASC''',
+        );
+        final kT = await db.rawQuery(
+          '''SELECT DISTINCT tahun_terbit AS tahun_terbit FROM dim_kupon WHERE tahun_terbit IS NOT NULL ORDER BY tahun_terbit ASC''',
+        );
+        final bK = kB.map<String>((r) => (r['bulan_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
+        final tK = kT.map<String>((r) => (r['tahun_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
+        if (_daftarBulan.isEmpty) _daftarBulan = bK;
+        if (_daftarTahun.isEmpty) _daftarTahun = tK;
+      }
+      notifyListeners();
+    } catch (e) {
+      print('[DASHBOARD] loadFilterOptions error: $e');
+      _daftarBulan = [];
+      _daftarTahun = [];
       notifyListeners();
     }
   }

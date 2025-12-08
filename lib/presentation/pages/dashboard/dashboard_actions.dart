@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../data/models/transaksi_model.dart';
 import '../../../domain/entities/kupon_entity.dart';
@@ -111,11 +112,26 @@ class DashboardActions extends StatelessWidget {
 
       // Process the transaction
       try {
-        final now = DateTime.now().toIso8601String();
-        await Provider.of<TransaksiProvider>(
+        // Determine default date (global last transaksi date or today)
+        final transaksiProvider = Provider.of<TransaksiProvider>(
           context,
           listen: false,
-        ).addTransaksi(
+        );
+        final lastDate = await transaksiProvider.getLastTransaksiDate();
+        String dateStr;
+
+        try {
+          if (lastDate != null && lastDate.isNotEmpty) {
+            dateStr = lastDate.substring(0, 10);
+          } else {
+            dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+          }
+        } catch (_) {
+          dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+        }
+        
+        final now = DateTime.now().toIso8601String();
+        await transaksiProvider.addTransaksi(
           TransaksiModel(
             transaksiId: 0,
             kuponId: kupon.kuponId,
@@ -123,7 +139,7 @@ class DashboardActions extends StatelessWidget {
             namaSatker: kupon.namaSatker,
             jenisBbmId: jenisBbmId,
             jenisKuponId: kupon.jenisKuponId,
-            tanggalTransaksi: now.substring(0, 10),
+            tanggalTransaksi: dateStr,
             jumlahLiter: jumlahLiter,
             createdAt: now,
             updatedAt: now,

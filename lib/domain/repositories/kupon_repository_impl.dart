@@ -17,7 +17,9 @@ class KuponRepositoryImpl implements KuponRepository {
         dk.nomor_kupon,
         dk.kendaraan_id,
         dk.jenis_bbm_id,
+        dbb.nama_jenis_bbm AS jenis_bbm_name,
         dk.jenis_kupon_id,
+        dku.nama_jenis_kupon AS jenis_kupon_name,
         dk.bulan_terbit,
         dk.tahun_terbit,
         dk.tanggal_mulai,
@@ -29,9 +31,15 @@ class KuponRepositoryImpl implements KuponRepository {
         dk.status,
         dk.valid_from as created_at,
         CURRENT_TIMESTAMP as updated_at,
-        0 as is_deleted
+        0 as is_deleted,
+        -- kendaraan labels (use dim_kendaraan fields directly)
+        TRIM(COALESCE(dk2.no_pol_kode, '') || ' ' || COALESCE(dk2.no_pol_nomor, '')) AS nopol,
+        COALESCE(dk2.jenis_ranmor, '') AS jenis_ranmor
       FROM dim_kupon dk
       LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
+      LEFT JOIN dim_jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
+      LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
+      LEFT JOIN dim_kendaraan dk2 ON dk.kendaraan_id = dk2.kendaraan_id
       LEFT JOIN (
         SELECT kupon_key, kuota_sisa
         FROM fact_kupon_snapshot
@@ -56,7 +64,9 @@ class KuponRepositoryImpl implements KuponRepository {
         dk.nomor_kupon,
         dk.kendaraan_id,
         dk.jenis_bbm_id,
+        dbb.nama_jenis_bbm AS jenis_bbm_name,
         dk.jenis_kupon_id,
+        dku.nama_jenis_kupon AS jenis_kupon_name,
         dk.bulan_terbit,
         dk.tahun_terbit,
         dk.tanggal_mulai,
@@ -68,9 +78,14 @@ class KuponRepositoryImpl implements KuponRepository {
         dk.status,
         dk.valid_from as created_at,
         CURRENT_TIMESTAMP as updated_at,
-        0 as is_deleted
+        0 as is_deleted,
+        TRIM(COALESCE(dk2.no_pol_kode, '') || ' ' || COALESCE(dk2.no_pol_nomor, '')) AS nopol,
+        COALESCE(dk2.jenis_ranmor, '') AS jenis_ranmor
       FROM dim_kupon dk
       LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
+      LEFT JOIN dim_jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
+      LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
+      LEFT JOIN dim_kendaraan dk2 ON dk.kendaraan_id = dk2.kendaraan_id
       LEFT JOIN (
         SELECT kupon_key, kuota_sisa
         FROM fact_kupon_snapshot
@@ -176,7 +191,9 @@ class KuponRepositoryImpl implements KuponRepository {
         dk.nomor_kupon,
         dk.kendaraan_id,
         dk.jenis_bbm_id,
+        dbb.nama_jenis_bbm AS jenis_bbm_name,
         dk.jenis_kupon_id,
+        dku.nama_jenis_kupon AS jenis_kupon_name,
         dk.bulan_terbit,
         dk.tahun_terbit,
         dk.tanggal_mulai,
@@ -188,9 +205,14 @@ class KuponRepositoryImpl implements KuponRepository {
         dk.status,
         dk.valid_from as created_at,
         CURRENT_TIMESTAMP as updated_at,
-        0 as is_deleted
+        0 as is_deleted,
+        TRIM(COALESCE(dk2.no_pol_kode, '') || ' ' || COALESCE(dk2.no_pol_nomor, '')) AS nopol,
+        COALESCE(dk2.jenis_ranmor, '') AS jenis_ranmor
       FROM dim_kupon dk
       LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
+      LEFT JOIN dim_jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
+      LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
+      LEFT JOIN dim_kendaraan dk2 ON dk.kendaraan_id = dk2.kendaraan_id
       LEFT JOIN (
         SELECT kupon_key, kuota_sisa
         FROM fact_kupon_snapshot

@@ -21,12 +21,9 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage>
     with TickerProviderStateMixin {
-  // Constants for BBM types
-  final Map<int, String> _jenisBBMMap = {1: 'Pertamax', 2: 'Pertamina Dex'};
+  // jenis BBM map will come from provider (dim_jenis_bbm)
 
-  // Lists for dropdown data
-  final List<int> _bulanList = List.generate(12, (i) => i + 1);
-  final List<int> _tahunList = [2024, 2025]; // TODO: Dynamic tahun
+  // Lists for dropdown data (populated from provider)
   List<KendaraanEntity> _kendaraanList = [];
 
   // Helper untuk nama bulan
@@ -57,8 +54,8 @@ class _DashboardPageState extends State<DashboardPage>
   String? _selectedSatker;
   String? _selectedJenisBBM;
   String? _selectedJenisRanmor;
-  int? _selectedBulan;
-  int? _selectedTahun;
+  String? _selectedBulan; // stores bulan as string (numeric string, e.g. '11')
+  String? _selectedTahun; // stores tahun as string (e.g. '2025')
 
   bool _firstLoad = true;
 
@@ -74,6 +71,17 @@ class _DashboardPageState extends State<DashboardPage>
     _tabController.addListener(_onTabChanged);
     _fetchKendaraanList();
     _fetchSatkerList();
+    // Load dynamic filter options from DashboardProvider after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        final provider = Provider.of<DashboardProvider>(context, listen: false);
+        provider.loadFilterOptions();
+        provider.fetchJenisBbm();
+      } catch (e) {
+        // ignore: avoid_print
+        print('[DASHBOARD] Could not load filter options: $e');
+      }
+    });
   }
 
   void _onTabChanged() {
@@ -84,14 +92,21 @@ class _DashboardPageState extends State<DashboardPage>
     final provider = Provider.of<DashboardProvider>(context, listen: false);
 
     // Set filter dengan mempertahankan filter yang sudah ada
+    // Convert selected jenisBBM name to ID if possible
+    String? jenisBbmParam;
+    if (_selectedJenisBBM != null && _selectedJenisBBM!.isNotEmpty) {
+      final matches = provider.jenisBbmMap.entries.where((e) => e.value == _selectedJenisBBM).toList();
+      if (matches.isNotEmpty) jenisBbmParam = matches.first.key.toString();
+    }
+
     provider.setFilter(
       jenisKupon: defaultJenisKupon,
-      jenisBBM: _selectedJenisBBM,
+      jenisBBM: jenisBbmParam,
       satker: _selectedSatker,
       nopol: _nopolController.text.isNotEmpty ? _nopolController.text : null,
       jenisRanmor: _selectedJenisRanmor,
-      bulanTerbit: _selectedBulan,
-      tahunTerbit: _selectedTahun,
+      bulanTerbit: _selectedBulan != null ? int.tryParse(_selectedBulan!) : null,
+      tahunTerbit: _selectedTahun != null ? int.tryParse(_selectedTahun!) : null,
       nomorKupon: _nomorKuponController.text.isNotEmpty
           ? _nomorKuponController.text
           : null,
@@ -165,6 +180,8 @@ class _DashboardPageState extends State<DashboardPage>
   Future<void> _fetchSatkerList() async {
     final provider = Provider.of<DashboardProvider>(context, listen: false);
     await provider.fetchSatkers();
+    await provider.fetchBulans();
+    await provider.fetchTahuns();
   }
 
   Widget _buildRanjenContent(BuildContext context) {
@@ -218,41 +235,6 @@ class _DashboardPageState extends State<DashboardPage>
       ),
     );
   }
-
-  // Widget _buildSummarySection(BuildContext context) {
-  //   return Consumer<DashboardProvider>(
-  //     builder: (context, provider, _) {
-  //       // Gunakan data yang tepat berdasarkan tab yang aktif
-  //       final activeTabKuponCount = _tabController.index == 0
-  //           ? provider.ranjenKupons.length
-  //           : provider.dukunganKupons.length;
-
-  //       return Card(
-  //         color: Colors.blue.shade50,
-  //         margin: const EdgeInsets.only(bottom: 12),
-  //         child: Padding(
-  //           padding: const EdgeInsets.all(16.0),
-  //           child: Row(
-  //             children: [
-  //               Text(
-  //                 'Total Kupon (${_tabController.index == 0 ? 'Ranjen' : 'Dukungan'}): ',
-  //                 style: const TextStyle(fontWeight: FontWeight.bold),
-  //               ),
-  //               Text(
-  //                 activeTabKuponCount.toString(),
-  //                 style: TextStyle(
-  //                   fontSize: 18,
-  //                   color: Colors.blue.shade900,
-  //                   fontWeight: FontWeight.bold,
-  //                 ),
-  //               ),
-  //             ],
-  //           ),
-  //         ),
-  //       );
-  //     },
-  //   );
-  // }
 
   // Sync version for local use
   String _getNopolSync(int? kendaraanId) {
@@ -530,6 +512,8 @@ class _DashboardPageState extends State<DashboardPage>
 
   Widget _buildRanjenFilterSection(BuildContext context) {
     final provider = Provider.of<DashboardProvider>(context, listen: false);
+    // use DashboardProvider for filter lists
+    // final trxProvider = Provider.of<TransaksiProvider>(context, listen: false);
     return Card(
       child: ExpansionTile(
         title: const Text('Filter Ranjen'),
@@ -582,22 +566,24 @@ class _DashboardPageState extends State<DashboardPage>
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _selectedJenisBBM,
-                        decoration: const InputDecoration(
-                          labelText: 'Jenis BBM',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: _jenisBBMMap.entries
-                            .map(
-                              (e) => DropdownMenuItem(
-                                value: e.key.toString(),
-                                child: Text(e.value),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) =>
-                            setState(() => _selectedJenisBBM = value),
+                      child: Consumer<DashboardProvider>(
+                        builder: (context, prov, _) {
+                          final list = prov.jenisBbmList;
+                          // build items with an initial 'Semua' option (empty string)
+                          final items = <DropdownMenuItem<String>>[
+                            const DropdownMenuItem(value: '', child: Text('Semua')),
+                            ...list.map((name) => DropdownMenuItem(value: name, child: Text(name))),
+                          ];
+                          return DropdownButtonFormField<String>(
+                            value: _selectedJenisBBM ?? '',
+                            decoration: const InputDecoration(
+                              labelText: 'Jenis BBM',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: items,
+                            onChanged: (value) => setState(() => _selectedJenisBBM = value),
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -632,42 +618,51 @@ class _DashboardPageState extends State<DashboardPage>
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: DropdownButtonFormField<int>(
-                        value: _selectedBulan,
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedBulan ?? '',
                         decoration: const InputDecoration(
                           labelText: 'Bulan Terbit',
                           border: OutlineInputBorder(),
                         ),
-                        items: _bulanList
-                            .map(
-                              (b) => DropdownMenuItem(
-                                value: b,
-                                child: Text(_getBulanName(b)),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) =>
-                            setState(() => _selectedBulan = value),
+                        items: [
+                          const DropdownMenuItem(value: '', child: Text('Semua')),
+                          ...provider.bulanTerbitList
+                              .map(
+                                (b) => DropdownMenuItem(
+                                  value: b,
+                                  child: Text(
+                                    () {
+                                      final num = int.tryParse(b);
+                                      return num != null ? _getBulanName(num) : b;
+                                    }(),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ],
+                        onChanged: (value) => setState(() => _selectedBulan = value),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: DropdownButtonFormField<int>(
-                        value: _selectedTahun,
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedTahun ?? '',
                         decoration: const InputDecoration(
                           labelText: 'Tahun Terbit',
                           border: OutlineInputBorder(),
                         ),
-                        items: _tahunList
-                            .map(
-                              (t) => DropdownMenuItem(
-                                value: t,
-                                child: Text(t.toString()),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) =>
-                            setState(() => _selectedTahun = value),
+                        items: [
+                          const DropdownMenuItem(value: '', child: Text('Semua')),
+                          ...provider.tahunTerbitList
+                              .map(
+                                (t) => DropdownMenuItem(
+                                  value: t,
+                                  child: Text(t),
+                                ),
+                              )
+                              .toList(),
+                        ],
+                        onChanged: (value) => setState(() => _selectedTahun = value),
                       ),
                     ),
                   ],
@@ -682,19 +677,26 @@ class _DashboardPageState extends State<DashboardPage>
                           context,
                           listen: false,
                         );
+                        // Convert selected jenisBBM name to ID using provider map
+                        String? jenisBbmParam;
+                        if (_selectedJenisBBM != null && _selectedJenisBBM!.isNotEmpty) {
+                          final matches = provider.jenisBbmMap.entries.where((e) => e.value == _selectedJenisBBM).toList();
+                          if (matches.isNotEmpty) jenisBbmParam = matches.first.key.toString();
+                        }
+
                         provider.setFilter(
                           nomorKupon: _nomorKuponController.text.isNotEmpty
                               ? _nomorKuponController.text
                               : null,
                           satker: _selectedSatker,
-                          jenisBBM: _selectedJenisBBM,
+                          jenisBBM: jenisBbmParam,
                           jenisKupon: '1', // Ranjen
                           nopol: _nopolController.text.isNotEmpty
                               ? _nopolController.text
                               : null,
                           jenisRanmor: _selectedJenisRanmor,
-                          bulanTerbit: _selectedBulan,
-                          tahunTerbit: _selectedTahun,
+                          bulanTerbit: _selectedBulan != null ? int.tryParse(_selectedBulan!) : null,
+                          tahunTerbit: _selectedTahun != null ? int.tryParse(_selectedTahun!) : null,
                         );
 
                         // Show loading indicator
@@ -816,21 +818,18 @@ class _DashboardPageState extends State<DashboardPage>
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedJenisBBM,
+                        value: _selectedJenisBBM ?? '',
                         decoration: const InputDecoration(
                           labelText: 'Jenis BBM',
                           border: OutlineInputBorder(),
                         ),
-                        items: _jenisBBMMap.entries
-                            .map(
-                              (e) => DropdownMenuItem(
-                                value: e.key.toString(),
-                                child: Text(e.value),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) =>
-                            setState(() => _selectedJenisBBM = value),
+                        items: [
+                          const DropdownMenuItem(value: '', child: Text('Semua')),
+                          ...provider.jenisBbmList
+                              .map((name) => DropdownMenuItem(value: name, child: Text(name)))
+                              .toList(),
+                        ],
+                        onChanged: (value) => setState(() => _selectedJenisBBM = value),
                       ),
                     ),
                   ],
@@ -865,42 +864,46 @@ class _DashboardPageState extends State<DashboardPage>
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: DropdownButtonFormField<int>(
+                      child: DropdownButtonFormField<String>(
                         value: _selectedBulan,
                         decoration: const InputDecoration(
                           labelText: 'Bulan',
                           border: OutlineInputBorder(),
                         ),
-                        items: _bulanList
-                            .map(
-                              (b) => DropdownMenuItem(
-                                value: b,
-                                child: Text(_getBulanName(b)),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) =>
-                            setState(() => _selectedBulan = value),
+                        items: [
+                          const DropdownMenuItem(value: '', child: Text('Semua')),
+                          ...provider.bulanTerbitList
+                              .map(
+                                (b) => DropdownMenuItem(
+                                  value: b,
+                                  child: Text(
+                                    () {
+                                      final num = int.tryParse(b);
+                                      return num != null ? _getBulanName(num) : b;
+                                    }(),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ],
+                        onChanged: (value) => setState(() => _selectedBulan = value),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: DropdownButtonFormField<int>(
+                      child: DropdownButtonFormField<String>(
                         value: _selectedTahun,
                         decoration: const InputDecoration(
                           labelText: 'Tahun',
                           border: OutlineInputBorder(),
                         ),
-                        items: _tahunList
-                            .map(
-                              (t) => DropdownMenuItem(
-                                value: t,
-                                child: Text(t.toString()),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) =>
-                            setState(() => _selectedTahun = value),
+                        items: [
+                          const DropdownMenuItem(value: '', child: Text('Semua')),
+                          ...provider.tahunTerbitList
+                              .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                              .toList(),
+                        ],
+                        onChanged: (value) => setState(() => _selectedTahun = value),
                       ),
                     ),
                   ],
@@ -911,19 +914,26 @@ class _DashboardPageState extends State<DashboardPage>
                   children: [
                     ElevatedButton.icon(
                       onPressed: () {
+                        // Convert selected jenisBBM name to ID using provider map
+                        String? jenisBbmParam;
+                        if (_selectedJenisBBM != null && _selectedJenisBBM!.isNotEmpty) {
+                          final matches = provider.jenisBbmMap.entries.where((e) => e.value == _selectedJenisBBM).toList();
+                          if (matches.isNotEmpty) jenisBbmParam = matches.first.key.toString();
+                        }
+
                         provider.setFilter(
                           nomorKupon: _nomorKuponController.text.isNotEmpty
                               ? _nomorKuponController.text
                               : null,
                           satker: _selectedSatker,
-                          jenisBBM: _selectedJenisBBM,
+                          jenisBBM: jenisBbmParam,
                           jenisKupon: '2', // Dukungan
                           nopol: _nopolController.text.isNotEmpty
                               ? _nopolController.text
                               : null,
                           jenisRanmor: _selectedJenisRanmor,
-                          bulanTerbit: _selectedBulan,
-                          tahunTerbit: _selectedTahun,
+                          bulanTerbit: _selectedBulan != null ? int.tryParse(_selectedBulan!) : null,
+                          tahunTerbit: _selectedTahun != null ? int.tryParse(_selectedTahun!) : null,
                         );
                       },
                       icon: const Icon(Icons.search),
@@ -972,10 +982,12 @@ class _DashboardPageState extends State<DashboardPage>
         final endIndex = (startIndex + _itemsPerPage).clamp(0, totalItems);
         final kupons = allKupons.sublist(startIndex, endIndex);
 
-        // PERBAIKAN: Vertical scroll untuk baris, horizontal scroll untuk kolom lebar
-        return Card(
-          elevation: 2,
-          child: SingleChildScrollView(
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1100),
+            child: Card(
+              elevation: 2,
+              child: SingleChildScrollView(
             scrollDirection: Axis.vertical,
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -1058,7 +1070,7 @@ class _DashboardPageState extends State<DashboardPage>
                       DataCell(Text(k.namaSatker)),
                       DataCell(
                         Text(
-                          _jenisBBMMap[k.jenisBbmId] ?? k.jenisBbmId.toString(),
+                          provider.jenisBbmMap[k.jenisBbmId] ?? k.jenisBbmId.toString(),
                         ),
                       ),
                       DataCell(Text(_getNopolSync(k.kendaraanId))),
@@ -1099,7 +1111,9 @@ class _DashboardPageState extends State<DashboardPage>
               ),
             ),
           ),
-        );
+        ),
+      ),
+    );
       },
     );
   }
@@ -1133,9 +1147,12 @@ class _DashboardPageState extends State<DashboardPage>
         final kupons = allKupons.sublist(startIndex, endIndex);
 
         // PERBAIKAN: Vertical scroll untuk baris, horizontal scroll untuk kolom lebar
-        return Card(
-          elevation: 2,
-          child: SingleChildScrollView(
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1100),
+            child: Card(
+              elevation: 2,
+              child: SingleChildScrollView(
             scrollDirection: Axis.vertical,
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -1168,7 +1185,7 @@ class _DashboardPageState extends State<DashboardPage>
                       DataCell(Text(k.namaSatker)),
                       DataCell(
                         Text(
-                          _jenisBBMMap[k.jenisBbmId] ?? k.jenisBbmId.toString(),
+                          provider.jenisBbmMap[k.jenisBbmId] ?? k.jenisBbmId.toString(),
                         ),
                       ),
                       DataCell(Text(_getNopolSync(k.kendaraanId))),
@@ -1209,7 +1226,9 @@ class _DashboardPageState extends State<DashboardPage>
               ),
             ),
           ),
-        );
+        ),
+      ),
+    );
       },
     );
   }
@@ -1369,6 +1388,11 @@ class _DashboardPageState extends State<DashboardPage>
         .where((t) => t.kuponId == kupon.kuponId)
         .toList();
 
+    final dashboardProvider = Provider.of<DashboardProvider>(
+      context,
+      listen: false,
+    );
+
     if (!context.mounted) return;
 
     await showDialog(
@@ -1400,7 +1424,8 @@ class _DashboardPageState extends State<DashboardPage>
                 ),
                 _buildDetailRow(
                   'Jenis BBM',
-                  _jenisBBMMap[kupon.jenisBbmId] ?? kupon.jenisBbmId.toString(),
+                  dashboardProvider.jenisBbmMap[kupon.jenisBbmId] ??
+                      kupon.jenisBbmId.toString(),
                 ),
                 _buildDetailRow(
                   'Jenis Kupon',

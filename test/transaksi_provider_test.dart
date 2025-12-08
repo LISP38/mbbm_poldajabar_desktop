@@ -18,6 +18,7 @@ class FakeTransaksiRepository extends TransaksiRepositoryImpl {
     int? bulan,
     int? tahun,
     int? isDeleted,
+    String? satker,
   }) async {
     return _items.where((t) => (isDeleted ?? 0) == t.isDeleted).toList();
   }
@@ -48,7 +49,7 @@ class FakeTransaksiRepository extends TransaksiRepositoryImpl {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> getKuponMinus() async => [];
+  Future<List<Map<String, dynamic>>> getKuponMinus({String? satker}) async => [];
 }
 
 void main() {

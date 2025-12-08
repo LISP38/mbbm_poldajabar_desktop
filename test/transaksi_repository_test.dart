@@ -21,10 +21,16 @@ void main() {
     // Get access to the database
     db = await dbHelper.database;
 
-    // Clear any existing data in the tables in correct order due to foreign key constraints
+    // Clear any existing data in a safe order. Disable foreign keys to allow
+    // deleting parent rows for a clean test DB, then re-enable.
     await db.execute('PRAGMA foreign_keys = OFF;');
     await db.delete('fact_transaksi');
-    await db.delete('fact_kupon');
+    await db.delete('fact_kupon_snapshot');
+    final _purchasingExists = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name = 'fact_purchasing'");
+    if (_purchasingExists.isNotEmpty) {
+      await db.delete('fact_purchasing');
+    }
+    await db.delete('dim_kupon');
     await db.delete('dim_kendaraan');
     await db.delete('dim_satker');
     await db.delete('dim_jenis_bbm');
@@ -33,10 +39,17 @@ void main() {
   });
 
   tearDown(() async {
-    // Clean up the tables
+    // Clean up the tables (disable foreign keys to avoid FK failures)
+    await db.execute('PRAGMA foreign_keys = OFF;');
     await db.delete('fact_transaksi');
-    await db.delete('fact_kupon');
+    await db.delete('fact_kupon_snapshot');
+    final _purchasingExists2 = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name = 'fact_purchasing'");
+    if (_purchasingExists2.isNotEmpty) {
+      await db.delete('fact_purchasing');
+    }
+    await db.delete('dim_kupon');
     await db.delete('dim_satker');
+    await db.execute('PRAGMA foreign_keys = ON;');
     await db.close();
   });
 
@@ -60,12 +73,11 @@ void main() {
         'nama_satker': 'SATKER A',
       });
 
-      // First create kupon records that we'll reference
-      await db.insert('fact_kupon', {
-        'kupon_id': 1,
+      // First create kupon records (now stored in dim_kupon)
+      final kupon1 = await db.insert('dim_kupon', {
         'nomor_kupon': 'A001',
         'satker_id': satkerId,
-        'nama_satker': 'SATKER A',
+        'kendaraan_id': null,
         'jenis_bbm_id': 1,
         'jenis_kupon_id': 1,
         'bulan_terbit': 10,
@@ -73,18 +85,13 @@ void main() {
         'tanggal_mulai': '2025-10-01',
         'tanggal_sampai': '2025-10-31',
         'kuota_awal': 50.0,
-        'kuota_sisa': 50.0,
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-        'is_deleted': 0,
         'status': 'Aktif',
       });
 
-      await db.insert('fact_kupon', {
-        'kupon_id': 2,
+      final kupon2 = await db.insert('dim_kupon', {
         'nomor_kupon': 'A002',
         'satker_id': satkerId,
-        'nama_satker': 'SATKER A',
+        'kendaraan_id': null,
         'jenis_bbm_id': 1,
         'jenis_kupon_id': 1,
         'bulan_terbit': 10,
@@ -92,17 +99,13 @@ void main() {
         'tanggal_mulai': '2025-10-01',
         'tanggal_sampai': '2025-10-31',
         'kuota_awal': 50.0,
-        'kuota_sisa': 50.0,
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-        'is_deleted': 0,
         'status': 'Aktif',
       });
 
       // Create first transaction
       final trans1 = TransaksiModel(
         transaksiId: 0, // Should be ignored and auto-incremented
-        kuponId: 1,
+        kuponId: kupon1,
         nomorKupon: 'A001',
         namaSatker: 'SATKER A',
         jenisBbmId: 1,
@@ -116,7 +119,7 @@ void main() {
       // Create second transaction
       final trans2 = TransaksiModel(
         transaksiId: 0, // Should be ignored and auto-incremented
-        kuponId: 2,
+        kuponId: kupon2,
         nomorKupon: 'A002',
         namaSatker: 'SATKER A',
         jenisBbmId: 1,

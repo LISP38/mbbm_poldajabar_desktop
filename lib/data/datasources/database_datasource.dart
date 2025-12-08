@@ -33,7 +33,7 @@ class DatabaseDatasource {
     return await dbFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 7,
+        version: 9,
         onConfigure: (db) async {
           print('DEBUG: onConfigure called');
           await db.execute('PRAGMA foreign_keys = ON;');
@@ -377,6 +377,36 @@ class DatabaseDatasource {
 
             print('DEBUG: Star schema migration completed');
           }
+
+          if (oldVersion < 8) {
+            // leave v8 migration as-is (earlier star-schema work)
+            print('DEBUG: Skipping v8 normalization here (handled earlier)');
+          }
+
+          if (oldVersion < 9) {
+            print('DEBUG: Applying schema normalization v9 - remove dim_nopol and dim_jenis_ranmor');
+
+            // Drop dimension tables that should not exist in the final schema
+            await db.execute('DROP TABLE IF EXISTS dim_nopol');
+            await db.execute('DROP TABLE IF EXISTS dim_jenis_ranmor');
+
+            // Ensure final dim_kendaraan structure exists. If columns from older
+            // migrations still exist (nopol_id, jenis_ranmor_id), SQLite cannot
+            // drop columns easily — we create the canonical table if missing and
+            // rely on SELECTing only valid columns elsewhere.
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS dim_kendaraan (
+                kendaraan_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                satker_id INTEGER,
+                jenis_ranmor TEXT,
+                no_pol_kode TEXT,
+                no_pol_nomor TEXT,
+                status_aktif INTEGER DEFAULT 1
+              )
+            ''');
+
+            print('DEBUG: Schema normalization v9 applied');
+          }
         },
       ),
     );
@@ -417,10 +447,7 @@ class DatabaseDatasource {
         jenis_ranmor TEXT,
         no_pol_kode TEXT,
         no_pol_nomor TEXT,
-        status_aktif INTEGER DEFAULT 1,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(no_pol_kode, no_pol_nomor),
-        FOREIGN KEY (satker_id) REFERENCES dim_satker(satker_id)
+        status_aktif INTEGER DEFAULT 1
       )
     ''');
 
@@ -435,6 +462,15 @@ class DatabaseDatasource {
         quarter INTEGER,
         bulan_terbit INTEGER,
         tahun_terbit INTEGER
+      )
+    ''');
+
+    batch.execute('''
+      CREATE TABLE dim_tahun_terbit (
+        tahun_terbit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bulan_terbit INTEGER NOT NULL,
+        tahun_terbit INTEGER NOT NULL,
+        UNIQUE(bulan_terbit, tahun_terbit)
       )
     ''');
 
@@ -557,6 +593,151 @@ class DatabaseDatasource {
     // No dummy data needed
   }
 
+  /// Helper: get or create dimension id
+  /// Looks up the primary key column for [table], attempts to find a row where
+  /// [lookupField] = [value]. If found returns the PK value. Otherwise inserts
+  /// a new row using { lookupField: value, ...extraFields } and returns the
+  /// newly inserted id.
+  Future<int> getOrCreateDimId(
+    String table,
+    String lookupField,
+    dynamic value, {
+    Map<String, Object?>? extraFields,
+  }) async {
+    final db = await database;
+
+    // Find primary key column via PRAGMA
+    final pragma = await db.rawQuery("PRAGMA table_info('$table')");
+    String pkColumn = 'id';
+    for (final col in pragma) {
+      final pk = col['pk'];
+      if (pk is int && pk == 1) {
+        pkColumn = col['name'] as String;
+        break;
+      }
+    }
+
+    // Try to find existing row
+    final existing = await db.query(
+      table,
+      where: '$lookupField = ?',
+      whereArgs: [value],
+      limit: 1,
+    );
+    if (existing.isNotEmpty) {
+      final id = existing.first[pkColumn];
+      if (id is int) return id;
+      if (id is int?) return id ?? 0;
+    }
+
+    // Not found -> insert
+    final insertMap = <String, Object?>{lookupField: value};
+    if (extraFields != null) insertMap.addAll(extraFields);
+
+    final insertedId = await db.insert(table, insertMap);
+    return insertedId;
+  }
+
+  /// Get or create a tahun_terbit row (composite of bulan+tahun)
+  Future<int> getOrCreateTahunTerbit(int bulan, int tahun) async {
+    final db = await database;
+    try {
+      // ensure table exists
+      final exists = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+        ['dim_tahun_terbit'],
+      );
+      if (exists.isEmpty) {
+        // create the table if missing
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS dim_tahun_terbit (
+            tahun_terbit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bulan_terbit INTEGER NOT NULL,
+            tahun_terbit INTEGER NOT NULL,
+            UNIQUE(bulan_terbit, tahun_terbit)
+          )
+        ''');
+      }
+
+      final rows = await db.query(
+        'dim_tahun_terbit',
+        where: 'bulan_terbit = ? AND tahun_terbit = ?',
+        whereArgs: [bulan, tahun],
+        limit: 1,
+      );
+      if (rows.isNotEmpty) return rows.first['tahun_terbit_id'] as int;
+
+      final id = await db.insert('dim_tahun_terbit', {
+        'bulan_terbit': bulan,
+        'tahun_terbit': tahun,
+      });
+      return id;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Get or create kendaraan. This function is schema-aware and will try to
+  /// handle both older dim_kendaraan schema (no nopol_id) and new schema with
+  /// references to dim_nopol and dim_jenis_ranmor.
+  Future<int> getOrCreateKendaraan({
+    required int satkerId,
+    int? jenisRanmorId,
+    int? nopolId,
+    String? jenisRanmorText,
+    String? nopolKode,
+    String? nopolNomor,
+  }) async {
+    final db = await database;
+
+    // Inspect schema to determine available columns
+    final pragma = await db.rawQuery("PRAGMA table_info('dim_kendaraan')");
+    final cols = pragma.map((c) => c['name'] as String).toSet();
+
+    // Prefer matching by provided keys. If legacy/nested columns exist in the
+    // schema (like nopol_id), do not force their usage — fall back to
+    // matching by textual police number and jenis_ranmor.
+    // Build a search that prefers explicit identifiers when available.
+    // 1) If nopolId provided and column exists, try that first.
+    if (cols.contains('nopol_id') && nopolId != null) {
+      final whereArgs = <dynamic>[satkerId, nopolId];
+      var where = 'satker_id = ? AND nopol_id = ?';
+      if (cols.contains('jenis_ranmor_id') && jenisRanmorId != null) {
+        where += ' AND jenis_ranmor_id = ?';
+        whereArgs.add(jenisRanmorId);
+      }
+      final existing = await db.query('dim_kendaraan', where: where, whereArgs: whereArgs, limit: 1);
+      if (existing.isNotEmpty) return existing.first['kendaraan_id'] as int;
+    }
+
+    // 2) Try matching by textual no_pol_kode/no_pol_nomor (canonical final schema)
+    final useNoPol = cols.contains('no_pol_kode') && cols.contains('no_pol_nomor');
+    if (useNoPol) {
+      final whereConds = <String>['satker_id = ?', 'no_pol_kode = ?', 'no_pol_nomor = ?'];
+      final whereArgs = [satkerId, nopolKode ?? '', nopolNomor ?? ''];
+      final existing = await db.query('dim_kendaraan', where: whereConds.join(' AND '), whereArgs: whereArgs, limit: 1);
+      if (existing.isNotEmpty) return existing.first['kendaraan_id'] as int;
+    }
+
+    // 3) As a last resort, try matching only by satker + jenis_ranmor text
+    if (cols.contains('jenis_ranmor')) {
+      final where = 'satker_id = ? AND jenis_ranmor = ?';
+      final existing = await db.query('dim_kendaraan', where: where, whereArgs: [satkerId, jenisRanmorText ?? '-'], limit: 1);
+      if (existing.isNotEmpty) return existing.first['kendaraan_id'] as int;
+    }
+
+    // Not found -> insert. Only include columns that exist in the schema.
+    final insertMap = <String, Object?>{};
+    if (cols.contains('satker_id')) insertMap['satker_id'] = satkerId;
+    if (cols.contains('jenis_ranmor')) insertMap['jenis_ranmor'] = jenisRanmorText ?? '-';
+    if (cols.contains('no_pol_kode')) insertMap['no_pol_kode'] = nopolKode ?? '';
+    if (cols.contains('no_pol_nomor')) insertMap['no_pol_nomor'] = nopolNomor ?? '';
+    if (cols.contains('status_aktif')) insertMap['status_aktif'] = 1;
+
+    final id = await db.insert('dim_kendaraan', insertMap);
+    return id;
+  }
+
   // PERBAIKAN: Cek duplikat sebelum insert
   Future<void> insertKupons(List<KuponModel> kupons) async {
     final db = await database;
@@ -613,28 +794,68 @@ class DatabaseDatasource {
           }
         }
 
-        // PERBAIKAN: Cek duplikat berdasarkan unique index
-        final duplicateCheck = await db.query(
-          'dim_kupon',
-          where: '''
-            nomor_kupon = ? AND
-            jenis_kupon_id = ? AND
-            jenis_bbm_id = ? AND
-            satker_id = ? AND
-            bulan_terbit = ? AND
-            tahun_terbit = ? AND
-            is_current = 1
-          ''',
-          whereArgs: [
-            k.nomorKupon,
-            k.jenisKuponId,
-            k.jenisBbmId,
-            satkerId,
-            k.bulanTerbit,
-            k.tahunTerbit,
-          ],
-          limit: 1,
-        );
+        // PERBAIKAN: Cek duplikat berdasarkan unique index / tahun_terbit_id if available
+        // Resolve tahun_terbit_id first (will create dim_tahun_terbit entry if missing)
+        int? tahunTerbitId;
+        try {
+          tahunTerbitId = await getOrCreateTahunTerbit(k.bulanTerbit, k.tahunTerbit);
+        } catch (_) {
+          tahunTerbitId = null;
+        }
+
+        // Determine whether dim_kupon has tahun_terbit_id column
+        final kuponPragma = await db.rawQuery("PRAGMA table_info('dim_kupon')");
+        final kuponCols = kuponPragma.map((c) => c['name'] as String).toSet();
+
+        // (prepared args handled inline below)
+
+        List<Map<String, Object?>> duplicateResults = [];
+        if (kuponCols.contains('tahun_terbit_id') && tahunTerbitId != null) {
+          // prefer to match by tahun_terbit_id when available
+          duplicateResults = await db.query(
+            'dim_kupon',
+            where: '''
+              nomor_kupon = ? AND
+              jenis_kupon_id = ? AND
+              jenis_bbm_id = ? AND
+              satker_id = ? AND
+              tahun_terbit_id = ? AND
+              is_current = 1
+            ''',
+            whereArgs: [
+              k.nomorKupon,
+              k.jenisKuponId,
+              k.jenisBbmId,
+              satkerId,
+              tahunTerbitId,
+            ],
+            limit: 1,
+          );
+        } else {
+          duplicateResults = await db.query(
+            'dim_kupon',
+            where: '''
+              nomor_kupon = ? AND
+              jenis_kupon_id = ? AND
+              jenis_bbm_id = ? AND
+              satker_id = ? AND
+              bulan_terbit = ? AND
+              tahun_terbit = ? AND
+              is_current = 1
+            ''',
+            whereArgs: [
+              k.nomorKupon,
+              k.jenisKuponId,
+              k.jenisBbmId,
+              satkerId,
+              k.bulanTerbit,
+              k.tahunTerbit,
+            ],
+            limit: 1,
+          );
+        }
+
+        final duplicateCheck = duplicateResults;
 
         if (duplicateCheck.isNotEmpty) {
           skippedCount++;
@@ -665,7 +886,7 @@ class DatabaseDatasource {
         final jenisKuponId = k.jenisKuponId;
 
         // Insert kupon to dim_kupon (star schema)
-        final insertedId = await db.insert('dim_kupon', {
+        final insertMap = <String, Object?>{
           'nomor_kupon': k.nomorKupon,
           'kendaraan_id': kendaraanId,
           'jenis_bbm_id': jenisBbmId,
@@ -679,7 +900,29 @@ class DatabaseDatasource {
           'status': k.status,
           'valid_from': DateTime.now().toIso8601String(),
           'is_current': 1,
-        });
+        };
+
+        if (tahunTerbitId != null && kuponCols.contains('tahun_terbit_id')) {
+          insertMap['tahun_terbit_id'] = tahunTerbitId;
+        }
+
+        final insertedId = await db.insert('dim_kupon', insertMap);
+
+        // Create initial snapshot for this kupon
+        try {
+          await db.insert('fact_kupon_snapshot', {
+            'kupon_key': insertedId,
+            'snapshot_date': DateTime.now().toIso8601String(),
+            'kuota_awal': k.kuotaAwal,
+            'kuota_terpakai': 0,
+            'kuota_sisa': k.kuotaAwal,
+            'jumlah_transaksi': 0,
+            'status_kupon': k.status,
+          });
+        } catch (e) {
+          // If the snapshot table doesn't exist yet, ignore
+          print('WARN: Could not insert initial snapshot: ${e.toString()}');
+        }
 
         if (insertedId > 0) {
           insertedCount++;

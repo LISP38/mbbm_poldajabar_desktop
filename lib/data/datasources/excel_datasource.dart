@@ -798,118 +798,59 @@ class ExcelDatasource {
       print('Created new satker: $satker with ID: $satkerId');
     }
 
-    // Cari kendaraan di dim_kendaraan, jika belum ada, insert dan buat KendaraanModel
+    // Cari atau buat dimensi terkait: jenis_ranmor, dim_nopol, dim_kendaraan (no hardcode)
     KendaraanModel? kendaraan;
     int? kendaraanId;
-    
-    // Untuk kupon RANJEN, wajib ada nomor polisi
     if (!isDukungan) {
       if (noPol == null || noPol.isEmpty) {
         throw Exception('Nomor Polisi tidak boleh kosong untuk kupon RANJEN');
       }
-      
-      // Cari kendaraan berdasarkan nomor polisi
-      print('DEBUG: Looking for kendaraan with nopol $finalKodeNopol $noPol');
-      
-      final kendaraanRow = await db.query(
-        'dim_kendaraan',
-        where: 'satker_id = ? AND jenis_ranmor = ? AND no_pol_kode = ? AND no_pol_nomor = ?',
-        whereArgs: [satkerId, finalJenisRanmor, finalKodeNopol, noPol],
-        limit: 1,
+
+      // Create or get kendaraan using textual fields (v9 schema: no dim_nopol/dim_jenis_ranmor)
+      kendaraanId = await _databaseDatasource.getOrCreateKendaraan(
+        satkerId: satkerId,
+        jenisRanmorText: finalJenisRanmor.trim().toUpperCase(),
+        nopolKode: finalKodeNopol,
+        nopolNomor: noPol,
       );
-      if (kendaraanRow.isNotEmpty) {
-        kendaraanId = kendaraanRow.first['kendaraan_id'] as int;
-        final existingSatkerId = kendaraanRow.first['satker_id'] as int;
-        
-        if (existingSatkerId != satkerId) {
-          print('WARNING: Kendaraan dengan nopol $finalKodeNopol $noPol sudah terdaftar di satker lain (ID: $existingSatkerId), menggunakan kendaraan yang ada (ID: $kendaraanId)');
-          
-          final existingSatkerRow = await db.query(
-            'dim_satker',
-            where: 'satker_id = ?',
-            whereArgs: [existingSatkerId],
-            limit: 1,
-          );
-          if (existingSatkerRow.isNotEmpty) {
-            kendaraanId = existingSatkerRow.first['kendaraan_id'] as int;
-            kendaraan = null;
-          } else {
-            throw Exception('Gagal menyisipkan kendaraan dan tidak ditemukan di database.');
-          }
-        } else {
-          print('DEBUG: Found existing kendaraan with ID: $kendaraanId for satker $satker');
-        }
-      } else {
-        try {
-          print('DEBUG: Inserting new kendaraan for satker $satkerId, jenis $finalJenisRanmor, nopol $finalKodeNopol $noPol');
-          
-          final kendaraanData = {
-            'satker_id': satkerId,
-            'jenis_ranmor': finalJenisRanmor,
-            'no_pol_kode': finalKodeNopol,
-            'no_pol_nomor': noPol,
-            'status_aktif': 1,
-            'created_at': DateTime.now().toIso8601String(),
-          };
-          
-          kendaraanId = await db.insert('dim_kendaraan', kendaraanData);
-          
-          if (kendaraanId > 0) {
-            print('DEBUG: Successfully created new kendaraan with ID: $kendaraanId');
-            kendaraan = KendaraanModel(
-              kendaraanId: kendaraanId,
-              satkerId: satkerId,
-              jenisRanmor: finalJenisRanmor,
-              noPolKode: finalKodeNopol,
-              noPolNomor: noPol,
-              statusAktif: 1,
-              createdAt: DateTime.now().toIso8601String(),
-            );
-          } else {
-            throw Exception('Gagal menyisipkan kendaraan, returned ID: $kendaraanId');
-          }
-        } catch (e) {
-          print('ERROR: Exception when inserting kendaraan: ${e.toString()}');
-          
-          final fallbackCheck = await db.query(
-            'dim_kendaraan',
-            where: 'no_pol_kode = ? AND no_pol_nomor = ?',
-            whereArgs: [finalKodeNopol, noPol],
-            limit: 1,
-          );
-          
-          if (fallbackCheck.isNotEmpty) {
-            kendaraanId = fallbackCheck.first['kendaraan_id'] as int;
-            print('DEBUG: Found kendaraan on fallback check with ID: $kendaraanId');
-          } else {
-            rethrow;
-          }
-        }
-      }
-      
-      if (kendaraanId == null || kendaraanId <= 0) {
-        throw Exception(
-          'Kupon RANJEN memerlukan data Kendaraan yang valid. Kendaraan ID: $kendaraanId',
+
+      if (kendaraanId > 0) {
+        kendaraan = KendaraanModel(
+          kendaraanId: kendaraanId,
+          satkerId: satkerId,
+          jenisRanmor: finalJenisRanmor,
+          noPolKode: finalKodeNopol,
+          noPolNomor: noPol,
+          statusAktif: 1,
+          createdAt: null,
         );
       }
     }
 
-    // Tentukan jenis BBM ID
-    int jenisBbmId = 1; // Default Pertamax
-    if (jenisBBM.isNotEmpty) {
-      final jenisBBMLower = jenisBBM.toLowerCase();
-      if (jenisBBMLower.contains('pertamina dex') || jenisBBMLower.contains('dexlite') || jenisBBMLower.contains('dex')) {
-        jenisBbmId = 2;
-      }
-    }
-        print('DEBUG - jenisBbmId to insert: value=$jenisBbmId, type=${jenisBbmId.runtimeType}, from Jenis BBM="$jenisBBM"');
+    // Map jenis BBM and jenis kupon into proper dimension IDs (no hardcode)
+    final jenisBbmName = jenisBBM.trim().isEmpty ? 'PERTAMAX' : jenisBBM.trim().toUpperCase();
+    final jenisKuponName = isDukungan ? 'DUKUNGAN' : 'RANJEN';
+
+    final jenisBbmId = await _databaseDatasource.getOrCreateDimId(
+      'dim_jenis_bbm',
+      'nama_jenis_bbm',
+      jenisBbmName,
+    );
+
+    final jenisKuponId = await _databaseDatasource.getOrCreateDimId(
+      'dim_jenis_kupon',
+      'nama_jenis_kupon',
+      jenisKuponName,
+    );
+
+    print('DEBUG - jenisBbmId: $jenisBbmId ("$jenisBbmName"), jenisKuponId: $jenisKuponId ("$jenisKuponName")');
 
     final kupon = KuponModel(
       kuponId: 0,
       nomorKupon: noKupon,
       kendaraanId: isDukungan ? null : kendaraanId,
       jenisBbmId: jenisBbmId,
-      jenisKuponId: jenisKupon.toLowerCase().contains('ranjen') ? 1 : 2,
+      jenisKuponId: jenisKuponId,
       bulanTerbit: bulan,
       tahunTerbit: tahun,
       tanggalMulai: tanggalMulai.toIso8601String(),

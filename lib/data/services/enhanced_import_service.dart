@@ -212,33 +212,17 @@ class EnhancedImportService {
       }
 
       try {
-        // Cek apakah kendaraan sudah ada di database
-        final existingResult = await db.query(
-          'dim_kendaraan',
-          where:
-              'satker_id = ? AND jenis_ranmor = ? AND no_pol_kode = ? AND no_pol_nomor = ?',
-          whereArgs: [
-            kendaraan.satkerId,
-            kendaraan.jenisRanmor,
-            kendaraan.noPolKode,
-            kendaraan.noPolNomor,
-          ],
+        // Use schema-aware helper to get or create kendaraan row using textual fields.
+        // We removed dim_nopol and dim_jenis_ranmor in v9; kendaraan should store
+        // jenis_ranmor, no_pol_kode, and no_pol_nomor directly.
+        int kendaraanId = await _databaseDatasource.getOrCreateKendaraan(
+          satkerId: kendaraan.satkerId,
+          jenisRanmorText: kendaraan.jenisRanmor,
+          nopolKode: kendaraan.noPolKode,
+          nopolNomor: kendaraan.noPolNomor,
         );
 
-        int kendaraanId;
-        if (existingResult.isNotEmpty) {
-          kendaraanId = existingResult.first['kendaraan_id'] as int;
-          print('Found existing kendaraan with ID: $kendaraanId for key: $key');
-        } else {
-          // Insert kendaraan baru
-          kendaraanId = await db.insert(
-            'dim_kendaraan',
-            kendaraan.toMap(),
-            conflictAlgorithm: ConflictAlgorithm
-                .replace, // Atau ConflictAlgorithm.abort jika ingin gagal saat duplikat
-          );
-          print('Inserted new kendaraan with ID: $kendaraanId for key: $key');
-        }
+        print('Inserted/Fetched kendaraan with ID: $kendaraanId for key: $key');
 
         // Simpan mapping
         kendaraanIdMap[key] = kendaraanId;
