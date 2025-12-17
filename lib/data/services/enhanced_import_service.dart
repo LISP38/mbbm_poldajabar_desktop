@@ -368,7 +368,7 @@ class EnhancedImportService {
         map.remove('is_deleted'); // Not in dim_kupon
         map.remove('updated_at'); // Not in dim_kupon
         map.remove('created_at'); // Use valid_from
-        map.remove('kuota_sisa'); // In fact_kupon_snapshot
+        map.remove('kuota_sisa'); // Calculated real-time from fact_transaksi
         map.remove('nama_satker'); // Denormalized from dim_satker
 
         await db.insert('dim_kupon', map);

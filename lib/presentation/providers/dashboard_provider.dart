@@ -12,6 +12,9 @@ class DashboardProvider extends ChangeNotifier {
   List<KuponEntity> _allKupons = [];
   List<KuponEntity> _ranjenKupons = [];
   List<KuponEntity> _dukunganKupons = [];
+  
+  // List kupon tanpa filter (untuk dropdown di halaman transaksi)
+  List<KuponEntity> _allKuponsUnfiltered = [];
 
   // Master data lists
   List<String> _satkerList = [];
@@ -45,6 +48,9 @@ class DashboardProvider extends ChangeNotifier {
   List<KuponEntity> get kuponList => _allKupons;
   List<KuponEntity> get ranjenKupons => _ranjenKupons;
   List<KuponEntity> get dukunganKupons => _dukunganKupons;
+  
+  // Getter untuk dropdown di halaman transaksi (tanpa filter)
+  List<KuponEntity> get allKuponsForDropdown => _allKuponsUnfiltered;
 
   // Getter khusus untuk menggabungkan semua data saat export
   List<KuponEntity> get allKuponsForExport => [
@@ -86,6 +92,56 @@ class DashboardProvider extends ChangeNotifier {
     } catch (e) {
       print('[DASHBOARD] Error fetching satkers: $e');
       _satkerList = [];
+      notifyListeners();
+    }
+  }
+
+  /// Fetch semua kupon tanpa filter untuk dropdown di halaman transaksi
+  Future<void> fetchAllKuponsUnfiltered() async {
+    final db =
+        await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+
+    try {
+      String query = '''
+        SELECT 
+          dk.kupon_key as kupon_id,
+          dk.nomor_kupon,
+          dk.kendaraan_id,
+          dk.jenis_bbm_id,
+          dk.jenis_kupon_id,
+          dk.bulan_terbit,
+          dk.tahun_terbit,
+          dk.tanggal_mulai,
+          dk.tanggal_sampai,
+          dk.kuota_awal,
+          (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
+          dk.satker_id,
+          ds.nama_satker,
+          dk.status,
+          dk.valid_from as created_at,
+          CURRENT_TIMESTAMP as updated_at,
+          0 as is_deleted
+        FROM dim_kupon dk
+        LEFT JOIN dim_kendaraan ON dk.kendaraan_id = dim_kendaraan.kendaraan_id 
+        LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
+        LEFT JOIN (
+          SELECT kupon_key, SUM(jumlah_liter) as total_used
+          FROM fact_transaksi
+          WHERE is_deleted = 0
+          GROUP BY kupon_key
+        ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
+        WHERE dk.is_current = 1
+        ORDER BY CAST(dk.nomor_kupon AS INTEGER) ASC
+      ''';
+
+      final results = await db.rawQuery(query);
+
+      _allKuponsUnfiltered = results.map((row) => KuponModel.fromMap(row)).toList();
+      print('[DASHBOARD] fetchAllKuponsUnfiltered: loaded ${_allKuponsUnfiltered.length} kupons');
+      notifyListeners();
+    } catch (e) {
+      print('[DASHBOARD] Error fetching all kupons unfiltered: $e');
+      _allKuponsUnfiltered = [];
       notifyListeners();
     }
   }
@@ -312,7 +368,7 @@ class DashboardProvider extends ChangeNotifier {
           dk.tanggal_mulai,
           dk.tanggal_sampai,
           dk.kuota_awal,
-          COALESCE(fks.kuota_sisa, dk.kuota_awal) as kuota_sisa,
+          (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
           dk.satker_id,
           ds.nama_satker,
           dk.status,
@@ -323,14 +379,11 @@ class DashboardProvider extends ChangeNotifier {
         LEFT JOIN dim_kendaraan ON dk.kendaraan_id = dim_kendaraan.kendaraan_id 
         LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
         LEFT JOIN (
-          SELECT kupon_key, kuota_sisa
-          FROM fact_kupon_snapshot
-          WHERE (kupon_key, snapshot_date) IN (
-            SELECT kupon_key, MAX(snapshot_date)
-            FROM fact_kupon_snapshot
-            GROUP BY kupon_key
-          )
-        ) fks ON dk.kupon_key = fks.kupon_key
+          SELECT kupon_key, SUM(jumlah_liter) as total_used
+          FROM fact_transaksi
+          WHERE is_deleted = 0
+          GROUP BY kupon_key
+        ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
         WHERE ${whereConditions.join(' AND ')}
       ''';
 
@@ -428,7 +481,7 @@ class DashboardProvider extends ChangeNotifier {
           dk.tanggal_mulai,
           dk.tanggal_sampai,
           dk.kuota_awal,
-          COALESCE(fks.kuota_sisa, dk.kuota_awal) as kuota_sisa,
+          (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
           dk.satker_id,
           ds.nama_satker,
           dk.status,
@@ -439,14 +492,11 @@ class DashboardProvider extends ChangeNotifier {
         LEFT JOIN dim_kendaraan ON dk.kendaraan_id = dim_kendaraan.kendaraan_id 
         LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
         LEFT JOIN (
-          SELECT kupon_key, kuota_sisa
-          FROM fact_kupon_snapshot
-          WHERE (kupon_key, snapshot_date) IN (
-            SELECT kupon_key, MAX(snapshot_date)
-            FROM fact_kupon_snapshot
-            GROUP BY kupon_key
-          )
-        ) fks ON dk.kupon_key = fks.kupon_key
+          SELECT kupon_key, SUM(jumlah_liter) as total_used
+          FROM fact_transaksi
+          WHERE is_deleted = 0
+          GROUP BY kupon_key
+        ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
         WHERE ${whereConditions.join(' AND ')}
       ''';
 
@@ -456,7 +506,7 @@ class DashboardProvider extends ChangeNotifier {
         whereArgs.add('%${nopol!.toLowerCase().trim()}%');
       }
       if (satker != null && satker!.isNotEmpty) {
-        query += ' AND LOWER(TRIM(dim_satker.nama_satker)) LIKE ?';
+        query += ' AND LOWER(TRIM(ds.nama_satker)) LIKE ?';
         whereArgs.add('%${satker!.toLowerCase().trim()}%');
       }
       if (jenisRanmor != null && jenisRanmor!.isNotEmpty) {
@@ -567,7 +617,7 @@ class DashboardProvider extends ChangeNotifier {
     int? bulanTerbit,
     int? tahunTerbit,
   }) async {
-    print('[DASHBOARD] Setting filters...');
+    print('[DASHBOARD] Setting filters: nomorKupon=$nomorKupon, satker=$satker, jenisBBM=$jenisBBM, jenisKupon=$jenisKupon, nopol=$nopol, jenisRanmor=$jenisRanmor, bulanTerbit=$bulanTerbit, tahunTerbit=$tahunTerbit');
     this.nomorKupon = nomorKupon?.trim();
     this.satker = satker?.trim();
     this.jenisBBM = jenisBBM?.trim();

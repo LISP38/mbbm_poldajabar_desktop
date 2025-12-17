@@ -547,34 +547,14 @@ class ExcelDatasource {
     // ========================================
     // FASE 3: SIMPAN KE DATABASE
     // ========================================
+    // Return parsed data tanpa menyimpan ke database
+    // Penyimpanan dilakukan di enhanced_import_service._performAppendImport()
     if (uniqueKupons.isNotEmpty) {
       print('═══════════════════════════════════════════════════');
-      print('📊 FASE 3: MENYIMPAN KE DATABASE');
+      print('📊 FASE 3: DATA SIAP UNTUK DISIMPAN');
       print('═══════════════════════════════════════════════════');
-      print('⏳ Memproses ${uniqueKupons.length} kupons...\n');
-      
-      // Simpan kendaraan terlebih dahulu
-      if (uniqueKendaraans.isNotEmpty) {
-        print('🚗 Menyimpan ${uniqueKendaraans.length} kendaraans...');
-        try {
-          await _databaseDatasource.insertKendaraans(uniqueKendaraans);
-          print('✅ Kendaraan tersimpan\n');
-        } catch (e) {
-          print('❌ ERROR: Gagal menyimpan kendaraan: ${e.toString()}\n');
-          validationMessages.add('Gagal menyimpan data kendaraan: ${e.toString()}');
-        }
-      }
-      
-      // Simpan kupon
-      print('🎫 Menyimpan ${uniqueKupons.length} kupons...');
-      try {
-        await _databaseDatasource.insertKupons(uniqueKupons);
-        print('✅ Kupons tersimpan');
-      } catch (e) {
-        print('❌ ERROR: Gagal menyimpan kupons: ${e.toString()}');
-        validationMessages.add('Gagal menyimpan data kupon: ${e.toString()}');
-      }
-      
+      print('📋 ${uniqueKupons.length} kupons siap diproses');
+      print('🚗 ${uniqueKendaraans.length} kendaraans siap diproses');
       print('═══════════════════════════════════════════════════\n');
     }
     return ExcelParseResult(

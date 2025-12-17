@@ -25,7 +25,7 @@ class KuponRepositoryImpl implements KuponRepository {
         dk.tanggal_mulai,
         dk.tanggal_sampai,
         dk.kuota_awal,
-        COALESCE(fks.kuota_sisa, dk.kuota_awal) as kuota_sisa,
+        (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
         dk.satker_id,
         ds.nama_satker,
         dk.status,
@@ -41,14 +41,11 @@ class KuponRepositoryImpl implements KuponRepository {
       LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
       LEFT JOIN dim_kendaraan dk2 ON dk.kendaraan_id = dk2.kendaraan_id
       LEFT JOIN (
-        SELECT kupon_key, kuota_sisa
-        FROM fact_kupon_snapshot
-        WHERE (kupon_key, snapshot_date) IN (
-          SELECT kupon_key, MAX(snapshot_date)
-          FROM fact_kupon_snapshot
-          GROUP BY kupon_key
-        )
-      ) fks ON dk.kupon_key = fks.kupon_key
+        SELECT kupon_key, SUM(jumlah_liter) as total_used
+        FROM fact_transaksi
+        WHERE is_deleted = 0
+        GROUP BY kupon_key
+      ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
       WHERE dk.is_current = 1
     ''');
     return result.map((map) => KuponModel.fromMap(map)).toList();
@@ -72,7 +69,7 @@ class KuponRepositoryImpl implements KuponRepository {
         dk.tanggal_mulai,
         dk.tanggal_sampai,
         dk.kuota_awal,
-        COALESCE(fks.kuota_sisa, dk.kuota_awal) as kuota_sisa,
+        (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
         dk.satker_id,
         ds.nama_satker,
         dk.status,
@@ -87,14 +84,11 @@ class KuponRepositoryImpl implements KuponRepository {
       LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
       LEFT JOIN dim_kendaraan dk2 ON dk.kendaraan_id = dk2.kendaraan_id
       LEFT JOIN (
-        SELECT kupon_key, kuota_sisa
-        FROM fact_kupon_snapshot
-        WHERE (kupon_key, snapshot_date) IN (
-          SELECT kupon_key, MAX(snapshot_date)
-          FROM fact_kupon_snapshot
-          GROUP BY kupon_key
-        )
-      ) fks ON dk.kupon_key = fks.kupon_key
+        SELECT kupon_key, SUM(jumlah_liter) as total_used
+        FROM fact_transaksi
+        WHERE is_deleted = 0
+        GROUP BY kupon_key
+      ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
       WHERE dk.kupon_key = ?
     ''',
       [kuponId],
@@ -199,7 +193,7 @@ class KuponRepositoryImpl implements KuponRepository {
         dk.tanggal_mulai,
         dk.tanggal_sampai,
         dk.kuota_awal,
-        COALESCE(fks.kuota_sisa, dk.kuota_awal) as kuota_sisa,
+        (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
         dk.satker_id,
         ds.nama_satker,
         dk.status,
@@ -214,14 +208,11 @@ class KuponRepositoryImpl implements KuponRepository {
       LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
       LEFT JOIN dim_kendaraan dk2 ON dk.kendaraan_id = dk2.kendaraan_id
       LEFT JOIN (
-        SELECT kupon_key, kuota_sisa
-        FROM fact_kupon_snapshot
-        WHERE (kupon_key, snapshot_date) IN (
-          SELECT kupon_key, MAX(snapshot_date)
-          FROM fact_kupon_snapshot
-          GROUP BY kupon_key
-        )
-      ) fks ON dk.kupon_key = fks.kupon_key
+        SELECT kupon_key, SUM(jumlah_liter) as total_used
+        FROM fact_transaksi
+        WHERE is_deleted = 0
+        GROUP BY kupon_key
+      ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
       WHERE dk.nomor_kupon = ? AND dk.is_current = 1
     ''',
       [nomorKupon],

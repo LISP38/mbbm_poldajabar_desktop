@@ -55,6 +55,11 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
   @override
   void initState() {
     super.initState();
+    // Pastikan ambil data kupon tanpa filter untuk referensi
+    Future.microtask(() {
+      Provider.of<DashboardProvider>(context, listen: false)
+          .fetchAllKuponsUnfiltered();
+    });
     _loadNoPolData();
   }
 
@@ -65,8 +70,8 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
     );
     final kendaraanRepo = getIt<KendaraanRepository>();
 
-    // Load no pol for all kupons
-    for (final kupon in dashboardProvider.kuponList) {
+    // Load no pol for all kupons (menggunakan list tanpa filter)
+    for (final kupon in dashboardProvider.allKuponsForDropdown) {
       if (kupon.kendaraanId != null &&
           !_noPolCache.containsKey(kupon.kuponId)) {
         try {
@@ -95,8 +100,8 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
       listen: false,
     );
 
-    // Find kupon for this transaction
-    final matchingKupons = dashboardProvider.kuponList.where(
+    // Find kupon for this transaction (menggunakan list tanpa filter)
+    final matchingKupons = dashboardProvider.allKuponsForDropdown.where(
       (k) => k.kuponId == transaksi.kuponId,
     );
 
@@ -903,6 +908,47 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
             ElevatedButton(
               onPressed: () async {
                 if (formKey.currentState?.validate() ?? false) {
+                  final newJumlahLiter =
+                      double.tryParse(jumlahController.text) ?? t.jumlahLiter;
+                  
+                  // Cari kupon terkait untuk validasi kuota
+                  final kuponList = dashboardProvider.allKuponsForDropdown
+                      .where((k) => k.kuponId == t.kuponId)
+                      .toList();
+                  
+                  if (kuponList.isNotEmpty) {
+                    final kupon = kuponList.first;
+                    // Hitung kuota yang tersedia: kuotaSisa saat ini + jumlah liter transaksi lama
+                    final availableKuota = kupon.kuotaSisa + t.jumlahLiter;
+                    
+                    // Cek apakah jumlah baru melebihi kuota yang tersedia
+                    if (newJumlahLiter > availableKuota) {
+                      final lanjut = await showDialog<bool>(
+                        context: context,
+                        builder: (context) {
+                          return AlertDialog(
+                            title: const Text('Konfirmasi'),
+                            content: Text(
+                              'Jumlah liter ($newJumlahLiter L) melebihi kuota tersedia (${availableKuota.toInt()} L). Kupon akan menjadi minus. Apakah tetap ingin melanjutkan?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(false),
+                                child: const Text('Batal'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.of(context).pop(true),
+                                child: const Text('Lanjutkan'),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+
+                      if (lanjut != true) return;
+                    }
+                  }
+                  
                   // Show loading
                   showDialog(
                     context: ctx,
@@ -920,9 +966,7 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                       jenisBbmId: t.jenisBbmId,
                       jenisKuponId: t.jenisKuponId,
                       tanggalTransaksi: tanggalController.text,
-                      jumlahLiter:
-                          double.tryParse(jumlahController.text) ??
-                          t.jumlahLiter,
+                      jumlahLiter: newJumlahLiter,
                       createdAt: t.createdAt,
                       updatedAt: DateTime.now().toIso8601String(),
                       isDeleted: t.isDeleted,
@@ -932,6 +976,7 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                     await transaksiProvider.updateTransaksi(transaksiEdit);
                     await transaksiProvider.fetchTransaksiFiltered();
                     await dashboardProvider.fetchKupons();
+                    await dashboardProvider.fetchAllKuponsUnfiltered();
 
                     if (ctx.mounted) {
                       Navigator.of(ctx).pop(); // Close loading
@@ -1057,6 +1102,7 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
         await transaksiProvider.deleteTransaksi(t.transaksiId);
         await transaksiProvider.fetchTransaksiFiltered();
         await dashboardProvider.fetchKupons();
+        await dashboardProvider.fetchAllKuponsUnfiltered();
 
         if (context.mounted) {
           Navigator.of(context).pop(); // Close loading

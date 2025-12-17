@@ -33,7 +33,7 @@ class DatabaseDatasource {
     return await dbFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 9,
+        version: 10,
         onConfigure: (db) async {
           print('DEBUG: onConfigure called');
           await db.execute('PRAGMA foreign_keys = ON;');
@@ -407,6 +407,15 @@ class DatabaseDatasource {
 
             print('DEBUG: Schema normalization v9 applied');
           }
+
+          if (oldVersion < 10) {
+            print('DEBUG: Removing fact_kupon_snapshot table (v10)');
+            // Drop fact_kupon_snapshot as kuota_sisa is now calculated real-time
+            await db.execute('DROP TABLE IF EXISTS fact_kupon_snapshot');
+            await db.execute('DROP INDEX IF EXISTS idx_fact_snapshot_kupon');
+            await db.execute('DROP INDEX IF EXISTS idx_fact_snapshot_date');
+            print('DEBUG: fact_kupon_snapshot table removed');
+          }
         },
       ),
     );
@@ -523,22 +532,6 @@ class DatabaseDatasource {
       )
     ''');
 
-    batch.execute('''
-      CREATE TABLE fact_kupon_snapshot (
-        snapshot_key INTEGER PRIMARY KEY AUTOINCREMENT,
-        kupon_key INTEGER NOT NULL,
-        date_key INTEGER,
-        snapshot_date TEXT NOT NULL,
-        kuota_awal REAL NOT NULL,
-        kuota_terpakai REAL NOT NULL DEFAULT 0,
-        kuota_sisa REAL NOT NULL,
-        jumlah_transaksi INTEGER DEFAULT 0,
-        status_kupon TEXT,
-        FOREIGN KEY (kupon_key) REFERENCES dim_kupon(kupon_key),
-        FOREIGN KEY (date_key) REFERENCES dim_date(date_key)
-      )
-    ''');
-
     // ===== INDEXES =====
 
     // Dimension indexes
@@ -570,12 +563,6 @@ class DatabaseDatasource {
     );
     batch.execute(
       'CREATE INDEX idx_fact_transaksi_deleted ON fact_transaksi(is_deleted)',
-    );
-    batch.execute(
-      'CREATE INDEX idx_fact_snapshot_kupon ON fact_kupon_snapshot(kupon_key)',
-    );
-    batch.execute(
-      'CREATE INDEX idx_fact_snapshot_date ON fact_kupon_snapshot(snapshot_date)',
     );
 
     await batch.commit(noResult: true);
@@ -907,22 +894,7 @@ class DatabaseDatasource {
         }
 
         final insertedId = await db.insert('dim_kupon', insertMap);
-
-        // Create initial snapshot for this kupon
-        try {
-          await db.insert('fact_kupon_snapshot', {
-            'kupon_key': insertedId,
-            'snapshot_date': DateTime.now().toIso8601String(),
-            'kuota_awal': k.kuotaAwal,
-            'kuota_terpakai': 0,
-            'kuota_sisa': k.kuotaAwal,
-            'jumlah_transaksi': 0,
-            'status_kupon': k.status,
-          });
-        } catch (e) {
-          // If the snapshot table doesn't exist yet, ignore
-          print('WARN: Could not insert initial snapshot: ${e.toString()}');
-        }
+        // kuota_sisa is now calculated real-time from fact_transaksi
 
         if (insertedId > 0) {
           insertedCount++;
@@ -963,7 +935,6 @@ class DatabaseDatasource {
           'no_pol_kode': k.noPolKode,
           'no_pol_nomor': k.noPolNomor,
           'status_aktif': k.statusAktif,
-          'created_at': k.createdAt,
         }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
         if (insertedId > 0) {

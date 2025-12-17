@@ -161,29 +161,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         map['satker_id'] = kuponInfo.first['satker_id'];
         map['kendaraan_id'] = kuponInfo.first['kendaraan_id'];
         await txn.insert('fact_transaksi', map);
-
-        // Update fact_kupon_snapshot (create new snapshot)
-        await txn.rawQuery(
-          '''
-          INSERT INTO fact_kupon_snapshot (
-            kupon_key, snapshot_date, kuota_awal, kuota_terpakai, 
-            kuota_sisa, jumlah_transaksi, status_kupon
-          )
-          SELECT 
-            dk.kupon_key,
-            date('now'),
-            dk.kuota_awal,
-            COALESCE(SUM(ft.jumlah_liter), 0),
-            dk.kuota_awal - COALESCE(SUM(ft.jumlah_liter), 0),
-            COUNT(ft.transaksi_id),
-            dk.status
-          FROM dim_kupon dk
-          LEFT JOIN fact_transaksi ft ON dk.kupon_key = ft.kupon_key AND ft.is_deleted = 0
-          WHERE dk.kupon_key = ? AND dk.is_current = 1
-          GROUP BY dk.kupon_key
-        ''',
-          [transaksi.kuponId],
-        );
+        // kuota_sisa is now calculated real-time from fact_transaksi
       });
     } catch (e) {
       throw Exception('Failed to insert transaksi: $e');
@@ -213,29 +191,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           where: 'transaksi_id = ?',
           whereArgs: [transaksi.transaksiId],
         );
-
-        // Update fact_kupon_snapshot (recalculate from transactions)
-        await txn.rawQuery(
-          '''
-          INSERT INTO fact_kupon_snapshot (
-            kupon_key, snapshot_date, kuota_awal, kuota_terpakai, 
-            kuota_sisa, jumlah_transaksi, status_kupon
-          )
-          SELECT 
-            dk.kupon_key,
-            date('now'),
-            dk.kuota_awal,
-            COALESCE(SUM(ft.jumlah_liter), 0),
-            dk.kuota_awal - COALESCE(SUM(ft.jumlah_liter), 0),
-            COUNT(ft.transaksi_id),
-            dk.status
-          FROM dim_kupon dk
-          LEFT JOIN fact_transaksi ft ON dk.kupon_key = ft.kupon_key AND ft.is_deleted = 0
-          WHERE dk.kupon_key = ? AND dk.is_current = 1
-          GROUP BY dk.kupon_key
-        ''',
-          [transaksi.kuponId],
-        );
+        // kuota_sisa is now calculated real-time from fact_transaksi
       });
     } catch (e) {
       throw Exception('Failed to update transaksi: $e');
@@ -277,30 +233,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
             where: 'transaksi_id = ?',
             whereArgs: [transaksiId],
           );
-
-          // Update snapshot (recalculate without deleted transaction)
-          final kuponKey = transaksi.first['kupon_key'] as int;
-          await txn.rawQuery(
-            '''
-            INSERT INTO fact_kupon_snapshot (
-              kupon_key, snapshot_date, kuota_awal, kuota_terpakai, 
-              kuota_sisa, jumlah_transaksi, status_kupon
-            )
-            SELECT 
-              dk.kupon_key,
-              date('now'),
-              dk.kuota_awal,
-              COALESCE(SUM(ft.jumlah_liter), 0),
-              dk.kuota_awal - COALESCE(SUM(ft.jumlah_liter), 0),
-              COUNT(ft.transaksi_id),
-              dk.status
-            FROM dim_kupon dk
-            LEFT JOIN fact_transaksi ft ON dk.kupon_key = ft.kupon_key AND ft.is_deleted = 0
-            WHERE dk.kupon_key = ? AND dk.is_current = 1
-            GROUP BY dk.kupon_key
-          ''',
-            [kuponKey],
-          );
+          // kuota_sisa is now calculated real-time from fact_transaksi
         } else {
           // Restore - set is_deleted = 0
           await txn.update(
@@ -309,30 +242,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
             where: 'transaksi_id = ?',
             whereArgs: [transaksiId],
           );
-
-          // Update snapshot (recalculate with restored transaction)
-          final kuponKey = transaksi.first['kupon_key'] as int;
-          await txn.rawQuery(
-            '''
-            INSERT INTO fact_kupon_snapshot (
-              kupon_key, snapshot_date, kuota_awal, kuota_terpakai, 
-              kuota_sisa, jumlah_transaksi, status_kupon
-            )
-            SELECT 
-              dk.kupon_key,
-              date('now'),
-              dk.kuota_awal,
-              COALESCE(SUM(ft.jumlah_liter), 0),
-              dk.kuota_awal - COALESCE(SUM(ft.jumlah_liter), 0),
-              COUNT(ft.transaksi_id),
-              dk.status
-            FROM dim_kupon dk
-            LEFT JOIN fact_transaksi ft ON dk.kupon_key = ft.kupon_key AND ft.is_deleted = 0
-            WHERE dk.kupon_key = ? AND dk.is_current = 1
-            GROUP BY dk.kupon_key
-          ''',
-            [kuponKey],
-          );
+          // kuota_sisa is now calculated real-time from fact_transaksi
         }
       });
     } catch (e) {
@@ -349,7 +259,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
 
       final where = <String>[];
       final args = <dynamic>[];
-      where.add('fks.kuota_sisa < 0');
+      where.add('(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) < 0');
       where.add('dk.is_current = 1');
       if (satker != null && satker.isNotEmpty) {
         where.add('ds.nama_satker = ?');
@@ -370,23 +280,20 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           dk.jenis_kupon_id,
           dku.nama_jenis_kupon AS jenis_kupon_name,
           dk.kuota_awal,
-          fks.kuota_terpakai as total_liter,
-          fks.kuota_sisa,
-          ABS(fks.kuota_sisa) as minus,
+          COALESCE(ft_sum.total_used, 0) as total_liter,
+          (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
+          ABS(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as minus,
           dk.status
         FROM dim_kupon dk
         LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
         LEFT JOIN dim_jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
         LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
         LEFT JOIN (
-          SELECT kupon_key, kuota_sisa, kuota_terpakai
-          FROM fact_kupon_snapshot
-          WHERE (kupon_key, snapshot_date) IN (
-            SELECT kupon_key, MAX(snapshot_date)
-            FROM fact_kupon_snapshot
-            GROUP BY kupon_key
-          )
-        ) fks ON dk.kupon_key = fks.kupon_key
+          SELECT kupon_key, SUM(jumlah_liter) as total_used
+          FROM fact_transaksi
+          WHERE is_deleted = 0
+          GROUP BY kupon_key
+        ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
         $whereClause
       ''';
 
@@ -501,30 +408,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           where: 'transaksi_id = ?',
           whereArgs: [transaksiId],
         );
-
-        // Update snapshot
-        final kuponKey = transaksi.first['kupon_key'] as int;
-        await txn.rawQuery(
-          '''
-          INSERT INTO fact_kupon_snapshot (
-            kupon_key, snapshot_date, kuota_awal, kuota_terpakai, 
-            kuota_sisa, jumlah_transaksi, status_kupon
-          )
-          SELECT 
-            dk.kupon_key,
-            date('now'),
-            dk.kuota_awal,
-            COALESCE(SUM(ft.jumlah_liter), 0),
-            dk.kuota_awal - COALESCE(SUM(ft.jumlah_liter), 0),
-            COUNT(ft.transaksi_id),
-            dk.status
-          FROM dim_kupon dk
-          LEFT JOIN fact_transaksi ft ON dk.kupon_key = ft.kupon_key AND ft.is_deleted = 0
-          WHERE dk.kupon_key = ? AND dk.is_current = 1
-          GROUP BY dk.kupon_key
-        ''',
-          [kuponKey],
-        );
+        // kuota_sisa is now calculated real-time from fact_transaksi
       });
     } catch (e) {
       throw Exception('Failed to restore transaksi: $e');

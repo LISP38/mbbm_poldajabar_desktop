@@ -108,9 +108,9 @@ class _TransactionPageState extends State<TransactionPage>
         listen: false,
       ).fetchTransaksiFiltered();
       Provider.of<TransaksiProvider>(context, listen: false).fetchKuponMinus();
-      // Fetch kupon list untuk dropdown (ambil semua kupon: Ranjen + Dukungan)
+      // Fetch kupon list untuk dropdown (tanpa filter dari dashboard)
       final dash = Provider.of<DashboardProvider>(context, listen: false);
-      dash.fetchKupons();
+      dash.fetchAllKuponsUnfiltered();
       dash.fetchSatkers();
     });
   }
@@ -352,8 +352,8 @@ class _TransactionPageState extends State<TransactionPage>
       listen: false,
     );
 
-    // Use kuponList from dashboard provider for visual preview
-    if (dashboardProvider.kuponList.isEmpty) {
+    // Use allKuponsForDropdown from dashboard provider for visual preview
+    if (dashboardProvider.allKuponsForDropdown.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -484,7 +484,7 @@ class _TransactionPageState extends State<TransactionPage>
       context,
       MaterialPageRoute(
         builder: (context) => ExportPreviewPage(
-          allKupons: dashboardProvider.kuponList,
+          allKupons: dashboardProvider.allKuponsForDropdown,
           jenisBBMMap: _jenisBBMMap,
           exportType: choice,
           getNopolByKendaraanId:
@@ -518,8 +518,8 @@ class _TransactionPageState extends State<TransactionPage>
       context,
       listen: false,
     );
-    // Filter kuponList sesuai jenisBbm dan jenisKuponId
-    final List<KuponEntity> kuponList = dashboardProvider.kuponList
+    // Filter allKuponsForDropdown sesuai jenisBbm dan jenisKuponId
+    final List<KuponEntity> kuponList = dashboardProvider.allKuponsForDropdown
         .where(
           (k) => k.jenisBbmId == jenisBbm && k.jenisKuponId == jenisKuponId,
         )
@@ -688,6 +688,7 @@ class _TransactionPageState extends State<TransactionPage>
                   await transaksiProvider.addTransaksi(transaksiBaru);
                   // Refresh dashboard to update coupon quotas
                   await dashboardProvider.fetchKupons();
+                  await dashboardProvider.fetchAllKuponsUnfiltered();
                   Navigator.of(ctx).pop();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -853,7 +854,7 @@ class _TransactionPageState extends State<TransactionPage>
                                             context,
                                             listen: false,
                                           );
-                                      final kuponList = dashboardProvider.kupons
+                                      final kuponList = dashboardProvider.allKuponsForDropdown
                                           .where((k) => k.kuponId == t.kuponId)
                                           .toList();
                                       if (kuponList.isNotEmpty) {
@@ -950,6 +951,7 @@ class _TransactionPageState extends State<TransactionPage>
                                               listen: false,
                                             );
                                         await dashboardProvider.fetchKupons();
+                                        await dashboardProvider.fetchAllKuponsUnfiltered();
                                       }
                                     },
                                   ),
@@ -1031,6 +1033,10 @@ class _TransactionPageState extends State<TransactionPage>
       context,
       listen: false,
     );
+    final dashboardProvider = Provider.of<DashboardProvider>(
+      context,
+      listen: false,
+    );
     final formKey = GlobalKey<FormState>();
     final tanggalController = TextEditingController(text: t.tanggalTransaksi);
     final jumlahController = TextEditingController(
@@ -1089,10 +1095,47 @@ class _TransactionPageState extends State<TransactionPage>
             ElevatedButton(
               onPressed: () async {
                 if (formKey.currentState?.validate() ?? false) {
-                  final dashboardProvider = Provider.of<DashboardProvider>(
-                    context,
-                    listen: false,
-                  );
+                  final newJumlahLiter =
+                      double.tryParse(jumlahController.text) ?? t.jumlahLiter;
+                  
+                  // Cari kupon terkait untuk validasi kuota
+                  final kuponList = dashboardProvider.allKuponsForDropdown
+                      .where((k) => k.kuponId == t.kuponId)
+                      .toList();
+                  
+                  if (kuponList.isNotEmpty) {
+                    final kupon = kuponList.first;
+                    // Hitung kuota yang tersedia: kuotaSisa saat ini + jumlah liter transaksi lama
+                    final availableKuota = kupon.kuotaSisa + t.jumlahLiter;
+                    
+                    // Cek apakah jumlah baru melebihi kuota yang tersedia
+                    if (newJumlahLiter > availableKuota) {
+                      final lanjut = await showDialog<bool>(
+                        context: context,
+                        builder: (context) {
+                          return AlertDialog(
+                            title: const Text('Konfirmasi'),
+                            content: Text(
+                              'Jumlah liter ($newJumlahLiter L) melebihi kuota tersedia (${availableKuota.toInt()} L). Kupon akan menjadi minus. Apakah tetap ingin melanjutkan?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(false),
+                                child: const Text('Batal'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.of(context).pop(true),
+                                child: const Text('Lanjutkan'),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+
+                      if (lanjut != true) return;
+                    }
+                  }
+                  
                   final transaksiEdit = TransaksiModel(
                     transaksiId: t.transaksiId,
                     kuponId: t.kuponId,
@@ -1101,8 +1144,7 @@ class _TransactionPageState extends State<TransactionPage>
                     jenisBbmId: t.jenisBbmId, // Keep original BBM type
                     jenisKuponId: t.jenisKuponId,
                     tanggalTransaksi: tanggalController.text,
-                    jumlahLiter:
-                        double.tryParse(jumlahController.text) ?? t.jumlahLiter,
+                    jumlahLiter: newJumlahLiter,
                     createdAt: t.createdAt,
                     updatedAt: DateTime.now().toIso8601String(),
                     isDeleted: t.isDeleted,
@@ -1110,6 +1152,7 @@ class _TransactionPageState extends State<TransactionPage>
                   );
                   await transaksiProvider.updateTransaksi(transaksiEdit);
                   await dashboardProvider.fetchKupons();
+                  await dashboardProvider.fetchAllKuponsUnfiltered();
                   Navigator.of(ctx).pop();
                 }
               },
@@ -1219,10 +1262,12 @@ class _TransactionPageState extends State<TransactionPage>
                                         t.transaksiId,
                                       );
                                       // Refresh dashboard
-                                      await Provider.of<DashboardProvider>(
+                                      final dashProvider = Provider.of<DashboardProvider>(
                                         context,
                                         listen: false,
-                                      ).fetchKupons();
+                                      );
+                                      await dashProvider.fetchKupons();
+                                      await dashProvider.fetchAllKuponsUnfiltered();
                                       if (context.mounted) {
                                         ScaffoldMessenger.of(
                                           context,
