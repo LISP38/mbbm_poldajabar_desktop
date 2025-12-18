@@ -156,6 +156,7 @@ class EnhancedImportService {
       final result = await _performAppendImport(
         newKupons: newKupons,
         newKendaraans: newKendaraans,
+        preParsedDuplicateCount: duplicateCount,
       );
 
       // If import was successful, don't include validation errors from earlier
@@ -163,11 +164,14 @@ class EnhancedImportService {
           ? ['Import failed: ${result['error']} errors occurred']
           : <String>[];
 
+      // Total duplicates = dari Excel parsing + dari database insert
+      final totalDuplicates = duplicateCount + (result['skipped'] ?? 0);
+
       return ImportResult(
         success: result['error'] == 0,
         successCount: result['success'] ?? 0,
         errorCount: result['error'] ?? 0,
-        duplicateCount: duplicateCount,
+        duplicateCount: totalDuplicates,
         warnings: allWarnings,
         errors:
             importErrors, // Only include import errors, not validation warnings
@@ -187,6 +191,7 @@ class EnhancedImportService {
   Future<Map<String, int>> _performAppendImport({
     required List<KuponModel> newKupons,
     required List<KendaraanModel> newKendaraans,
+    int preParsedDuplicateCount = 0,
   }) async {
     int successCount = 0;
     int skippedCount = 0;
@@ -384,11 +389,20 @@ class EnhancedImportService {
       }
     }
 
+    final totalDuplicates = preParsedDuplicateCount + skippedCount;
+    final totalProcessed = newKupons.length + preParsedDuplicateCount;
+
     print('\n' + '=' * 60);
     print('📊 IMPORT SUMMARY:');
-    print('   Total processed: ${newKupons.length} kupons');
+    print('   Total dari file Excel: $totalProcessed kupons');
     print('   ✅ Successfully inserted: $successCount');
-    print('   ⏭️ Skipped (duplicates): $skippedCount');
+    print('   ⏭️ Skipped (duplicates): $totalDuplicates');
+    if (preParsedDuplicateCount > 0) {
+      print('      └─ Duplikat terdeteksi saat parsing: $preParsedDuplicateCount');
+    }
+    if (skippedCount > 0) {
+      print('      └─ Duplikat terdeteksi saat insert: $skippedCount');
+    }
     print('   🔄 Versioned (updated): $versionedCount');
     print('   ❌ Failed (errors): $errorCount');
     print('=' * 60 + '\n');

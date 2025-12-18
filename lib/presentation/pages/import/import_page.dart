@@ -29,12 +29,12 @@ class _ImportPageState extends State<ImportPage> {
 
       if (result != null) {
         final file = result.files.first;
-        
+
         print('File selected: ${file.name}');
         print('File path: ${file.path}');
         print('File size: ${file.size} bytes');
         print('File extension: ${file.extension}');
-        
+
         // Validasi ekstensi file
         final extension = file.extension?.toLowerCase();
         if (extension != 'xlsx' && extension != 'xls') {
@@ -52,7 +52,7 @@ class _ImportPageState extends State<ImportPage> {
           }
           return;
         }
-        
+
         // Validasi ukuran file (max 50MB)
         if (file.size > 50 * 1024 * 1024) {
           if (mounted) {
@@ -70,13 +70,13 @@ class _ImportPageState extends State<ImportPage> {
           }
           return;
         }
-        
+
         setState(() {
           _selectedFileName = file.name;
           _importCompleted = false; // Reset import completed flag
         });
         provider.setFilePath(file.path!);
-        
+
         print('✓ File berhasil dipilih dan divalidasi');
       } else {
         print('File picker dibatalkan oleh user');
@@ -84,9 +84,7 @@ class _ImportPageState extends State<ImportPage> {
     } catch (e) {
       print('ERROR saat memilih file: ${e.toString()}');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error memilih file: $e'),
             backgroundColor: Colors.red,
@@ -97,15 +95,9 @@ class _ImportPageState extends State<ImportPage> {
     }
   }
 
-  Color _getStatusColor(bool success, bool hasWarnings) {
-    if (!success) return Colors.red;
-    if (hasWarnings) return Colors.orange;
-    return Colors.green;
-  }
-
   Future<void> _performImport(EnhancedImportProvider provider) async {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
-    
+
     try {
       // Show loading indicator
       scaffoldMessenger.showSnackBar(
@@ -130,31 +122,53 @@ class _ImportPageState extends State<ImportPage> {
 
       // Perform actual import
       final result = await provider.performImport();
-      
+
       // Hide loading snackbar
       scaffoldMessenger.hideCurrentSnackBar();
-      
+
       if (mounted) {
         // Update UI state
         setState(() {
           _importCompleted = true;
         });
 
-        // Show result message
-        final message = result.success
-            ? 'Import berhasil! ${result.successCount} kupon berhasil diimport.'
-            : 'Import gagal! ${result.errorCount} error ditemukan.';
+        // Show result message based on import outcome
+        String message;
+        Color backgroundColor;
+
+        if (!result.success) {
+          // Import gagal
+          message = 'Import gagal! ${result.errorCount} error ditemukan.';
+          backgroundColor = Colors.red;
+        } else if (result.successCount == 0 && result.duplicateCount > 0) {
+          // Semua data duplikat
+          message =
+              'Tidak ada data baru. ${result.duplicateCount} kupon sudah ada di database (duplikat).';
+          backgroundColor = Colors.orange;
+        } else if (result.duplicateCount > 0) {
+          // Sebagian duplikat, sebagian berhasil
+          message =
+              'Import berhasil! ${result.successCount} kupon baru, ${result.duplicateCount} duplikat dilewati.';
+          backgroundColor = Colors.green;
+        } else {
+          // Semua berhasil
+          message =
+              'Import berhasil! ${result.successCount} kupon berhasil diimport.';
+          backgroundColor = Colors.green;
+        }
 
         scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Text(message),
-            backgroundColor: result.success ? Colors.green : Colors.red,
-            duration: const Duration(seconds: 3),
+            backgroundColor: backgroundColor,
+            duration: const Duration(seconds: 4),
           ),
         );
 
-        // Call success callback if import was successful
-        if (result.success && widget.onImportSuccess != null) {
+        // Call success callback if import was successful (termasuk jika ada yang masuk)
+        if (result.success &&
+            result.successCount > 0 &&
+            widget.onImportSuccess != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               widget.onImportSuccess!();
@@ -164,7 +178,7 @@ class _ImportPageState extends State<ImportPage> {
       }
     } catch (e) {
       scaffoldMessenger.hideCurrentSnackBar();
-      
+
       if (mounted) {
         scaffoldMessenger.showSnackBar(
           SnackBar(
@@ -181,9 +195,7 @@ class _ImportPageState extends State<ImportPage> {
     return Consumer<EnhancedImportProvider>(
       builder: (context, provider, child) {
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('Import Kupon dari Excel'),
-          ),
+          appBar: AppBar(title: const Text('Import Kupon dari Excel')),
           body: Padding(
             padding: const EdgeInsets.all(24.0),
             child: SingleChildScrollView(
@@ -244,9 +256,12 @@ class _ImportPageState extends State<ImportPage> {
                   const SizedBox(height: 16),
 
                   // Import Button - hide after successful import
-                  if (provider.selectedFilePath != null && !_importCompleted) ...[
+                  if (provider.selectedFilePath != null &&
+                      !_importCompleted) ...[
                     ElevatedButton.icon(
-                      onPressed: provider.isLoading || provider.selectedFilePath == null
+                      onPressed:
+                          provider.isLoading ||
+                              provider.selectedFilePath == null
                           ? null
                           : () => _performImport(provider),
                       icon: const Icon(Icons.upload_file),
@@ -275,7 +290,8 @@ class _ImportPageState extends State<ImportPage> {
                   const SizedBox(height: 16),
 
                   // Results Section - Only show after import completed
-                  if (_importCompleted && provider.lastImportResult != null) ...[
+                  if (_importCompleted &&
+                      provider.lastImportResult != null) ...[
                     Card(
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
@@ -287,18 +303,35 @@ class _ImportPageState extends State<ImportPage> {
                                 Icon(
                                   _getStatusIcon(
                                     provider.lastImportResult!.success,
-                                    provider.lastImportResult!.warnings.isNotEmpty,
+                                    provider
+                                        .lastImportResult!
+                                        .warnings
+                                        .isNotEmpty,
+                                    successCount:
+                                        provider.lastImportResult!.successCount,
+                                    duplicateCount: provider
+                                        .lastImportResult!
+                                        .duplicateCount,
                                   ),
                                   color: _getStatusColor(
                                     provider.lastImportResult!.success,
-                                    provider.lastImportResult!.warnings.isNotEmpty,
+                                    provider
+                                        .lastImportResult!
+                                        .warnings
+                                        .isNotEmpty,
+                                    successCount:
+                                        provider.lastImportResult!.successCount,
+                                    duplicateCount: provider
+                                        .lastImportResult!
+                                        .duplicateCount,
                                   ),
                                   size: 32,
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Hasil Import',
@@ -307,14 +340,32 @@ class _ImportPageState extends State<ImportPage> {
                                           fontWeight: FontWeight.bold,
                                           color: _getStatusColor(
                                             provider.lastImportResult!.success,
-                                            provider.lastImportResult!.warnings.isNotEmpty,
+                                            provider
+                                                .lastImportResult!
+                                                .warnings
+                                                .isNotEmpty,
+                                            successCount: provider
+                                                .lastImportResult!
+                                                .successCount,
+                                            duplicateCount: provider
+                                                .lastImportResult!
+                                                .duplicateCount,
                                           ),
                                         ),
                                       ),
                                       Text(
                                         _getStatusLabel(
                                           provider.lastImportResult!.success,
-                                          provider.lastImportResult!.warnings.isNotEmpty,
+                                          provider
+                                              .lastImportResult!
+                                              .warnings
+                                              .isNotEmpty,
+                                          successCount: provider
+                                              .lastImportResult!
+                                              .successCount,
+                                          duplicateCount: provider
+                                              .lastImportResult!
+                                              .duplicateCount,
                                         ),
                                         style: TextStyle(
                                           fontSize: 14,
@@ -334,7 +385,8 @@ class _ImportPageState extends State<ImportPage> {
                                 Expanded(
                                   child: _buildStatCard(
                                     'Berhasil',
-                                    provider.lastImportResult!.successCount.toString(),
+                                    provider.lastImportResult!.successCount
+                                        .toString(),
                                     Colors.green,
                                     Icons.check_circle,
                                   ),
@@ -343,7 +395,8 @@ class _ImportPageState extends State<ImportPage> {
                                 Expanded(
                                   child: _buildStatCard(
                                     'Duplikat',
-                                    provider.lastImportResult!.duplicateCount.toString(),
+                                    provider.lastImportResult!.duplicateCount
+                                        .toString(),
                                     Colors.orange,
                                     Icons.content_copy,
                                   ),
@@ -352,7 +405,8 @@ class _ImportPageState extends State<ImportPage> {
                                 Expanded(
                                   child: _buildStatCard(
                                     'Error',
-                                    provider.lastImportResult!.errorCount.toString(),
+                                    provider.lastImportResult!.errorCount
+                                        .toString(),
                                     Colors.red,
                                     Icons.error,
                                   ),
@@ -361,10 +415,16 @@ class _ImportPageState extends State<ImportPage> {
                             ),
 
                             // Warnings section
-                            if (provider.lastImportResult!.warnings.isNotEmpty) ...[
+                            if (provider
+                                .lastImportResult!
+                                .warnings
+                                .isNotEmpty) ...[
                               const SizedBox(height: 16),
                               ExpansionTile(
-                                leading: const Icon(Icons.warning, color: Colors.orange),
+                                leading: const Icon(
+                                  Icons.warning,
+                                  color: Colors.orange,
+                                ),
                                 title: Text(
                                   'Peringatan (${provider.lastImportResult!.warnings.length})',
                                   style: const TextStyle(
@@ -374,22 +434,37 @@ class _ImportPageState extends State<ImportPage> {
                                 ),
                                 children: [
                                   Container(
-                                    constraints: const BoxConstraints(maxHeight: 200),
+                                    constraints: const BoxConstraints(
+                                      maxHeight: 200,
+                                    ),
                                     padding: const EdgeInsets.all(8),
                                     child: ListView.builder(
                                       shrinkWrap: true,
-                                      itemCount: provider.lastImportResult!.warnings.length,
+                                      itemCount: provider
+                                          .lastImportResult!
+                                          .warnings
+                                          .length,
                                       itemBuilder: (context, index) {
                                         return Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 4.0,
+                                          ),
                                           child: Row(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
-                                              const Text('• ', style: TextStyle(fontSize: 12)),
+                                              const Text(
+                                                '• ',
+                                                style: TextStyle(fontSize: 12),
+                                              ),
                                               Expanded(
                                                 child: Text(
-                                                  provider.lastImportResult!.warnings[index],
-                                                  style: const TextStyle(fontSize: 12),
+                                                  provider
+                                                      .lastImportResult!
+                                                      .warnings[index],
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                  ),
                                                 ),
                                               ),
                                             ],
@@ -403,10 +478,16 @@ class _ImportPageState extends State<ImportPage> {
                             ],
 
                             // Errors section
-                            if (provider.lastImportResult!.errors.isNotEmpty) ...[
+                            if (provider
+                                .lastImportResult!
+                                .errors
+                                .isNotEmpty) ...[
                               const SizedBox(height: 8),
                               ExpansionTile(
-                                leading: const Icon(Icons.error, color: Colors.red),
+                                leading: const Icon(
+                                  Icons.error,
+                                  color: Colors.red,
+                                ),
                                 title: Text(
                                   'Error (${provider.lastImportResult!.errors.length})',
                                   style: const TextStyle(
@@ -416,22 +497,37 @@ class _ImportPageState extends State<ImportPage> {
                                 ),
                                 children: [
                                   Container(
-                                    constraints: const BoxConstraints(maxHeight: 200),
+                                    constraints: const BoxConstraints(
+                                      maxHeight: 200,
+                                    ),
                                     padding: const EdgeInsets.all(8),
                                     child: ListView.builder(
                                       shrinkWrap: true,
-                                      itemCount: provider.lastImportResult!.errors.length,
+                                      itemCount: provider
+                                          .lastImportResult!
+                                          .errors
+                                          .length,
                                       itemBuilder: (context, index) {
                                         return Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 4.0,
+                                          ),
                                           child: Row(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
-                                              const Text('• ', style: TextStyle(fontSize: 12)),
+                                              const Text(
+                                                '• ',
+                                                style: TextStyle(fontSize: 12),
+                                              ),
                                               Expanded(
                                                 child: Text(
-                                                  provider.lastImportResult!.errors[index],
-                                                  style: const TextStyle(fontSize: 12),
+                                                  provider
+                                                      .lastImportResult!
+                                                      .errors[index],
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                  ),
                                                 ),
                                               ),
                                             ],
@@ -450,7 +546,8 @@ class _ImportPageState extends State<ImportPage> {
                               onPressed: () {
                                 setState(() {
                                   _importCompleted = false;
-                                  _selectedFileName = 'Tidak ada file yang dipilih';
+                                  _selectedFileName =
+                                      'Tidak ada file yang dipilih';
                                 });
                                 provider.setFilePath('');
                               },
@@ -475,7 +572,12 @@ class _ImportPageState extends State<ImportPage> {
     );
   }
 
-  Widget _buildStatCard(String label, String value, Color color, IconData icon) {
+  Widget _buildStatCard(
+    String label,
+    String value,
+    Color color,
+    IconData icon,
+  ) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -495,27 +597,46 @@ class _ImportPageState extends State<ImportPage> {
               color: color,
             ),
           ),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: color,
-            ),
-          ),
+          Text(label, style: TextStyle(fontSize: 12, color: color)),
         ],
       ),
     );
   }
 
-  IconData _getStatusIcon(bool success, bool hasWarnings) {
+  IconData _getStatusIcon(
+    bool success,
+    bool hasWarnings, {
+    int successCount = 0,
+    int duplicateCount = 0,
+  }) {
     if (!success) return Icons.error;
+    if (successCount == 0 && duplicateCount > 0) return Icons.content_copy;
     if (hasWarnings) return Icons.warning;
     return Icons.check_circle;
   }
 
-  String _getStatusLabel(bool success, bool hasWarnings) {
+  String _getStatusLabel(
+    bool success,
+    bool hasWarnings, {
+    int successCount = 0,
+    int duplicateCount = 0,
+  }) {
     if (!success) return 'Import Gagal';
+    if (successCount == 0 && duplicateCount > 0) return 'Semua Data Duplikat';
     if (hasWarnings) return 'Berhasil dengan Peringatan';
+    if (duplicateCount > 0) return 'Berhasil (Sebagian Duplikat)';
     return 'Import Berhasil';
+  }
+
+  Color _getStatusColor(
+    bool success,
+    bool hasWarnings, {
+    int successCount = 0,
+    int duplicateCount = 0,
+  }) {
+    if (!success) return Colors.red;
+    if (successCount == 0 && duplicateCount > 0) return Colors.orange;
+    if (hasWarnings) return Colors.orange;
+    return Colors.green;
   }
 }

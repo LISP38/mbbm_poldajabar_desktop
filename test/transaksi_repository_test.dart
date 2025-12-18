@@ -25,7 +25,9 @@ void main() {
     // deleting parent rows for a clean test DB, then re-enable.
     await db.execute('PRAGMA foreign_keys = OFF;');
     await db.delete('fact_transaksi');
-    final _purchasingExists = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name = 'fact_purchasing'");
+    final _purchasingExists = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name = 'fact_purchasing'",
+    );
     if (_purchasingExists.isNotEmpty) {
       await db.delete('fact_purchasing');
     }
@@ -41,7 +43,9 @@ void main() {
     // Clean up the tables (disable foreign keys to avoid FK failures)
     await db.execute('PRAGMA foreign_keys = OFF;');
     await db.delete('fact_transaksi');
-    final _purchasingExists2 = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name = 'fact_purchasing'");
+    final _purchasingExists2 = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name = 'fact_purchasing'",
+    );
     if (_purchasingExists2.isNotEmpty) {
       await db.delete('fact_purchasing');
     }

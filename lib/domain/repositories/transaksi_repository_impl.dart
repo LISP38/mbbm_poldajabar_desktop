@@ -47,9 +47,12 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         args.add(satker);
       }
 
-      final whereClause = where.isNotEmpty ? 'WHERE ' + where.join(' AND ') : '';
+      final whereClause = where.isNotEmpty
+          ? 'WHERE ' + where.join(' AND ')
+          : '';
 
-      final sql = '''
+      final sql =
+          '''
         SELECT 
           t.transaksi_id,
           t.kupon_key,
@@ -268,7 +271,8 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
 
       final whereClause = 'WHERE ' + where.join(' AND ');
 
-      final sql = '''
+      final sql =
+          '''
         SELECT 
           dk.kupon_key,
           dk.nomor_kupon,
@@ -308,14 +312,16 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   Future<List<String>> getDistinctTahunTerbit() async {
     try {
       final db = await dbHelper.database;
-      final rows = await db.rawQuery(
-        '''
+      final rows = await db.rawQuery('''
         SELECT DISTINCT tahun_terbit AS tahun_terbit FROM dim_tahun_terbit
         WHERE tahun_terbit IS NOT NULL
         ORDER BY CAST(tahun_terbit AS INTEGER) ASC
       ''');
 
-      return rows.map<String>((r) => (r['tahun_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
+      return rows
+          .map<String>((r) => (r['tahun_terbit']?.toString() ?? ''))
+          .where((s) => s.isNotEmpty)
+          .toList();
     } catch (e) {
       throw Exception('Failed to fetch distinct tahun terbit: $e');
     }
@@ -325,14 +331,16 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   Future<List<String>> getDistinctBulanTerbit() async {
     try {
       final db = await dbHelper.database;
-      final rows = await db.rawQuery(
-        '''
+      final rows = await db.rawQuery('''
         SELECT DISTINCT bulan_terbit AS bulan_terbit FROM dim_tahun_terbit
         WHERE bulan_terbit IS NOT NULL
         ORDER BY CAST(bulan_terbit AS INTEGER) ASC
       ''');
 
-      return rows.map<String>((r) => (r['bulan_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
+      return rows
+          .map<String>((r) => (r['bulan_terbit']?.toString() ?? ''))
+          .where((s) => s.isNotEmpty)
+          .toList();
     } catch (e) {
       throw Exception('Failed to fetch distinct bulan terbit: $e');
     }
@@ -342,14 +350,16 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   Future<List<String>> getDistinctJenisBbm() async {
     try {
       final db = await dbHelper.database;
-      final rows = await db.rawQuery(
-        '''
+      final rows = await db.rawQuery('''
         SELECT DISTINCT nama_jenis_bbm AS nama FROM dim_jenis_bbm
         WHERE nama_jenis_bbm IS NOT NULL
         ORDER BY nama_jenis_bbm COLLATE NOCASE ASC
       ''');
 
-      return rows.map<String>((r) => (r['nama']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
+      return rows
+          .map<String>((r) => (r['nama']?.toString() ?? ''))
+          .where((s) => s.isNotEmpty)
+          .toList();
     } catch (e) {
       throw Exception('Failed to fetch distinct jenis BBM: $e');
     }

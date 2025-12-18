@@ -208,13 +208,25 @@ class _TransactionPageState extends State<TransactionPage>
                                 border: OutlineInputBorder(),
                               ),
                               items: [
-                                const DropdownMenuItem(value: '', child: Text('Semua Satker')),
-                                ...satkerList.map((s) => DropdownMenuItem(value: s, child: Text(s))),
+                                const DropdownMenuItem(
+                                  value: '',
+                                  child: Text('Semua Satker'),
+                                ),
+                                ...satkerList.map(
+                                  (s) => DropdownMenuItem(
+                                    value: s,
+                                    child: Text(s),
+                                  ),
+                                ),
                               ],
                               onChanged: (val) {
-                                final satker = (val == null || val.isEmpty) ? null : val;
-                                Provider.of<TransaksiProvider>(context, listen: false)
-                                    .setFilterTransaksi(satker: satker);
+                                final satker = (val == null || val.isEmpty)
+                                    ? null
+                                    : val;
+                                Provider.of<TransaksiProvider>(
+                                  context,
+                                  listen: false,
+                                ).setFilterTransaksi(satker: satker);
                               },
                             ),
                           ),
@@ -224,8 +236,10 @@ class _TransactionPageState extends State<TransactionPage>
                             tooltip: 'Reset Satker Filter',
                             icon: const Icon(Icons.clear),
                             onPressed: () {
-                              Provider.of<TransaksiProvider>(context, listen: false)
-                                  .clearSatkerFilter();
+                              Provider.of<TransaksiProvider>(
+                                context,
+                                listen: false,
+                              ).clearSatkerFilter();
                             },
                           ),
                         ],
@@ -241,13 +255,17 @@ class _TransactionPageState extends State<TransactionPage>
                       decoration: const InputDecoration(
                         labelText: "Range Tanggal",
                         border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
                       ),
                       child: Text(
-                        _filterTanggalMulai != null && _filterTanggalSelesai != null
+                        _filterTanggalMulai != null &&
+                                _filterTanggalSelesai != null
                             ? '${_filterTanggalMulai!.day}/${_filterTanggalMulai!.month}/${_filterTanggalMulai!.year}'
-                              ' - '
-                              '${_filterTanggalSelesai!.day}/${_filterTanggalSelesai!.month}/${_filterTanggalSelesai!.year}'
+                                  ' - '
+                                  '${_filterTanggalSelesai!.day}/${_filterTanggalSelesai!.month}/${_filterTanggalSelesai!.year}'
                             : 'Pilih Range Tanggal',
                         style: const TextStyle(fontSize: 14),
                       ),
@@ -539,7 +557,9 @@ class _TransactionPageState extends State<TransactionPage>
       if (lastDate != null && lastDate.isNotEmpty) {
         tanggalController.text = lastDate.substring(0, 10);
       } else {
-        tanggalController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
+        tanggalController.text = DateFormat(
+          'yyyy-MM-dd',
+        ).format(DateTime.now());
       }
     } catch (e) {
       tanggalController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
@@ -854,7 +874,8 @@ class _TransactionPageState extends State<TransactionPage>
                                             context,
                                             listen: false,
                                           );
-                                      final kuponList = dashboardProvider.allKuponsForDropdown
+                                      final kuponList = dashboardProvider
+                                          .allKuponsForDropdown
                                           .where((k) => k.kuponId == t.kuponId)
                                           .toList();
                                       if (kuponList.isNotEmpty) {
@@ -951,7 +972,8 @@ class _TransactionPageState extends State<TransactionPage>
                                               listen: false,
                                             );
                                         await dashboardProvider.fetchKupons();
-                                        await dashboardProvider.fetchAllKuponsUnfiltered();
+                                        await dashboardProvider
+                                            .fetchAllKuponsUnfiltered();
                                       }
                                     },
                                   ),
@@ -1097,17 +1119,17 @@ class _TransactionPageState extends State<TransactionPage>
                 if (formKey.currentState?.validate() ?? false) {
                   final newJumlahLiter =
                       double.tryParse(jumlahController.text) ?? t.jumlahLiter;
-                  
+
                   // Cari kupon terkait untuk validasi kuota
                   final kuponList = dashboardProvider.allKuponsForDropdown
                       .where((k) => k.kuponId == t.kuponId)
                       .toList();
-                  
+
                   if (kuponList.isNotEmpty) {
                     final kupon = kuponList.first;
                     // Hitung kuota yang tersedia: kuotaSisa saat ini + jumlah liter transaksi lama
                     final availableKuota = kupon.kuotaSisa + t.jumlahLiter;
-                    
+
                     // Cek apakah jumlah baru melebihi kuota yang tersedia
                     if (newJumlahLiter > availableKuota) {
                       final lanjut = await showDialog<bool>(
@@ -1120,11 +1142,13 @@ class _TransactionPageState extends State<TransactionPage>
                             ),
                             actions: [
                               TextButton(
-                                onPressed: () => Navigator.of(context).pop(false),
+                                onPressed: () =>
+                                    Navigator.of(context).pop(false),
                                 child: const Text('Batal'),
                               ),
                               ElevatedButton(
-                                onPressed: () => Navigator.of(context).pop(true),
+                                onPressed: () =>
+                                    Navigator.of(context).pop(true),
                                 child: const Text('Lanjutkan'),
                               ),
                             ],
@@ -1135,7 +1159,7 @@ class _TransactionPageState extends State<TransactionPage>
                       if (lanjut != true) return;
                     }
                   }
-                  
+
                   final transaksiEdit = TransaksiModel(
                     transaksiId: t.transaksiId,
                     kuponId: t.kuponId,
@@ -1262,12 +1286,14 @@ class _TransactionPageState extends State<TransactionPage>
                                         t.transaksiId,
                                       );
                                       // Refresh dashboard
-                                      final dashProvider = Provider.of<DashboardProvider>(
-                                        context,
-                                        listen: false,
-                                      );
+                                      final dashProvider =
+                                          Provider.of<DashboardProvider>(
+                                            context,
+                                            listen: false,
+                                          );
                                       await dashProvider.fetchKupons();
-                                      await dashProvider.fetchAllKuponsUnfiltered();
+                                      await dashProvider
+                                          .fetchAllKuponsUnfiltered();
                                       if (context.mounted) {
                                         ScaffoldMessenger.of(
                                           context,

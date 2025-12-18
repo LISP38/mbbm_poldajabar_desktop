@@ -57,8 +57,10 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
     super.initState();
     // Pastikan ambil data kupon tanpa filter untuk referensi
     Future.microtask(() {
-      Provider.of<DashboardProvider>(context, listen: false)
-          .fetchAllKuponsUnfiltered();
+      Provider.of<DashboardProvider>(
+        context,
+        listen: false,
+      ).fetchAllKuponsUnfiltered();
     });
     _loadNoPolData();
   }
@@ -910,17 +912,17 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                 if (formKey.currentState?.validate() ?? false) {
                   final newJumlahLiter =
                       double.tryParse(jumlahController.text) ?? t.jumlahLiter;
-                  
+
                   // Cari kupon terkait untuk validasi kuota
                   final kuponList = dashboardProvider.allKuponsForDropdown
                       .where((k) => k.kuponId == t.kuponId)
                       .toList();
-                  
+
                   if (kuponList.isNotEmpty) {
                     final kupon = kuponList.first;
                     // Hitung kuota yang tersedia: kuotaSisa saat ini + jumlah liter transaksi lama
                     final availableKuota = kupon.kuotaSisa + t.jumlahLiter;
-                    
+
                     // Cek apakah jumlah baru melebihi kuota yang tersedia
                     if (newJumlahLiter > availableKuota) {
                       final lanjut = await showDialog<bool>(
@@ -933,11 +935,13 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                             ),
                             actions: [
                               TextButton(
-                                onPressed: () => Navigator.of(context).pop(false),
+                                onPressed: () =>
+                                    Navigator.of(context).pop(false),
                                 child: const Text('Batal'),
                               ),
                               ElevatedButton(
-                                onPressed: () => Navigator.of(context).pop(true),
+                                onPressed: () =>
+                                    Navigator.of(context).pop(true),
                                 child: const Text('Lanjutkan'),
                               ),
                             ],
@@ -948,7 +952,7 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                       if (lanjut != true) return;
                     }
                   }
-                  
+
                   // Show loading
                   showDialog(
                     context: ctx,

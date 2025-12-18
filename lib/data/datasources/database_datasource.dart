@@ -384,7 +384,9 @@ class DatabaseDatasource {
           }
 
           if (oldVersion < 9) {
-            print('DEBUG: Applying schema normalization v9 - remove dim_nopol and dim_jenis_ranmor');
+            print(
+              'DEBUG: Applying schema normalization v9 - remove dim_nopol and dim_jenis_ranmor',
+            );
 
             // Drop dimension tables that should not exist in the final schema
             await db.execute('DROP TABLE IF EXISTS dim_nopol');
@@ -693,32 +695,55 @@ class DatabaseDatasource {
         where += ' AND jenis_ranmor_id = ?';
         whereArgs.add(jenisRanmorId);
       }
-      final existing = await db.query('dim_kendaraan', where: where, whereArgs: whereArgs, limit: 1);
+      final existing = await db.query(
+        'dim_kendaraan',
+        where: where,
+        whereArgs: whereArgs,
+        limit: 1,
+      );
       if (existing.isNotEmpty) return existing.first['kendaraan_id'] as int;
     }
 
     // 2) Try matching by textual no_pol_kode/no_pol_nomor (canonical final schema)
-    final useNoPol = cols.contains('no_pol_kode') && cols.contains('no_pol_nomor');
+    final useNoPol =
+        cols.contains('no_pol_kode') && cols.contains('no_pol_nomor');
     if (useNoPol) {
-      final whereConds = <String>['satker_id = ?', 'no_pol_kode = ?', 'no_pol_nomor = ?'];
+      final whereConds = <String>[
+        'satker_id = ?',
+        'no_pol_kode = ?',
+        'no_pol_nomor = ?',
+      ];
       final whereArgs = [satkerId, nopolKode ?? '', nopolNomor ?? ''];
-      final existing = await db.query('dim_kendaraan', where: whereConds.join(' AND '), whereArgs: whereArgs, limit: 1);
+      final existing = await db.query(
+        'dim_kendaraan',
+        where: whereConds.join(' AND '),
+        whereArgs: whereArgs,
+        limit: 1,
+      );
       if (existing.isNotEmpty) return existing.first['kendaraan_id'] as int;
     }
 
     // 3) As a last resort, try matching only by satker + jenis_ranmor text
     if (cols.contains('jenis_ranmor')) {
       final where = 'satker_id = ? AND jenis_ranmor = ?';
-      final existing = await db.query('dim_kendaraan', where: where, whereArgs: [satkerId, jenisRanmorText ?? '-'], limit: 1);
+      final existing = await db.query(
+        'dim_kendaraan',
+        where: where,
+        whereArgs: [satkerId, jenisRanmorText ?? '-'],
+        limit: 1,
+      );
       if (existing.isNotEmpty) return existing.first['kendaraan_id'] as int;
     }
 
     // Not found -> insert. Only include columns that exist in the schema.
     final insertMap = <String, Object?>{};
     if (cols.contains('satker_id')) insertMap['satker_id'] = satkerId;
-    if (cols.contains('jenis_ranmor')) insertMap['jenis_ranmor'] = jenisRanmorText ?? '-';
-    if (cols.contains('no_pol_kode')) insertMap['no_pol_kode'] = nopolKode ?? '';
-    if (cols.contains('no_pol_nomor')) insertMap['no_pol_nomor'] = nopolNomor ?? '';
+    if (cols.contains('jenis_ranmor'))
+      insertMap['jenis_ranmor'] = jenisRanmorText ?? '-';
+    if (cols.contains('no_pol_kode'))
+      insertMap['no_pol_kode'] = nopolKode ?? '';
+    if (cols.contains('no_pol_nomor'))
+      insertMap['no_pol_nomor'] = nopolNomor ?? '';
     if (cols.contains('status_aktif')) insertMap['status_aktif'] = 1;
 
     final id = await db.insert('dim_kendaraan', insertMap);
@@ -785,7 +810,10 @@ class DatabaseDatasource {
         // Resolve tahun_terbit_id first (will create dim_tahun_terbit entry if missing)
         int? tahunTerbitId;
         try {
-          tahunTerbitId = await getOrCreateTahunTerbit(k.bulanTerbit, k.tahunTerbit);
+          tahunTerbitId = await getOrCreateTahunTerbit(
+            k.bulanTerbit,
+            k.tahunTerbit,
+          );
         } catch (_) {
           tahunTerbitId = null;
         }

@@ -12,7 +12,7 @@ class DashboardProvider extends ChangeNotifier {
   List<KuponEntity> _allKupons = [];
   List<KuponEntity> _ranjenKupons = [];
   List<KuponEntity> _dukunganKupons = [];
-  
+
   // List kupon tanpa filter (untuk dropdown di halaman transaksi)
   List<KuponEntity> _allKuponsUnfiltered = [];
 
@@ -48,7 +48,7 @@ class DashboardProvider extends ChangeNotifier {
   List<KuponEntity> get kuponList => _allKupons;
   List<KuponEntity> get ranjenKupons => _ranjenKupons;
   List<KuponEntity> get dukunganKupons => _dukunganKupons;
-  
+
   // Getter untuk dropdown di halaman transaksi (tanpa filter)
   List<KuponEntity> get allKuponsForDropdown => _allKuponsUnfiltered;
 
@@ -136,8 +136,12 @@ class DashboardProvider extends ChangeNotifier {
 
       final results = await db.rawQuery(query);
 
-      _allKuponsUnfiltered = results.map((row) => KuponModel.fromMap(row)).toList();
-      print('[DASHBOARD] fetchAllKuponsUnfiltered: loaded ${_allKuponsUnfiltered.length} kupons');
+      _allKuponsUnfiltered = results
+          .map((row) => KuponModel.fromMap(row))
+          .toList();
+      print(
+        '[DASHBOARD] fetchAllKuponsUnfiltered: loaded ${_allKuponsUnfiltered.length} kupons',
+      );
       notifyListeners();
     } catch (e) {
       print('[DASHBOARD] Error fetching all kupons unfiltered: $e');
@@ -147,9 +151,13 @@ class DashboardProvider extends ChangeNotifier {
   }
 
   Future<void> fetchJenisBbm() async {
-    final db = await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+    final db =
+        await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
     try {
-      final rows = await db.query('dim_jenis_bbm', orderBy: 'nama_jenis_bbm COLLATE NOCASE ASC');
+      final rows = await db.query(
+        'dim_jenis_bbm',
+        orderBy: 'nama_jenis_bbm COLLATE NOCASE ASC',
+      );
       final map = <int, String>{};
       final list = <String>[];
       for (final r in rows) {
@@ -171,7 +179,8 @@ class DashboardProvider extends ChangeNotifier {
 
   // Fetch bulan list from dim_bulan; fall back to 1..12 on error
   Future<void> fetchBulans() async {
-    final db = await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+    final db =
+        await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
     try {
       // check if dim_bulan exists
       final exists = await db.rawQuery(
@@ -181,12 +190,19 @@ class DashboardProvider extends ChangeNotifier {
       List<int> months = [];
       if (exists.isNotEmpty) {
         final results = await db.query('dim_bulan');
-        months = results.map<int>((row) {
-          final v = row['bulan_id'] ?? row['bulan'] ?? row['bulan_number'] ?? row['id'];
-          if (v is int) return v;
-          if (v is String) return int.tryParse(v) ?? 0;
-          return 0;
-        }).where((v) => v > 0).toList();
+        months = results
+            .map<int>((row) {
+              final v =
+                  row['bulan_id'] ??
+                  row['bulan'] ??
+                  row['bulan_number'] ??
+                  row['id'];
+              if (v is int) return v;
+              if (v is String) return int.tryParse(v) ?? 0;
+              return 0;
+            })
+            .where((v) => v > 0)
+            .toList();
       } else {
         // fallback to dim_date if available
         final dateExists = await db.rawQuery(
@@ -197,12 +213,15 @@ class DashboardProvider extends ChangeNotifier {
           final rows = await db.rawQuery(
             'SELECT DISTINCT bulan_terbit FROM dim_date WHERE bulan_terbit IS NOT NULL ORDER BY bulan_terbit ASC',
           );
-          months = rows.map<int>((r) {
-            final v = r['bulan_terbit'];
-            if (v is int) return v;
-            if (v is String) return int.tryParse(v) ?? 0;
-            return 0;
-          }).where((v) => v > 0).toList();
+          months = rows
+              .map<int>((r) {
+                final v = r['bulan_terbit'];
+                if (v is int) return v;
+                if (v is String) return int.tryParse(v) ?? 0;
+                return 0;
+              })
+              .where((v) => v > 0)
+              .toList();
         }
       }
 
@@ -218,7 +237,8 @@ class DashboardProvider extends ChangeNotifier {
 
   // Fetch tahun list from dim_tahun; fall back to current year +/- 1
   Future<void> fetchTahuns() async {
-    final db = await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+    final db =
+        await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
     try {
       // check dim_tahun
       final exists = await db.rawQuery(
@@ -228,12 +248,15 @@ class DashboardProvider extends ChangeNotifier {
       List<int> years = [];
       if (exists.isNotEmpty) {
         final results = await db.query('dim_tahun');
-        years = results.map<int>((row) {
-          final v = row['tahun'] ?? row['tahun_id'] ?? row['id'];
-          if (v is int) return v;
-          if (v is String) return int.tryParse(v) ?? 0;
-          return 0;
-        }).where((v) => v > 0).toList();
+        years = results
+            .map<int>((row) {
+              final v = row['tahun'] ?? row['tahun_id'] ?? row['id'];
+              if (v is int) return v;
+              if (v is String) return int.tryParse(v) ?? 0;
+              return 0;
+            })
+            .where((v) => v > 0)
+            .toList();
       } else {
         final dateExists = await db.rawQuery(
           "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
@@ -243,12 +266,15 @@ class DashboardProvider extends ChangeNotifier {
           final rows = await db.rawQuery(
             'SELECT DISTINCT tahun_terbit FROM dim_date WHERE tahun_terbit IS NOT NULL ORDER BY tahun_terbit ASC',
           );
-          years = rows.map<int>((r) {
-            final v = r['tahun_terbit'];
-            if (v is int) return v;
-            if (v is String) return int.tryParse(v) ?? 0;
-            return 0;
-          }).where((v) => v > 0).toList();
+          years = rows
+              .map<int>((r) {
+                final v = r['tahun_terbit'];
+                if (v is int) return v;
+                if (v is String) return int.tryParse(v) ?? 0;
+                return 0;
+              })
+              .where((v) => v > 0)
+              .toList();
         }
       }
 
@@ -270,7 +296,8 @@ class DashboardProvider extends ChangeNotifier {
   /// Values are returned as strings to preserve whatever format is stored
   /// (numeric or textual). UI will map numeric month strings to month names.
   Future<void> loadFilterOptions() async {
-    final db = await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+    final db =
+        await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
     try {
       // Primary source: dim_tahun_terbit
       final bulanRows = await db.rawQuery(
@@ -280,20 +307,34 @@ class DashboardProvider extends ChangeNotifier {
         '''SELECT DISTINCT tahun_terbit AS tahun_terbit FROM dim_tahun_terbit WHERE tahun_terbit IS NOT NULL ORDER BY CAST(tahun_terbit AS INTEGER) ASC''',
       );
 
-      _daftarBulan = bulanRows.map<String>((r) => (r['bulan_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
-      _daftarTahun = tahunRows.map<String>((r) => (r['tahun_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
+      _daftarBulan = bulanRows
+          .map<String>((r) => (r['bulan_terbit']?.toString() ?? ''))
+          .where((s) => s.isNotEmpty)
+          .toList();
+      _daftarTahun = tahunRows
+          .map<String>((r) => (r['tahun_terbit']?.toString() ?? ''))
+          .where((s) => s.isNotEmpty)
+          .toList();
 
       // Fallback: try dim_date if primary returned no rows
       if (_daftarBulan.isEmpty || _daftarTahun.isEmpty) {
-        print('[DASHBOARD] dim_tahun_terbit empty or incomplete, trying dim_date...');
+        print(
+          '[DASHBOARD] dim_tahun_terbit empty or incomplete, trying dim_date...',
+        );
         final dbRowsB = await db.rawQuery(
           '''SELECT DISTINCT bulan_terbit AS bulan_terbit FROM dim_date WHERE bulan_terbit IS NOT NULL ORDER BY bulan_terbit ASC''',
         );
         final dbRowsT = await db.rawQuery(
           '''SELECT DISTINCT tahun_terbit AS tahun_terbit FROM dim_date WHERE tahun_terbit IS NOT NULL ORDER BY tahun_terbit ASC''',
         );
-        final bFallback = dbRowsB.map<String>((r) => (r['bulan_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
-        final tFallback = dbRowsT.map<String>((r) => (r['tahun_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
+        final bFallback = dbRowsB
+            .map<String>((r) => (r['bulan_terbit']?.toString() ?? ''))
+            .where((s) => s.isNotEmpty)
+            .toList();
+        final tFallback = dbRowsT
+            .map<String>((r) => (r['tahun_terbit']?.toString() ?? ''))
+            .where((s) => s.isNotEmpty)
+            .toList();
         if (_daftarBulan.isEmpty) _daftarBulan = bFallback;
         if (_daftarTahun.isEmpty) _daftarTahun = tFallback;
       }
@@ -307,8 +348,14 @@ class DashboardProvider extends ChangeNotifier {
         final kT = await db.rawQuery(
           '''SELECT DISTINCT tahun_terbit AS tahun_terbit FROM dim_kupon WHERE tahun_terbit IS NOT NULL ORDER BY tahun_terbit ASC''',
         );
-        final bK = kB.map<String>((r) => (r['bulan_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
-        final tK = kT.map<String>((r) => (r['tahun_terbit']?.toString() ?? '')).where((s) => s.isNotEmpty).toList();
+        final bK = kB
+            .map<String>((r) => (r['bulan_terbit']?.toString() ?? ''))
+            .where((s) => s.isNotEmpty)
+            .toList();
+        final tK = kT
+            .map<String>((r) => (r['tahun_terbit']?.toString() ?? ''))
+            .where((s) => s.isNotEmpty)
+            .toList();
         if (_daftarBulan.isEmpty) _daftarBulan = bK;
         if (_daftarTahun.isEmpty) _daftarTahun = tK;
       }
@@ -617,7 +664,9 @@ class DashboardProvider extends ChangeNotifier {
     int? bulanTerbit,
     int? tahunTerbit,
   }) async {
-    print('[DASHBOARD] Setting filters: nomorKupon=$nomorKupon, satker=$satker, jenisBBM=$jenisBBM, jenisKupon=$jenisKupon, nopol=$nopol, jenisRanmor=$jenisRanmor, bulanTerbit=$bulanTerbit, tahunTerbit=$tahunTerbit');
+    print(
+      '[DASHBOARD] Setting filters: nomorKupon=$nomorKupon, satker=$satker, jenisBBM=$jenisBBM, jenisKupon=$jenisKupon, nopol=$nopol, jenisRanmor=$jenisRanmor, bulanTerbit=$bulanTerbit, tahunTerbit=$tahunTerbit',
+    );
     this.nomorKupon = nomorKupon?.trim();
     this.satker = satker?.trim();
     this.jenisBBM = jenisBBM?.trim();
