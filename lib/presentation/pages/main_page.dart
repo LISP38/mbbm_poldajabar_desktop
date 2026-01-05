@@ -41,8 +41,8 @@ class _MainPageState extends State<MainPage> {
                   );
                   provider.fetchKupons();
                 }
-              } catch (e2) {
-                print('Could not refresh dashboard: $e2');
+              } catch (_) {
+                // Silently ignore - dashboard refresh failed
               }
             }
           });

@@ -193,8 +193,9 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
 
   Future<void> _preloadVehicleData() async {
     if (widget.getNopolByKendaraanId == null ||
-        widget.getJenisRanmorByKendaraanId == null)
+        widget.getJenisRanmorByKendaraanId == null) {
       return;
+    }
 
     setState(() => _isLoadingCache = true);
 
@@ -840,9 +841,9 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                     return DataRow(
                       cells: [
                         DataCell(Text(satkerName)),
-                        DataCell(Text('${totalKuota.toStringAsFixed(0)}')),
-                        DataCell(Text('${totalPemakaian.toStringAsFixed(0)}')),
-                        DataCell(Text('${totalSisa.toStringAsFixed(0)}')),
+                        DataCell(Text(totalKuota.toStringAsFixed(0))),
+                        DataCell(Text(totalPemakaian.toStringAsFixed(0))),
+                        DataCell(Text(totalSisa.toStringAsFixed(0))),
                       ],
                     );
                   }),
@@ -862,7 +863,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                       ),
                       DataCell(
                         Text(
-                          '${grandTotalKuota.toStringAsFixed(0)}',
+                          grandTotalKuota.toStringAsFixed(0),
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -872,7 +873,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                       ),
                       DataCell(
                         Text(
-                          '${grandTotalPemakaian.toStringAsFixed(0)}',
+                          grandTotalPemakaian.toStringAsFixed(0),
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -882,7 +883,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                       ),
                       DataCell(
                         Text(
-                          '${grandTotalSisa.toStringAsFixed(0)}',
+                          grandTotalSisa.toStringAsFixed(0),
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -959,9 +960,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
-                headingRowColor: MaterialStateProperty.all(
-                  Colors.blue.shade700,
-                ),
+                headingRowColor: WidgetStateProperty.all(Colors.blue.shade700),
                 headingTextStyle: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -1106,9 +1105,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
-                headingRowColor: MaterialStateProperty.all(
-                  Colors.green.shade700,
-                ),
+                headingRowColor: WidgetStateProperty.all(Colors.green.shade700),
                 headingTextStyle: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -1140,15 +1137,15 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                     return DataRow(
                       cells: [
                         DataCell(Text(satkerName)),
-                        DataCell(Text('${totalKuota.toStringAsFixed(0)}')),
-                        DataCell(Text('${totalPemakaian.toStringAsFixed(0)}')),
-                        DataCell(Text('${totalSisa.toStringAsFixed(0)}')),
+                        DataCell(Text(totalKuota.toStringAsFixed(0))),
+                        DataCell(Text(totalPemakaian.toStringAsFixed(0))),
+                        DataCell(Text(totalSisa.toStringAsFixed(0))),
                       ],
                     );
                   }),
                   // GRAND TOTAL
                   DataRow(
-                    color: MaterialStateProperty.all(Colors.blue.shade700),
+                    color: WidgetStateProperty.all(Colors.blue.shade700),
                     cells: [
                       DataCell(
                         Text(
@@ -1162,7 +1159,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                       ),
                       DataCell(
                         Text(
-                          '${grandTotalKuota.toStringAsFixed(0)}',
+                          grandTotalKuota.toStringAsFixed(0),
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -1172,7 +1169,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                       ),
                       DataCell(
                         Text(
-                          '${grandTotalPemakaian.toStringAsFixed(0)}',
+                          grandTotalPemakaian.toStringAsFixed(0),
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -1182,7 +1179,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                       ),
                       DataCell(
                         Text(
-                          '${grandTotalSisa.toStringAsFixed(0)}',
+                          grandTotalSisa.toStringAsFixed(0),
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,

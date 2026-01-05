@@ -19,7 +19,6 @@ class _ImportPageState extends State<ImportPage> {
 
   Future<void> _pickFile(EnhancedImportProvider provider) async {
     try {
-      print('Opening file picker...');
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['xlsx', 'xls'],
@@ -29,11 +28,6 @@ class _ImportPageState extends State<ImportPage> {
 
       if (result != null) {
         final file = result.files.first;
-
-        print('File selected: ${file.name}');
-        print('File path: ${file.path}');
-        print('File size: ${file.size} bytes');
-        print('File extension: ${file.extension}');
 
         // Validasi ekstensi file
         final extension = file.extension?.toLowerCase();
@@ -76,13 +70,8 @@ class _ImportPageState extends State<ImportPage> {
           _importCompleted = false; // Reset import completed flag
         });
         provider.setFilePath(file.path!);
-
-        print('✓ File berhasil dipilih dan divalidasi');
-      } else {
-        print('File picker dibatalkan oleh user');
       }
     } catch (e) {
-      print('ERROR saat memilih file: ${e.toString()}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -581,9 +570,9 @@ class _ImportPageState extends State<ImportPage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [

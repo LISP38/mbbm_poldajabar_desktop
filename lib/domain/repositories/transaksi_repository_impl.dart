@@ -48,7 +48,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
       }
 
       final whereClause = where.isNotEmpty
-          ? 'WHERE ' + where.join(' AND ')
+          ? 'WHERE ${where.join(' AND ')}'
           : '';
 
       final sql =
@@ -269,7 +269,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         args.add(satker);
       }
 
-      final whereClause = 'WHERE ' + where.join(' AND ');
+      final whereClause = 'WHERE ${where.join(' AND ')}';
 
       final sql =
           '''

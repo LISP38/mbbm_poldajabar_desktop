@@ -25,7 +25,7 @@ class ExcelParseResult {
 class ExcelDatasource {
   final KuponValidator _kuponValidator;
   final DatabaseDatasource _databaseDatasource;
-  static const String DEFAULT_KODE_NOPOL = 'VIII';
+  static const String _defaultKodeNopol = 'VIII';
 
   ExcelDatasource(this._kuponValidator, this._databaseDatasource);
 
@@ -62,23 +62,15 @@ class ExcelDatasource {
     String filePath,
     List<KuponModel> existingKupons,
   ) async {
-    print('========================================');
-    print('MEMULAI PROSES IMPORT EXCEL');
-    print('========================================');
-    print('File Path: $filePath');
-
     // Validasi file sebelum parsing
     final file = File(filePath);
 
     // Cek apakah file ada
     if (!file.existsSync()) {
-      print('ERROR: File tidak ditemukan!');
       throw Exception(
         'FILE TIDAK DITEMUKAN!\n\nFile "$filePath" tidak ada atau sudah dipindah.',
       );
     }
-
-    print('✓ File ditemukan');
 
     // Cek ukuran file (max 50MB untuk safety)
     final fileSize = file.lengthSync();
@@ -95,9 +87,6 @@ class ExcelDatasource {
     final extension = filePath.toLowerCase();
     final fileExt = extension.split('.').last;
 
-    print('DEBUG: File path: $filePath');
-    print('DEBUG: File extension: $fileExt');
-
     if (!extension.endsWith('.xlsx') && !extension.endsWith('.xls')) {
       throw Exception(
         'FORMAT FILE SALAH!\n\n'
@@ -111,25 +100,12 @@ class ExcelDatasource {
       );
     }
 
-    // Warning khusus untuk file .xls (format lama)
-    if (extension.endsWith('.xls') && !extension.endsWith('.xlsx')) {
-      print(
-        'WARNING: Old Excel format (.xls) detected. Recommend converting to .xlsx for better compatibility.',
-      );
-      print(
-        'RECOMMENDATION: Open file in Excel, then Save As > Excel Workbook (.xlsx)',
-      );
-    }
-
     late final Uint8List bytes;
     late final Excel excel;
 
     try {
-      print('Membaca bytes dari file...');
       bytes = File(filePath).readAsBytesSync();
-      print('✓ Berhasil membaca ${bytes.length} bytes');
     } catch (e) {
-      print('ERROR: Gagal membaca file - ${e.toString()}');
       throw Exception(
         'GAGAL MEMBACA FILE!\n\n'
         'Error: ${e.toString()}\n\n'
@@ -146,18 +122,11 @@ class ExcelDatasource {
 
     try {
       // Coba decode dengan berbagai cara
-      print('Decoding Excel file...');
       try {
         excel = Excel.decodeBytes(bytes);
-        print('✓ Berhasil decode Excel file');
       } catch (decodeError) {
-        // Jika decode gagal, coba baca ulang file
-        print('WARNING: Decode pertama gagal, mencoba ulang...');
-        print('Error detail: ${decodeError.toString()}');
-
         // Check jika error adalah custom numFmtId
         if (decodeError.toString().contains('numFmtId')) {
-          print('DETECTED: Custom Number Format error - numFmtId');
           // Throw error dengan instruksi spesifik
           throw Exception(
             'FILE EXCEL MEMILIKI CUSTOM NUMBER FORMAT!\n\n'
@@ -181,15 +150,12 @@ class ExcelDatasource {
           );
         }
 
+        // Jika decode gagal dengan error lain, coba baca ulang file
         final retryBytes = await File(filePath).readAsBytes();
         excel = Excel.decodeBytes(retryBytes);
-        print('✓ Berhasil decode pada percobaan kedua');
       }
     } catch (e) {
       final errorMsg = e.toString().toLowerCase();
-
-      print('ERROR DETAIL: ${e.toString()}');
-      print('ERROR TYPE: ${e.runtimeType}');
 
       if (errorMsg.contains('numfmtid') ||
           errorMsg.contains('numfmt') ||
@@ -284,9 +250,6 @@ class ExcelDatasource {
       );
     }
 
-    final sheetNames = excel.tables.keys.toList();
-    print('DEBUG: Available sheets: $sheetNames');
-
     final kupons = <KuponModel>[];
     final newKendaraans = <KendaraanModel>[];
     final duplicateKupons = <KuponModel>[];
@@ -305,13 +268,7 @@ class ExcelDatasource {
       );
     }
 
-    print(
-      'DEBUG: Sheet "${excel.tables.keys.first}" has ${sheet.rows.length} rows',
-    );
-
     // Langsung proses semua baris sebagai data (tanpa header)
-    int processedRows = 0;
-
     for (int i = 0; i < sheet.rows.length; i++) {
       final row = sheet.rows[i];
       final rowNumber = i + 1;
@@ -319,11 +276,7 @@ class ExcelDatasource {
         // Parse data dari row
         final data = await _parseRow(row);
         if (data != null) {
-          processedRows++;
           final (kupon, kendaraan) = data;
-          print(
-            'DEBUG - Row $rowNumber -> Kupon: ${kupon.nomorKupon} (${kupon.jenisKuponId == 1 ? "RANJEN" : "DUKUNGAN"})',
-          );
 
           // SOLUSI: Improved validation with better error categorization
           final noPol = kendaraan != null
@@ -338,13 +291,6 @@ class ExcelDatasource {
                 kupons, // Kupon yang sudah diproses dalam batch ini
           );
 
-          print(
-            'DEBUG - Validating kupon ${kupon.nomorKupon}: ${validationResult.isValid}',
-          );
-          if (!validationResult.isValid) {
-            print('DEBUG - Validation messages: ${validationResult.messages}');
-          }
-
           if (!validationResult.isValid) {
             // Cek apakah ini duplikat atau error lain
             final isDuplicate = validationResult.messages.any(
@@ -354,10 +300,6 @@ class ExcelDatasource {
                   msg.toLowerCase().contains('identik') ||
                   (msg.toLowerCase().contains('kupon') &&
                       msg.toLowerCase().contains('sistem')),
-            );
-
-            print(
-              'DEBUG - Is duplicate: $isDuplicate for kupon ${kupon.nomorKupon}',
             );
 
             if (isDuplicate) {
@@ -410,22 +352,9 @@ class ExcelDatasource {
         }
       } catch (e) {
         validationMessages.add('❌ Error baris $rowNumber: ${e.toString()}');
-        print('ERROR: Row $rowNumber - ${e.toString()}');
         continue;
       }
     }
-
-    print('═══════════════════════════════════════════════════');
-    print('📊 FASE 1: PARSING EXCEL');
-    print('═══════════════════════════════════════════════════');
-    print('✅ Total baris diparsing    : ${sheet.rows.length}');
-    print('✅ Baris valid (kupons baru): ${kupons.length}');
-    print('⚠️  Duplikat terdeteksi     : ${duplicateKupons.length}');
-    print('✅ Kendaraan baru           : ${newKendaraans.length}');
-    print(
-      '❌ Error parsing            : ${validationMessages.where((m) => m.contains('Error baris')).length}',
-    );
-    print('═══════════════════════════════════════════════════\n');
 
     // ========================================
     // DETEKSI DUPLIKAT ENHANCED
@@ -437,8 +366,6 @@ class ExcelDatasource {
       existingUniqueKeys.add(_generateUniqueKey(k));
     }
 
-    print('📂 Database memiliki ${existingUniqueKeys.length} kupon existing\n');
-
     // Tracking untuk duplikat
     final seenKeysInFile =
         <String, Map<String, dynamic>>{}; // Key -> {index, kupon}
@@ -447,8 +374,7 @@ class ExcelDatasource {
     final inFileDuplicateKupons = <KuponModel>[];
     final inFileDuplicateKendaraans = <KendaraanModel>[];
 
-    // Counters
-    int dbDuplicateCount = 0;
+    // Counter for internal duplicates
     int internalDuplicateCount = 0;
 
     for (int i = 0; i < kupons.length; i++) {
@@ -457,7 +383,7 @@ class ExcelDatasource {
       final uniqueKey = _generateUniqueKey(k);
       final rowNum = i + 1; // Baris aktual di Excel (1-based)
 
-      // Debug info untuk setiap kupon
+      // Info untuk setiap kupon
       final jenisKuponStr = k.jenisKuponId == 1 ? 'RANJEN' : 'DUKUNGAN';
       final jenisBbmStr = k.jenisBbmId == 1 ? 'Pertamax' : 'Dex/Dexlite';
 
@@ -465,7 +391,6 @@ class ExcelDatasource {
       if (existingUniqueKeys.contains(uniqueKey)) {
         duplicateKupons.add(k);
         if (kendaraan != null) duplicateKendaraans.add(kendaraan);
-        dbDuplicateCount++;
 
         final msg =
             '⚠️  Baris $rowNum: SKIP - Duplikat dengan DB | '
@@ -473,7 +398,6 @@ class ExcelDatasource {
             'BBM: $jenisBbmStr | ${k.namaSatker} | ${k.bulanTerbit}/${k.tahunTerbit}';
 
         validationMessages.add(msg);
-        print(msg);
       }
       // ---- CEK DUPLIKAT INTERNAL DI FILE ----
       else if (seenKeysInFile.containsKey(uniqueKey)) {
@@ -483,7 +407,6 @@ class ExcelDatasource {
 
         final firstOccurrence = seenKeysInFile[uniqueKey]!;
         final firstRowNum = firstOccurrence['index'] as int;
-        final firstKupon = firstOccurrence['kupon'] as KuponModel;
 
         final msg =
             '⚠️  Baris $rowNum: SKIP - Duplikat internal dengan baris $firstRowNum | '
@@ -492,38 +415,17 @@ class ExcelDatasource {
 
         // Catat sebagai informasi duplikat, bukan error
         validationMessages.add(msg);
-        print(msg);
       }
       // ---- DATA UNIK ----
       else {
         seenKeysInFile[uniqueKey] = {'index': rowNum, 'kupon': k};
         uniqueKupons.add(k);
         if (kendaraan != null) uniqueKendaraans.add(kendaraan);
-
-        print(
-          '✅ Baris $rowNum: VALID | Kupon ${k.nomorKupon} ($jenisKuponStr) | '
-          'BBM: $jenisBbmStr | ${k.namaSatker}',
-        );
       }
     }
 
-    // ========================================
-    // RINGKASAN HASIL
-    // ========================================
-    print('\n═══════════════════════════════════════════════════');
-    print('📊 FASE 2: HASIL DETEKSI DUPLIKAT');
-    print('═══════════════════════════════════════════════════');
-    print('✅ Data UNIK (siap insert)       : ${uniqueKupons.length}');
-    print('⚠️  Duplikat dengan Database     : $dbDuplicateCount');
-    print('⚠️  Duplikat INTERNAL di Excel   : $internalDuplicateCount');
-    print('📝 Total validation messages    : ${validationMessages.length}');
-    print('═══════════════════════════════════════════════════');
-
     // Detail duplikat internal untuk investigasi
     if (internalDuplicateCount > 0) {
-      print('\n🔍 INVESTIGASI DUPLIKAT INTERNAL:');
-      print('─────────────────────────────────────────────────');
-
       final duplicatesByKey = <String, List<int>>{};
       for (int i = 0; i < kupons.length; i++) {
         final key = _generateUniqueKey(kupons[i]);
@@ -533,32 +435,9 @@ class ExcelDatasource {
       int shown = 0;
       for (final entry in duplicatesByKey.entries) {
         if (entry.value.length > 1 && shown < 5) {
-          final key = entry.key;
-          final rows = entry.value;
-          final sampleKupon = kupons[rows[0] - 1];
-
-          print('\n🔸 Duplikat #${shown + 1}:');
-          print('   Key: $key');
-          print('   Kupon: ${sampleKupon.nomorKupon}');
-          print(
-            '   Jenis: ${sampleKupon.jenisKuponId == 1 ? "RANJEN" : "DUKUNGAN"}',
-          );
-          print(
-            '   BBM ID: ${sampleKupon.jenisBbmId} (${sampleKupon.jenisBbmId == 1 ? "Pertamax" : "Dex"})',
-          );
-          print('   Satker: ${sampleKupon.namaSatker}');
-          print(
-            '   Period: ${sampleKupon.bulanTerbit}/${sampleKupon.tahunTerbit}',
-          );
-          print('   Muncul di baris: ${rows.join(", ")}');
           shown++;
         }
       }
-
-      if (internalDuplicateCount > 5) {
-        print('\n   ... dan ${internalDuplicateCount - 5} duplikat lainnya');
-      }
-      print('─────────────────────────────────────────────────\n');
     }
 
     // ========================================
@@ -566,14 +445,6 @@ class ExcelDatasource {
     // ========================================
     // Return parsed data tanpa menyimpan ke database
     // Penyimpanan dilakukan di enhanced_import_service._performAppendImport()
-    if (uniqueKupons.isNotEmpty) {
-      print('═══════════════════════════════════════════════════');
-      print('📊 FASE 3: DATA SIAP UNTUK DISIMPAN');
-      print('═══════════════════════════════════════════════════');
-      print('📋 ${uniqueKupons.length} kupons siap diproses');
-      print('🚗 ${uniqueKendaraans.length} kendaraans siap diproses');
-      print('═══════════════════════════════════════════════════\n');
-    }
     return ExcelParseResult(
       kupons: uniqueKupons,
       newKendaraans: uniqueKendaraans,
@@ -604,7 +475,6 @@ class ExcelDatasource {
 
     // Skip if both first and second columns are empty
     if (cell0.isEmpty && cell1.isEmpty) {
-      print('Debug - Skipping empty row (both cols empty)');
       return null;
     }
 
@@ -619,29 +489,24 @@ class ExcelDatasource {
         (cell1Lower.contains('nomor') && cell1Lower.contains('kupon'));
 
     if (isHeaderRow) {
-      print('Debug - Skipping header row: "$cell0", "$cell1"');
       return null;
     }
 
     // Skip jika baris tidak memiliki data minimal (noKupon)
     if (cell1.trim().isEmpty) {
-      print('Debug - Skipping incomplete row: noKupon="$cell1"');
       return null;
     }
 
     // Skip baris yang hanya berisi angka atau teks formatting
     if (RegExp(r'^\d+$').hasMatch(cell0) && cell1.trim().isEmpty) {
-      print('Debug - Skipping formatting/numbering row: "$cell0"');
       return null;
     }
 
     // Jenis Kupon - NULLABLE (boleh kosong)
     final jenisKupon = cell0.isNotEmpty ? cell0 : 'DUKUNGAN';
-    print('Debug - Jenis Kupon: "$jenisKupon"');
 
     // No Kupon - REQUIRED
     final noKuponStr = _getCellString(row, 1);
-    print('Debug - No Kupon raw: "$noKuponStr"');
 
     if (noKuponStr.isEmpty) {
       throw Exception('No Kupon tidak boleh kosong');
@@ -658,7 +523,6 @@ class ExcelDatasource {
 
     // Bulan (romawi) - DIPERBAIKI
     final bulanStr = _getCellString(row, 2).toUpperCase();
-    print('Debug - Bulan raw: "$bulanStr"');
 
     final bulanClean = RegExp(r'[IVXLCDM]+').stringMatch(bulanStr) ?? '';
     final bulan = _parseRomanNumeral(bulanClean);
@@ -676,9 +540,6 @@ class ExcelDatasource {
 
     // Jenis Ranmor - NULLABLE (boleh kosong)
     final jenisRanmor = _getCellString(row, 4);
-    print(
-      'Debug - Jenis Ranmor: "${jenisRanmor.isEmpty ? "NULL" : jenisRanmor}"',
-    );
 
     // Satker - NORMALIZED (selalu konsisten huruf besar, tanpa spasi)
     final satkerRaw = _getCellString(row, 5).trim();
@@ -688,14 +549,12 @@ class ExcelDatasource {
         satkerRaw.toLowerCase() == 'null' ||
         satkerRaw == '-') {
       satker = 'CADANGAN';
-      print('Debug - Satker kosong/null, diubah jadi: "CADANGAN"');
     } else {
       satker = satkerRaw.toUpperCase();
     }
 
     // No Pol - NULLABLE (boleh kosong)
     final noPolStr = _getCellString(row, 6);
-    print('Debug - No Pol raw: "${noPolStr.isEmpty ? "NULL" : noPolStr}"');
 
     String? noPol;
     if (noPolStr.isNotEmpty) {
@@ -708,16 +567,10 @@ class ExcelDatasource {
 
     // Kode Nopol - NULLABLE (boleh kosong)
     final kodeNopol = _getCellString(row, 7);
-    print(
-      'Debug - Kode Nopol: "${kodeNopol.isEmpty ? "NULL (akan gunakan default)" : kodeNopol}"',
-    );
 
     final jenisBBM = _getCellString(row, 8);
     final kuantumStr = _getCellString(row, 9);
     final kuantum = double.tryParse(kuantumStr) ?? 0.0;
-
-    print('Debug - Jenis BBM: "$jenisBBM"');
-    print('Debug - Kuantum: "$kuantumStr" -> $kuantum');
 
     // Validasi jenis BBM dengan lebih fleksibel (nullable)
     if (jenisBBM.isNotEmpty) {
@@ -733,14 +586,6 @@ class ExcelDatasource {
     }
 
     // Validasi data lengkap
-    print('Debug - Validasi Detail:');
-    print('  noKupon: "$noKupon" (kosong: ${noKupon.isEmpty})');
-    print('  bulan: $bulan (valid: ${bulan >= 1 && bulan <= 12})');
-    print('  tahun: $tahun (valid: ${tahun >= 2000})');
-    print('  satker: "$satker" (kosong: ${satker.isEmpty})');
-    print('  kuantum: $kuantum (valid: ${kuantum > 0})');
-    // jenisRanmor, noPol, kodeNopol are allowed to be empty/null
-
     final basicValidation =
         noKupon.isEmpty ||
         bulan < 1 ||
@@ -780,9 +625,7 @@ class ExcelDatasource {
     final tanggalSampai = DateTime(tahun, bulan + 1, 0);
 
     // Gunakan kode yang ada di Excel atau default
-    final finalKodeNopol = kodeNopol.isNotEmpty
-        ? kodeNopol
-        : DEFAULT_KODE_NOPOL;
+    final finalKodeNopol = kodeNopol.isNotEmpty ? kodeNopol : _defaultKodeNopol;
 
     // Get satkerId from database
     final db = await _databaseDatasource.database;
@@ -799,7 +642,6 @@ class ExcelDatasource {
     } else {
       // Jika satker tidak ditemukan, buat entry baru
       satkerId = await db.insert('dim_satker', {'nama_satker': satker});
-      print('Created new satker: $satker with ID: $satkerId');
     }
 
     // Cari atau buat dimensi terkait: jenis_ranmor, dim_nopol, dim_kendaraan (no hardcode)
@@ -847,10 +689,6 @@ class ExcelDatasource {
       'dim_jenis_kupon',
       'nama_jenis_kupon',
       jenisKuponName,
-    );
-
-    print(
-      'DEBUG - jenisBbmId: $jenisBbmId ("$jenisBbmName"), jenisKuponId: $jenisKuponId ("$jenisKuponName")',
     );
 
     final kupon = KuponModel(

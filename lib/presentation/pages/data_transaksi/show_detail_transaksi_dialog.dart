@@ -4,7 +4,7 @@ import '../../../domain/entities/transaksi_entity.dart';
 
 class ShowDetailTransaksiDialog extends StatelessWidget {
   final TransaksiEntity transaksi;
-  const ShowDetailTransaksiDialog({Key? key, required this.transaksi}) : super(key: key);
+  const ShowDetailTransaksiDialog({super.key, required this.transaksi});
 
   @override
   Widget build(BuildContext context) {

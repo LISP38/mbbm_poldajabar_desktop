@@ -103,6 +103,7 @@ class _TransactionPageState extends State<TransactionPage>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     Future.microtask(() {
+      if (!mounted) return;
       Provider.of<TransaksiProvider>(
         context,
         listen: false,
@@ -202,7 +203,7 @@ class _TransactionPageState extends State<TransactionPage>
                         children: [
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: current.isEmpty ? '' : current,
+                              initialValue: current.isEmpty ? '' : current,
                               decoration: const InputDecoration(
                                 labelText: 'Satker',
                                 border: OutlineInputBorder(),
@@ -566,6 +567,9 @@ class _TransactionPageState extends State<TransactionPage>
     }
     String? nomorKupon;
     double? jumlahLiter;
+
+    if (!mounted) return;
+
     await showDialog(
       context: context,
       builder: (ctx) {
@@ -709,16 +713,22 @@ class _TransactionPageState extends State<TransactionPage>
                   // Refresh dashboard to update coupon quotas
                   await dashboardProvider.fetchKupons();
                   await dashboardProvider.fetchAllKuponsUnfiltered();
-                  Navigator.of(ctx).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Transaksi berhasil disimpan'),
-                    ),
-                  );
+                  if (ctx.mounted) {
+                    Navigator.of(ctx).pop();
+                  }
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Transaksi berhasil disimpan'),
+                      ),
+                    );
+                  }
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Gagal menyimpan transaksi: $e')),
-                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Gagal menyimpan transaksi: $e')),
+                    );
+                  }
                 }
               },
               child: const Text('Simpan'),
@@ -780,8 +790,9 @@ class _TransactionPageState extends State<TransactionPage>
         // Pagination logic
         final totalItems = filteredList.length;
         final totalPages = (totalItems / _itemsPerPage).ceil();
-        if (_currentPageTransaksi > totalPages)
+        if (_currentPageTransaksi > totalPages) {
           _currentPageTransaksi = totalPages;
+        }
         if (_currentPageTransaksi < 1) _currentPageTransaksi = 1;
 
         final startIndex = (_currentPageTransaksi - 1) * _itemsPerPage;
@@ -958,6 +969,7 @@ class _TransactionPageState extends State<TransactionPage>
                                         ),
                                       );
                                       if (confirm == true) {
+                                        if (!context.mounted) return;
                                         final transaksiProvider =
                                             Provider.of<TransaksiProvider>(
                                               context,
@@ -966,6 +978,7 @@ class _TransactionPageState extends State<TransactionPage>
                                         await transaksiProvider.deleteTransaksi(
                                           t.transaksiId,
                                         );
+                                        if (!context.mounted) return;
                                         final dashboardProvider =
                                             Provider.of<DashboardProvider>(
                                               context,
@@ -1177,7 +1190,9 @@ class _TransactionPageState extends State<TransactionPage>
                   await transaksiProvider.updateTransaksi(transaksiEdit);
                   await dashboardProvider.fetchKupons();
                   await dashboardProvider.fetchAllKuponsUnfiltered();
-                  Navigator.of(ctx).pop();
+                  if (ctx.mounted) {
+                    Navigator.of(ctx).pop();
+                  }
                 }
               },
               child: const Text('Simpan'),
@@ -1285,6 +1300,7 @@ class _TransactionPageState extends State<TransactionPage>
                                       await transaksiProvider.restoreTransaksi(
                                         t.transaksiId,
                                       );
+                                      if (!context.mounted) return;
                                       // Refresh dashboard
                                       final dashProvider =
                                           Provider.of<DashboardProvider>(
@@ -1363,8 +1379,9 @@ class _TransactionPageState extends State<TransactionPage>
         // Pagination logic
         final totalItems = allMinus.length;
         final totalPages = (totalItems / _itemsPerPage).ceil();
-        if (_currentPageKuponMinus > totalPages)
+        if (_currentPageKuponMinus > totalPages) {
           _currentPageKuponMinus = totalPages;
+        }
         if (_currentPageKuponMinus < 1) _currentPageKuponMinus = 1;
 
         final startIndex = (_currentPageKuponMinus - 1) * _itemsPerPage;

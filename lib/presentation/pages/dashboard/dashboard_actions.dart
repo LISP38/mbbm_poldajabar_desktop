@@ -112,6 +112,8 @@ class DashboardActions extends StatelessWidget {
 
       // Process the transaction
       try {
+        if (!context.mounted) return;
+
         // Determine default date (global last transaksi date or today)
         final transaksiProvider = Provider.of<TransaksiProvider>(
           context,
@@ -129,7 +131,7 @@ class DashboardActions extends StatelessWidget {
         } catch (_) {
           dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
         }
-        
+
         final now = DateTime.now().toIso8601String();
         await transaksiProvider.addTransaksi(
           TransaksiModel(

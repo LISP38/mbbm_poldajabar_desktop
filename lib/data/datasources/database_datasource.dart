@@ -5,6 +5,32 @@ import 'package:kupon_bbm_app/data/models/kendaraan_model.dart';
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+/// Database datasource for the Kupon BBM application.
+///
+/// This class manages the SQLite database using a star schema design:
+///
+/// **Dimension Tables:**
+/// - `dim_kupon`: Stores coupon master data
+/// - `dim_satker`: Work unit (Satuan Kerja) reference
+/// - `dim_kendaraan`: Vehicle information
+/// - `dim_jenis_bbm`: Fuel types (Pertamax, Dex, etc.)
+/// - `dim_jenis_kupon`: Coupon types (RANJEN, DUKUNGAN)
+///
+/// **Fact Table:**
+/// - `fact_transaksi`: Records all fuel transactions
+///
+/// The database supports:
+/// - CRUD operations for all entities
+/// - Automatic schema migrations
+/// - Soft delete functionality
+/// - SCD Type 2 versioning for kupons
+///
+/// Example usage:
+/// ```dart
+/// final db = DatabaseDatasource();
+/// final database = await db.database;
+/// final kupons = await database.query('dim_kupon');
+/// ```
 class DatabaseDatasource {
   Database? _database;
   final String _dbFileName = 'kupon_bbm.db';
@@ -28,22 +54,17 @@ class DatabaseDatasource {
     final path = join(dbDir.path, filePath);
     final dbFactory = databaseFactoryFfi;
 
-    print('DEBUG: Opening database at path: $path');
-
     return await dbFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
         version: 10,
         onConfigure: (db) async {
-          print('DEBUG: onConfigure called');
           await db.execute('PRAGMA foreign_keys = ON;');
         },
         onCreate: (db, version) async {
-          print('DEBUG: onCreate called, creating tables...');
           await _createDB(db, version);
         },
         onUpgrade: (db, oldVersion, newVersion) async {
-          print('DEBUG: onUpgrade called from $oldVersion to $newVersion');
           if (oldVersion < 2) {
             // Remove UNIQUE constraint from nomor_kupon
             await db.execute(
@@ -78,7 +99,6 @@ class DatabaseDatasource {
               'INSERT INTO fact_kupon SELECT * FROM fact_kupon_temp',
             );
             await db.execute('DROP TABLE fact_kupon_temp');
-            print('DEBUG: UNIQUE constraint removed from nomor_kupon');
           }
 
           if (oldVersion < 3) {
@@ -126,13 +146,10 @@ class DatabaseDatasource {
             await db.execute(
               'CREATE INDEX IF NOT EXISTS idx_import_details_session ON import_details(session_id);',
             );
-
-            print('DEBUG: Import history tables created');
           }
 
           if (oldVersion < 4) {
             // Make kendaraan_id nullable to support DUKUNGAN kupon
-            print('DEBUG: Making kendaraan_id nullable in fact_kupon');
 
             // Create new table with nullable kendaraan_id
             await db.execute('''
@@ -172,14 +189,9 @@ class DatabaseDatasource {
             // Drop old table and rename
             await db.execute('DROP TABLE fact_kupon');
             await db.execute('ALTER TABLE fact_kupon_new RENAME TO fact_kupon');
-
-            print(
-              'DEBUG: fact_kupon table migrated with nullable kendaraan_id',
-            );
           }
 
           if (oldVersion < 5) {
-            print('DEBUG: Adding unique index to fact_kupon');
             await db.execute('''
               CREATE UNIQUE INDEX IF NOT EXISTS idx_fact_kupon_unique_key
               ON fact_kupon (nomor_kupon, jenis_kupon_id, satker_id, bulan_terbit, tahun_terbit)
@@ -188,7 +200,6 @@ class DatabaseDatasource {
           }
 
           if (oldVersion < 6) {
-            print('DEBUG: Updating unique index to include jenis_bbm_id');
             // Drop old index
             await db.execute('DROP INDEX IF EXISTS idx_fact_kupon_unique_key');
             // Create new index with jenis_bbm_id
@@ -200,8 +211,6 @@ class DatabaseDatasource {
           }
 
           if (oldVersion < 7) {
-            print('DEBUG: Migrating to TRUE STAR SCHEMA v7');
-
             // Step 1: Backup existing data
             await db.execute(
               'CREATE TABLE fact_kupon_backup AS SELECT * FROM fact_kupon',
@@ -374,20 +383,13 @@ class DatabaseDatasource {
             // Step 11: Drop backup tables
             await db.execute('DROP TABLE IF EXISTS fact_kupon_backup');
             await db.execute('DROP TABLE IF EXISTS fact_transaksi_backup');
-
-            print('DEBUG: Star schema migration completed');
           }
 
           if (oldVersion < 8) {
             // leave v8 migration as-is (earlier star-schema work)
-            print('DEBUG: Skipping v8 normalization here (handled earlier)');
           }
 
           if (oldVersion < 9) {
-            print(
-              'DEBUG: Applying schema normalization v9 - remove dim_nopol and dim_jenis_ranmor',
-            );
-
             // Drop dimension tables that should not exist in the final schema
             await db.execute('DROP TABLE IF EXISTS dim_nopol');
             await db.execute('DROP TABLE IF EXISTS dim_jenis_ranmor');
@@ -406,17 +408,13 @@ class DatabaseDatasource {
                 status_aktif INTEGER DEFAULT 1
               )
             ''');
-
-            print('DEBUG: Schema normalization v9 applied');
           }
 
           if (oldVersion < 10) {
-            print('DEBUG: Removing fact_kupon_snapshot table (v10)');
             // Drop fact_kupon_snapshot as kuota_sisa is now calculated real-time
             await db.execute('DROP TABLE IF EXISTS fact_kupon_snapshot');
             await db.execute('DROP INDEX IF EXISTS idx_fact_snapshot_kupon');
             await db.execute('DROP INDEX IF EXISTS idx_fact_snapshot_date');
-            print('DEBUG: fact_kupon_snapshot table removed');
           }
         },
       ),
@@ -424,7 +422,6 @@ class DatabaseDatasource {
   }
 
   Future<void> _createDB(Database db, int version) async {
-    print('DEBUG: _createDB called - TRUE STAR SCHEMA');
     final batch = db.batch();
 
     // ===== DIMENSION TABLES =====
@@ -568,15 +565,10 @@ class DatabaseDatasource {
     );
 
     await batch.commit(noResult: true);
-    print('DEBUG: Star schema tables created, seeding master data...');
     await _seedMasterData(db);
-    print('DEBUG: Master data seeded.');
   }
 
   Future<void> _seedMasterData(Database db) async {
-    print(
-      'DEBUG: _seedMasterData called - no dummy data seeded, tables ready for import',
-    );
     // All master data (dim_jenis_bbm, dim_jenis_kupon, dim_satker, dim_kendaraan, dim_kupon, dim_date)
     // will be populated through Excel import or user input
     // No dummy data needed
@@ -738,12 +730,15 @@ class DatabaseDatasource {
     // Not found -> insert. Only include columns that exist in the schema.
     final insertMap = <String, Object?>{};
     if (cols.contains('satker_id')) insertMap['satker_id'] = satkerId;
-    if (cols.contains('jenis_ranmor'))
+    if (cols.contains('jenis_ranmor')) {
       insertMap['jenis_ranmor'] = jenisRanmorText ?? '-';
-    if (cols.contains('no_pol_kode'))
+    }
+    if (cols.contains('no_pol_kode')) {
       insertMap['no_pol_kode'] = nopolKode ?? '';
-    if (cols.contains('no_pol_nomor'))
+    }
+    if (cols.contains('no_pol_nomor')) {
       insertMap['no_pol_nomor'] = nopolNomor ?? '';
+    }
     if (cols.contains('status_aktif')) insertMap['status_aktif'] = 1;
 
     final id = await db.insert('dim_kendaraan', insertMap);
@@ -753,9 +748,6 @@ class DatabaseDatasource {
   // PERBAIKAN: Cek duplikat sebelum insert
   Future<void> insertKupons(List<KuponModel> kupons) async {
     final db = await database;
-
-    int insertedCount = 0;
-    int skippedCount = 0;
 
     // Ambil mapping satker dari master
     final satkerRows = await db.query('dim_satker');
@@ -800,9 +792,6 @@ class DatabaseDatasource {
               'nama_satker': namaSatker,
             });
             satkerMap[namaSatker] = satkerId;
-            print(
-              'INFO: Satker baru ditambahkan: "$namaSatker" dengan id $satkerId',
-            );
           }
         }
 
@@ -873,8 +862,6 @@ class DatabaseDatasource {
         final duplicateCheck = duplicateResults;
 
         if (duplicateCheck.isNotEmpty) {
-          skippedCount++;
-          print('SKIP: Kupon ${k.nomorKupon} sudah ada di database (duplikat)');
           continue;
         }
 
@@ -925,34 +912,21 @@ class DatabaseDatasource {
         // kuota_sisa is now calculated real-time from fact_transaksi
 
         if (insertedId > 0) {
-          insertedCount++;
+          // Successfully inserted
         }
       } catch (e) {
         if (e.toString().contains('UNIQUE constraint failed')) {
-          skippedCount++;
-          print(
-            'SKIP: Kupon ${k.nomorKupon} melanggar constraint unik (duplikat)',
-          );
+          // Duplicate, skip
         } else {
-          print(
-            'ERROR: Failed to insert kupon ${k.nomorKupon}: ${e.toString()}',
-          );
           rethrow;
         }
       }
     }
-
-    print(
-      'DEBUG: InsertKupons completed - Inserted: $insertedCount, Skipped: $skippedCount, Total attempted: ${kupons.length}',
-    );
   }
 
   // Metode insertKendaraans tanpa batch processing
   Future<void> insertKendaraans(List<KendaraanModel> kendaraans) async {
     final db = await database;
-
-    int insertedCount = 0;
-    int skippedCount = 0;
 
     // Insert satu per satu
     for (final k in kendaraans) {
@@ -966,28 +940,16 @@ class DatabaseDatasource {
         }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
         if (insertedId > 0) {
-          insertedCount++;
-        } else {
-          skippedCount++;
+          // Successfully inserted
         }
       } catch (e) {
         if (e.toString().contains('UNIQUE constraint failed')) {
-          skippedCount++;
-          print(
-            'SKIP: Kendaraan ${k.noPolKode} ${k.noPolNomor} sudah ada (duplikat)',
-          );
+          // Duplicate, skip
         } else {
-          print(
-            'ERROR: Failed to insert kendaraan ${k.noPolKode} ${k.noPolNomor}: ${e.toString()}',
-          );
           rethrow;
         }
       }
     }
-
-    print(
-      'DEBUG: InsertKendaraans completed - Inserted: $insertedCount, Skipped: $skippedCount, Total attempted: ${kendaraans.length}',
-    );
   }
 
   Future<void> close() async {

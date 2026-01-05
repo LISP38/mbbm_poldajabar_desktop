@@ -77,9 +77,8 @@ class _DashboardPageState extends State<DashboardPage>
         final provider = Provider.of<DashboardProvider>(context, listen: false);
         provider.loadFilterOptions();
         provider.fetchJenisBbm();
-      } catch (e) {
-        // ignore: avoid_print
-        print('[DASHBOARD] Could not load filter options: $e');
+      } catch (_) {
+        // Silently ignore - filter options loading failed
       }
     });
   }
@@ -95,7 +94,9 @@ class _DashboardPageState extends State<DashboardPage>
     // Convert selected jenisBBM name to ID if possible
     String? jenisBbmParam;
     if (_selectedJenisBBM != null && _selectedJenisBBM!.isNotEmpty) {
-      final matches = provider.jenisBbmMap.entries.where((e) => e.value == _selectedJenisBBM).toList();
+      final matches = provider.jenisBbmMap.entries
+          .where((e) => e.value == _selectedJenisBBM)
+          .toList();
       if (matches.isNotEmpty) jenisBbmParam = matches.first.key.toString();
     }
 
@@ -105,8 +106,12 @@ class _DashboardPageState extends State<DashboardPage>
       satker: _selectedSatker,
       nopol: _nopolController.text.isNotEmpty ? _nopolController.text : null,
       jenisRanmor: _selectedJenisRanmor,
-      bulanTerbit: _selectedBulan != null ? int.tryParse(_selectedBulan!) : null,
-      tahunTerbit: _selectedTahun != null ? int.tryParse(_selectedTahun!) : null,
+      bulanTerbit: _selectedBulan != null
+          ? int.tryParse(_selectedBulan!)
+          : null,
+      tahunTerbit: _selectedTahun != null
+          ? int.tryParse(_selectedTahun!)
+          : null,
       nomorKupon: _nomorKuponController.text.isNotEmpty
           ? _nomorKuponController.text
           : null,
@@ -480,15 +485,14 @@ class _DashboardPageState extends State<DashboardPage>
             onPressed: () async {
               await Navigator.pushNamed(context, '/import');
               // PERBAIKAN: Gunakan refreshData() untuk mempertahankan filter/tab saat ini
-              if (mounted) {
-                final provider = Provider.of<DashboardProvider>(
-                  context,
-                  listen: false,
-                );
-                await provider.fetchSatkers(); // Tetap refresh satker
-                await provider
-                    .refreshData(); // Gunakan metode refresh yang sudah disediakan
-              }
+              if (!mounted) return;
+              final provider = Provider.of<DashboardProvider>(
+                context,
+                listen: false,
+              );
+              await provider.fetchSatkers(); // Tetap refresh satker
+              await provider
+                  .refreshData(); // Gunakan metode refresh yang sudah disediakan
             },
           ),
         ],
@@ -550,7 +554,7 @@ class _DashboardPageState extends State<DashboardPage>
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedSatker,
+                        initialValue: _selectedSatker,
                         decoration: const InputDecoration(
                           labelText: 'Satker',
                           border: OutlineInputBorder(),
@@ -571,17 +575,26 @@ class _DashboardPageState extends State<DashboardPage>
                           final list = prov.jenisBbmList;
                           // build items with an initial 'Semua' option (empty string)
                           final items = <DropdownMenuItem<String>>[
-                            const DropdownMenuItem(value: '', child: Text('Semua')),
-                            ...list.map((name) => DropdownMenuItem(value: name, child: Text(name))),
+                            const DropdownMenuItem(
+                              value: '',
+                              child: Text('Semua'),
+                            ),
+                            ...list.map(
+                              (name) => DropdownMenuItem(
+                                value: name,
+                                child: Text(name),
+                              ),
+                            ),
                           ];
                           return DropdownButtonFormField<String>(
-                            value: _selectedJenisBBM ?? '',
+                            initialValue: _selectedJenisBBM ?? '',
                             decoration: const InputDecoration(
                               labelText: 'Jenis BBM',
                               border: OutlineInputBorder(),
                             ),
                             items: items,
-                            onChanged: (value) => setState(() => _selectedJenisBBM = value),
+                            onChanged: (value) =>
+                                setState(() => _selectedJenisBBM = value),
                           );
                         },
                       ),
@@ -619,50 +632,49 @@ class _DashboardPageState extends State<DashboardPage>
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedBulan ?? '',
+                        initialValue: _selectedBulan ?? '',
                         decoration: const InputDecoration(
                           labelText: 'Bulan Terbit',
                           border: OutlineInputBorder(),
                         ),
                         items: [
-                          const DropdownMenuItem(value: '', child: Text('Semua')),
-                          ...provider.bulanTerbitList
-                              .map(
-                                (b) => DropdownMenuItem(
-                                  value: b,
-                                  child: Text(
-                                    () {
-                                      final num = int.tryParse(b);
-                                      return num != null ? _getBulanName(num) : b;
-                                    }(),
-                                  ),
-                                ),
-                              )
-                              .toList(),
+                          const DropdownMenuItem(
+                            value: '',
+                            child: Text('Semua'),
+                          ),
+                          ...provider.bulanTerbitList.map(
+                            (b) => DropdownMenuItem(
+                              value: b,
+                              child: Text(() {
+                                final num = int.tryParse(b);
+                                return num != null ? _getBulanName(num) : b;
+                              }()),
+                            ),
+                          ),
                         ],
-                        onChanged: (value) => setState(() => _selectedBulan = value),
+                        onChanged: (value) =>
+                            setState(() => _selectedBulan = value),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedTahun ?? '',
+                        initialValue: _selectedTahun ?? '',
                         decoration: const InputDecoration(
                           labelText: 'Tahun Terbit',
                           border: OutlineInputBorder(),
                         ),
                         items: [
-                          const DropdownMenuItem(value: '', child: Text('Semua')),
-                          ...provider.tahunTerbitList
-                              .map(
-                                (t) => DropdownMenuItem(
-                                  value: t,
-                                  child: Text(t),
-                                ),
-                              )
-                              .toList(),
+                          const DropdownMenuItem(
+                            value: '',
+                            child: Text('Semua'),
+                          ),
+                          ...provider.tahunTerbitList.map(
+                            (t) => DropdownMenuItem(value: t, child: Text(t)),
+                          ),
                         ],
-                        onChanged: (value) => setState(() => _selectedTahun = value),
+                        onChanged: (value) =>
+                            setState(() => _selectedTahun = value),
                       ),
                     ),
                   ],
@@ -679,9 +691,14 @@ class _DashboardPageState extends State<DashboardPage>
                         );
                         // Convert selected jenisBBM name to ID using provider map
                         String? jenisBbmParam;
-                        if (_selectedJenisBBM != null && _selectedJenisBBM!.isNotEmpty) {
-                          final matches = provider.jenisBbmMap.entries.where((e) => e.value == _selectedJenisBBM).toList();
-                          if (matches.isNotEmpty) jenisBbmParam = matches.first.key.toString();
+                        if (_selectedJenisBBM != null &&
+                            _selectedJenisBBM!.isNotEmpty) {
+                          final matches = provider.jenisBbmMap.entries
+                              .where((e) => e.value == _selectedJenisBBM)
+                              .toList();
+                          if (matches.isNotEmpty) {
+                            jenisBbmParam = matches.first.key.toString();
+                          }
                         }
 
                         provider.setFilter(
@@ -695,8 +712,12 @@ class _DashboardPageState extends State<DashboardPage>
                               ? _nopolController.text
                               : null,
                           jenisRanmor: _selectedJenisRanmor,
-                          bulanTerbit: _selectedBulan != null ? int.tryParse(_selectedBulan!) : null,
-                          tahunTerbit: _selectedTahun != null ? int.tryParse(_selectedTahun!) : null,
+                          bulanTerbit: _selectedBulan != null
+                              ? int.tryParse(_selectedBulan!)
+                              : null,
+                          tahunTerbit: _selectedTahun != null
+                              ? int.tryParse(_selectedTahun!)
+                              : null,
                         );
 
                         // Show loading indicator
@@ -801,7 +822,7 @@ class _DashboardPageState extends State<DashboardPage>
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedSatker,
+                        initialValue: _selectedSatker,
                         decoration: const InputDecoration(
                           labelText: 'Satker',
                           border: OutlineInputBorder(),
@@ -818,18 +839,25 @@ class _DashboardPageState extends State<DashboardPage>
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedJenisBBM ?? '',
+                        initialValue: _selectedJenisBBM ?? '',
                         decoration: const InputDecoration(
                           labelText: 'Jenis BBM',
                           border: OutlineInputBorder(),
                         ),
                         items: [
-                          const DropdownMenuItem(value: '', child: Text('Semua')),
-                          ...provider.jenisBbmList
-                              .map((name) => DropdownMenuItem(value: name, child: Text(name)))
-                              .toList(),
+                          const DropdownMenuItem(
+                            value: '',
+                            child: Text('Semua'),
+                          ),
+                          ...provider.jenisBbmList.map(
+                            (name) => DropdownMenuItem(
+                              value: name,
+                              child: Text(name),
+                            ),
+                          ),
                         ],
-                        onChanged: (value) => setState(() => _selectedJenisBBM = value),
+                        onChanged: (value) =>
+                            setState(() => _selectedJenisBBM = value),
                       ),
                     ),
                   ],
@@ -865,45 +893,49 @@ class _DashboardPageState extends State<DashboardPage>
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedBulan,
+                        initialValue: _selectedBulan,
                         decoration: const InputDecoration(
                           labelText: 'Bulan',
                           border: OutlineInputBorder(),
                         ),
                         items: [
-                          const DropdownMenuItem(value: '', child: Text('Semua')),
-                          ...provider.bulanTerbitList
-                              .map(
-                                (b) => DropdownMenuItem(
-                                  value: b,
-                                  child: Text(
-                                    () {
-                                      final num = int.tryParse(b);
-                                      return num != null ? _getBulanName(num) : b;
-                                    }(),
-                                  ),
-                                ),
-                              )
-                              .toList(),
+                          const DropdownMenuItem(
+                            value: '',
+                            child: Text('Semua'),
+                          ),
+                          ...provider.bulanTerbitList.map(
+                            (b) => DropdownMenuItem(
+                              value: b,
+                              child: Text(() {
+                                final num = int.tryParse(b);
+                                return num != null ? _getBulanName(num) : b;
+                              }()),
+                            ),
+                          ),
                         ],
-                        onChanged: (value) => setState(() => _selectedBulan = value),
+                        onChanged: (value) =>
+                            setState(() => _selectedBulan = value),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedTahun,
+                        initialValue: _selectedTahun,
                         decoration: const InputDecoration(
                           labelText: 'Tahun',
                           border: OutlineInputBorder(),
                         ),
                         items: [
-                          const DropdownMenuItem(value: '', child: Text('Semua')),
-                          ...provider.tahunTerbitList
-                              .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                              .toList(),
+                          const DropdownMenuItem(
+                            value: '',
+                            child: Text('Semua'),
+                          ),
+                          ...provider.tahunTerbitList.map(
+                            (t) => DropdownMenuItem(value: t, child: Text(t)),
+                          ),
                         ],
-                        onChanged: (value) => setState(() => _selectedTahun = value),
+                        onChanged: (value) =>
+                            setState(() => _selectedTahun = value),
                       ),
                     ),
                   ],
@@ -916,9 +948,14 @@ class _DashboardPageState extends State<DashboardPage>
                       onPressed: () {
                         // Convert selected jenisBBM name to ID using provider map
                         String? jenisBbmParam;
-                        if (_selectedJenisBBM != null && _selectedJenisBBM!.isNotEmpty) {
-                          final matches = provider.jenisBbmMap.entries.where((e) => e.value == _selectedJenisBBM).toList();
-                          if (matches.isNotEmpty) jenisBbmParam = matches.first.key.toString();
+                        if (_selectedJenisBBM != null &&
+                            _selectedJenisBBM!.isNotEmpty) {
+                          final matches = provider.jenisBbmMap.entries
+                              .where((e) => e.value == _selectedJenisBBM)
+                              .toList();
+                          if (matches.isNotEmpty) {
+                            jenisBbmParam = matches.first.key.toString();
+                          }
                         }
 
                         provider.setFilter(
@@ -932,8 +969,12 @@ class _DashboardPageState extends State<DashboardPage>
                               ? _nopolController.text
                               : null,
                           jenisRanmor: _selectedJenisRanmor,
-                          bulanTerbit: _selectedBulan != null ? int.tryParse(_selectedBulan!) : null,
-                          tahunTerbit: _selectedTahun != null ? int.tryParse(_selectedTahun!) : null,
+                          bulanTerbit: _selectedBulan != null
+                              ? int.tryParse(_selectedBulan!)
+                              : null,
+                          tahunTerbit: _selectedTahun != null
+                              ? int.tryParse(_selectedTahun!)
+                              : null,
                         );
                       },
                       icon: const Icon(Icons.search),
@@ -988,132 +1029,136 @@ class _DashboardPageState extends State<DashboardPage>
             child: Card(
               elevation: 2,
               child: SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                columnSpacing: 24,
-                headingRowColor: WidgetStateProperty.all(Colors.blue.shade50),
-                columns: const [
-                  DataColumn(
-                    label: Text(
-                      'No',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                scrollDirection: Axis.vertical,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    columnSpacing: 24,
+                    headingRowColor: WidgetStateProperty.all(
+                      Colors.blue.shade50,
                     ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      'No Kupon',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      'Satker',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      'Jenis BBM',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      'NoPol',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      'Jenis Ranmor',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      'Bulan/Tahun',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      'Kuota Sisa',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      'Status',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      'Aksi',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-                rows: kupons.asMap().entries.map((entry) {
-                  final i = startIndex + entry.key + 1;
-                  final k = entry.value;
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(i.toString())),
-                      DataCell(
-                        Text(
-                          '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/LOGISTIK',
+                    columns: const [
+                      DataColumn(
+                        label: Text(
+                          'No',
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
-                      DataCell(Text(k.namaSatker)),
-                      DataCell(
-                        Text(
-                          provider.jenisBbmMap[k.jenisBbmId] ?? k.jenisBbmId.toString(),
+                      DataColumn(
+                        label: Text(
+                          'No Kupon',
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
-                      DataCell(Text(_getNopolSync(k.kendaraanId))),
-                      DataCell(Text(_getJenisRanmorSync(k.kendaraanId))),
-                      DataCell(Text('${k.bulanTerbit}/${k.tahunTerbit}')),
-                      DataCell(Text('${k.kuotaSisa.toInt()} L')),
-                      DataCell(
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: k.status == 'Aktif'
-                                ? Colors.green
-                                : Colors.red,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            k.status,
-                            style: const TextStyle(color: Colors.white),
-                          ),
+                      DataColumn(
+                        label: Text(
+                          'Satker',
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
-                      DataCell(
-                        IconButton(
-                          icon: const Icon(
-                            Icons.info_outline,
-                            color: Colors.blue,
-                          ),
-                          tooltip: 'Lihat Detail Kupon',
-                          onPressed: () => _showKuponDetailDialog(context, k),
+                      DataColumn(
+                        label: Text(
+                          'Jenis BBM',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'NoPol',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Jenis Ranmor',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Bulan/Tahun',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Kuota Sisa',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Status',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Aksi',
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],
-                  );
-                }).toList(),
+                    rows: kupons.asMap().entries.map((entry) {
+                      final i = startIndex + entry.key + 1;
+                      final k = entry.value;
+                      return DataRow(
+                        cells: [
+                          DataCell(Text(i.toString())),
+                          DataCell(
+                            Text(
+                              '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/LOGISTIK',
+                            ),
+                          ),
+                          DataCell(Text(k.namaSatker)),
+                          DataCell(
+                            Text(
+                              provider.jenisBbmMap[k.jenisBbmId] ??
+                                  k.jenisBbmId.toString(),
+                            ),
+                          ),
+                          DataCell(Text(_getNopolSync(k.kendaraanId))),
+                          DataCell(Text(_getJenisRanmorSync(k.kendaraanId))),
+                          DataCell(Text('${k.bulanTerbit}/${k.tahunTerbit}')),
+                          DataCell(Text('${k.kuotaSisa.toInt()} L')),
+                          DataCell(
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: k.status == 'Aktif'
+                                    ? Colors.green
+                                    : Colors.red,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                k.status,
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            IconButton(
+                              icon: const Icon(
+                                Icons.info_outline,
+                                color: Colors.blue,
+                              ),
+                              tooltip: 'Lihat Detail Kupon',
+                              onPressed: () =>
+                                  _showKuponDetailDialog(context, k),
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
               ),
             ),
           ),
-        ),
-      ),
-    );
+        );
       },
     );
   }
@@ -1138,8 +1183,9 @@ class _DashboardPageState extends State<DashboardPage>
         // Pagination logic
         final totalItems = allKupons.length;
         final totalPages = (totalItems / _itemsPerPage).ceil();
-        if (_currentPageDukungan > totalPages)
+        if (_currentPageDukungan > totalPages) {
           _currentPageDukungan = totalPages;
+        }
         if (_currentPageDukungan < 1) _currentPageDukungan = 1;
 
         final startIndex = (_currentPageDukungan - 1) * _itemsPerPage;
@@ -1153,82 +1199,86 @@ class _DashboardPageState extends State<DashboardPage>
             child: Card(
               elevation: 2,
               child: SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                columnSpacing: 24,
-                headingRowColor: WidgetStateProperty.all(Colors.green.shade50),
-                columns: const [
-                  DataColumn(label: Text('No')),
-                  DataColumn(label: Text('No Kupon')),
-                  DataColumn(label: Text('Satker')),
-                  DataColumn(label: Text('Jenis BBM')),
-                  DataColumn(label: Text('NoPol')),
-                  DataColumn(label: Text('Jenis Ranmor')),
-                  DataColumn(label: Text('Bulan/Tahun')),
-                  DataColumn(label: Text('Kuota Sisa')),
-                  DataColumn(label: Text('Status')),
-                  DataColumn(label: Text('Aksi')),
-                ],
-                rows: kupons.asMap().entries.map((entry) {
-                  final i = entry.key + 1;
-                  final k = entry.value;
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(i.toString())),
-                      DataCell(
-                        Text(
-                          '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/LOGISTIK',
-                        ),
-                      ),
-                      DataCell(Text(k.namaSatker)),
-                      DataCell(
-                        Text(
-                          provider.jenisBbmMap[k.jenisBbmId] ?? k.jenisBbmId.toString(),
-                        ),
-                      ),
-                      DataCell(Text(_getNopolSync(k.kendaraanId))),
-                      DataCell(Text(_getJenisRanmorSync(k.kendaraanId))),
-                      DataCell(Text('${k.bulanTerbit}/${k.tahunTerbit}')),
-                      DataCell(Text('${k.kuotaSisa.toInt()} L')),
-                      DataCell(
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: k.status == 'Aktif'
-                                ? Colors.green
-                                : Colors.red,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            k.status,
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ),
-                      DataCell(
-                        IconButton(
-                          icon: const Icon(
-                            Icons.info_outline,
-                            color: Colors.blue,
-                          ),
-                          tooltip: 'Lihat Detail Kupon',
-                          onPressed: () => _showKuponDetailDialog(context, k),
-                        ),
-                      ),
+                scrollDirection: Axis.vertical,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    columnSpacing: 24,
+                    headingRowColor: WidgetStateProperty.all(
+                      Colors.green.shade50,
+                    ),
+                    columns: const [
+                      DataColumn(label: Text('No')),
+                      DataColumn(label: Text('No Kupon')),
+                      DataColumn(label: Text('Satker')),
+                      DataColumn(label: Text('Jenis BBM')),
+                      DataColumn(label: Text('NoPol')),
+                      DataColumn(label: Text('Jenis Ranmor')),
+                      DataColumn(label: Text('Bulan/Tahun')),
+                      DataColumn(label: Text('Kuota Sisa')),
+                      DataColumn(label: Text('Status')),
+                      DataColumn(label: Text('Aksi')),
                     ],
-                  );
-                }).toList(),
+                    rows: kupons.asMap().entries.map((entry) {
+                      final i = entry.key + 1;
+                      final k = entry.value;
+                      return DataRow(
+                        cells: [
+                          DataCell(Text(i.toString())),
+                          DataCell(
+                            Text(
+                              '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/LOGISTIK',
+                            ),
+                          ),
+                          DataCell(Text(k.namaSatker)),
+                          DataCell(
+                            Text(
+                              provider.jenisBbmMap[k.jenisBbmId] ??
+                                  k.jenisBbmId.toString(),
+                            ),
+                          ),
+                          DataCell(Text(_getNopolSync(k.kendaraanId))),
+                          DataCell(Text(_getJenisRanmorSync(k.kendaraanId))),
+                          DataCell(Text('${k.bulanTerbit}/${k.tahunTerbit}')),
+                          DataCell(Text('${k.kuotaSisa.toInt()} L')),
+                          DataCell(
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: k.status == 'Aktif'
+                                    ? Colors.green
+                                    : Colors.red,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                k.status,
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            IconButton(
+                              icon: const Icon(
+                                Icons.info_outline,
+                                color: Colors.blue,
+                              ),
+                              tooltip: 'Lihat Detail Kupon',
+                              onPressed: () =>
+                                  _showKuponDetailDialog(context, k),
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
               ),
             ),
           ),
-        ),
-      ),
-    );
+        );
       },
     );
   }
@@ -1379,11 +1429,16 @@ class _DashboardPageState extends State<DashboardPage>
     final tanggalTerbit = DateTime(kupon.tahunTerbit, kupon.bulanTerbit, 1);
     final tanggalKadaluarsa = tanggalTerbit.add(const Duration(days: 60));
 
+    if (!mounted) return;
+
     final transaksiProvider = Provider.of<TransaksiProvider>(
       context,
       listen: false,
     );
     await transaksiProvider.fetchTransaksiFiltered();
+
+    if (!mounted) return;
+
     final transaksiList = transaksiProvider.transaksiList
         .where((t) => t.kuponId == kupon.kuponId)
         .toList();
@@ -1393,7 +1448,7 @@ class _DashboardPageState extends State<DashboardPage>
       listen: false,
     );
 
-    if (!context.mounted) return;
+    if (!mounted) return;
 
     await showDialog(
       context: context,

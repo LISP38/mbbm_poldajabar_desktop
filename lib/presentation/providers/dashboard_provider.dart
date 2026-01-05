@@ -90,7 +90,6 @@ class DashboardProvider extends ChangeNotifier {
       _satkerList = results.map((row) => row['nama_satker'] as String).toList();
       notifyListeners();
     } catch (e) {
-      print('[DASHBOARD] Error fetching satkers: $e');
       _satkerList = [];
       notifyListeners();
     }
@@ -139,12 +138,8 @@ class DashboardProvider extends ChangeNotifier {
       _allKuponsUnfiltered = results
           .map((row) => KuponModel.fromMap(row))
           .toList();
-      print(
-        '[DASHBOARD] fetchAllKuponsUnfiltered: loaded ${_allKuponsUnfiltered.length} kupons',
-      );
       notifyListeners();
     } catch (e) {
-      print('[DASHBOARD] Error fetching all kupons unfiltered: $e');
       _allKuponsUnfiltered = [];
       notifyListeners();
     }
@@ -170,7 +165,6 @@ class DashboardProvider extends ChangeNotifier {
       _jenisBbmMap = map;
       notifyListeners();
     } catch (e) {
-      print('[DASHBOARD] Error fetching jenis BBM: $e');
       _jenisBbmList = [];
       _jenisBbmMap = {};
       notifyListeners();
@@ -229,7 +223,6 @@ class DashboardProvider extends ChangeNotifier {
       _bulanList = months;
       notifyListeners();
     } catch (e) {
-      print('[DASHBOARD] error fetching bulan list: $e');
       _bulanList = List.generate(12, (i) => i + 1);
       notifyListeners();
     }
@@ -285,7 +278,6 @@ class DashboardProvider extends ChangeNotifier {
       _tahunList = years;
       notifyListeners();
     } catch (e) {
-      print('[DASHBOARD] error fetching tahun list: $e');
       final y = DateTime.now().year;
       _tahunList = [y, y + 1];
       notifyListeners();
@@ -318,9 +310,6 @@ class DashboardProvider extends ChangeNotifier {
 
       // Fallback: try dim_date if primary returned no rows
       if (_daftarBulan.isEmpty || _daftarTahun.isEmpty) {
-        print(
-          '[DASHBOARD] dim_tahun_terbit empty or incomplete, trying dim_date...',
-        );
         final dbRowsB = await db.rawQuery(
           '''SELECT DISTINCT bulan_terbit AS bulan_terbit FROM dim_date WHERE bulan_terbit IS NOT NULL ORDER BY bulan_terbit ASC''',
         );
@@ -341,7 +330,6 @@ class DashboardProvider extends ChangeNotifier {
 
       // Final fallback: try dim_kupon distinct bulan_terbit/tahun_terbit
       if (_daftarBulan.isEmpty || _daftarTahun.isEmpty) {
-        print('[DASHBOARD] dim_date fallback empty, trying dim_kupon...');
         final kB = await db.rawQuery(
           '''SELECT DISTINCT bulan_terbit AS bulan_terbit FROM dim_kupon WHERE bulan_terbit IS NOT NULL ORDER BY bulan_terbit ASC''',
         );
@@ -361,7 +349,6 @@ class DashboardProvider extends ChangeNotifier {
       }
       notifyListeners();
     } catch (e) {
-      print('[DASHBOARD] loadFilterOptions error: $e');
       _daftarBulan = [];
       _daftarTahun = [];
       notifyListeners();
@@ -377,7 +364,6 @@ class DashboardProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    print('[DASHBOARD] Starting fetchKupons (all types)...');
     final db =
         await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
 
@@ -450,21 +436,13 @@ class DashboardProvider extends ChangeNotifier {
 
       query += ' ORDER BY CAST(dk.nomor_kupon AS INTEGER) ASC';
 
-      print('[DASHBOARD] Executing query: $query');
-      print('[DASHBOARD] With args: $whereArgs');
-
       final results = await db.rawQuery(query, whereArgs);
       _allKupons = results.map((map) => KuponModel.fromMap(map)).toList();
 
       // Pisahkan data berdasarkan jenis kupon setelah mengambil semua data
       _ranjenKupons = _allKupons.where((k) => k.jenisKuponId == 1).toList();
       _dukunganKupons = _allKupons.where((k) => k.jenisKuponId == 2).toList();
-
-      print(
-        '[DASHBOARD] fetchKupons: total = ${_allKupons.length}, ranjen = ${_ranjenKupons.length}, dukungan = ${_dukunganKupons.length}',
-      );
     } catch (e) {
-      print('[DASHBOARD] Error fetching kupons: $e');
       _errorMessage = e.toString();
       _allKupons = [];
       _ranjenKupons = [];
@@ -486,8 +464,6 @@ class DashboardProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    final tipeName = jenisKuponId == 1 ? 'Ranjen' : 'Dukungan';
-    print('[DASHBOARD] Starting fetchKupons for $tipeName...');
     final db =
         await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
 
@@ -576,12 +552,7 @@ class DashboardProvider extends ChangeNotifier {
 
       // Update allKupons dengan data terbaru dari tipe ini + data tipe lain yang sudah ada
       _allKupons = [..._ranjenKupons, ..._dukunganKupons];
-
-      print(
-        '[DASHBOARD] fetchKupons ($tipeName): jumlah data = ${fetchedKupons.length}',
-      );
     } catch (e) {
-      print('[DASHBOARD] Error fetching $tipeName kupons: $e');
       _errorMessage = e.toString();
     } finally {
       _isLoading = false;
@@ -604,7 +575,6 @@ class DashboardProvider extends ChangeNotifier {
   // --- Utility Methods ---
 
   Future<void> cleanDuplicateData() async {
-    print('[DASHBOARD] Starting cleanDuplicateData...');
     final db =
         await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
 
@@ -623,8 +593,6 @@ class DashboardProvider extends ChangeNotifier {
         AND f2.is_current = 1
       ''');
 
-      print('[DASHBOARD] Found ${duplicates.length} duplicate records');
-
       if (duplicates.isNotEmpty) {
         final batch = db.batch();
         for (final duplicate in duplicates) {
@@ -641,14 +609,9 @@ class DashboardProvider extends ChangeNotifier {
         }
 
         await batch.commit(noResult: true);
-        print(
-          '[DASHBOARD] Marked ${duplicates.length} duplicate records as deleted',
-        );
-
         await fetchKupons(forceRefresh: true);
       }
     } catch (e) {
-      print('[DASHBOARD] Error cleaning duplicate data: $e');
       _errorMessage = e.toString();
       notifyListeners();
     }
@@ -664,9 +627,6 @@ class DashboardProvider extends ChangeNotifier {
     int? bulanTerbit,
     int? tahunTerbit,
   }) async {
-    print(
-      '[DASHBOARD] Setting filters: nomorKupon=$nomorKupon, satker=$satker, jenisBBM=$jenisBBM, jenisKupon=$jenisKupon, nopol=$nopol, jenisRanmor=$jenisRanmor, bulanTerbit=$bulanTerbit, tahunTerbit=$tahunTerbit',
-    );
     this.nomorKupon = nomorKupon?.trim();
     this.satker = satker?.trim();
     this.jenisBBM = jenisBBM?.trim();
@@ -679,26 +639,21 @@ class DashboardProvider extends ChangeNotifier {
     try {
       if (jenisKupon == 'Ranjen' || jenisKupon == '1') {
         _isRanjenMode = true;
-        print('[DASHBOARD] Fetching Ranjen kupons with filters');
         await fetchRanjenKupons(forceRefresh: true);
       } else if (jenisKupon == 'Dukungan' || jenisKupon == '2') {
         _isRanjenMode = false;
-        print('[DASHBOARD] Fetching Dukungan kupons with filters');
         await fetchDukunganKupons(forceRefresh: true);
       } else {
         _isRanjenMode = false;
-        print('[DASHBOARD] Fetching all kupons with filters');
         await fetchKupons(forceRefresh: true);
       }
     } catch (e) {
-      print('[DASHBOARD] Error applying filters: $e');
       _errorMessage = e.toString();
       notifyListeners();
     }
   }
 
   void resetFilters() {
-    print('[DASHBOARD] Resetting filters');
     nomorKupon = null;
     satker = null;
     jenisBBM = null;
@@ -712,7 +667,6 @@ class DashboardProvider extends ChangeNotifier {
   }
 
   Future<void> refreshData() async {
-    print('[DASHBOARD] Refreshing data...');
     if (_isRanjenMode) {
       await fetchRanjenKupons(forceRefresh: true);
     } else {

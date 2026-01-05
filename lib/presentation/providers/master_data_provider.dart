@@ -14,16 +14,8 @@ class MasterDataProvider extends ChangeNotifier {
     try {
       final satkers = await _masterDataRepository.getAllSatker();
       _satkerList = satkers;
-      print('DEBUG: Loaded ${satkers.length} satkers');
-      for (var satker in satkers) {
-        print(
-          'DEBUG: Satker: id=${satker.satkerId}, name=${satker.namaSatker}',
-        );
-      }
       notifyListeners();
-    } catch (e, stackTrace) {
-      print('ERROR: Failed to fetch satkers: $e');
-      print(stackTrace);
+    } catch (e) {
       _satkerList = [];
       notifyListeners();
     }

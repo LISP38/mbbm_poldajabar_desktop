@@ -21,11 +21,8 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
     required int jenisKuponId,
     required int jenisBbmId,
   }) {
-    // TODO: Implement navigation to transaction form, passing jenisKuponId and jenisBbmId
-    // Example: Navigator.push(...)
-    print(
-      'Navigate to form: jenisKuponId=$jenisKuponId, jenisBbmId=$jenisBbmId',
-    );
+    // Navigation to transaction form will be implemented here
+    // passing jenisKuponId and jenisBbmId
   }
 
   int? _selectedBulan;
@@ -57,6 +54,7 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
     super.initState();
     // Pastikan ambil data kupon tanpa filter untuk referensi
     Future.microtask(() {
+      if (!mounted) return;
       Provider.of<DashboardProvider>(
         context,
         listen: false,
@@ -413,8 +411,8 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                           );
                       return DataRow(
                         color: isHighlighted
-                            ? MaterialStateProperty.all(
-                                Colors.yellow.withOpacity(0.3),
+                            ? WidgetStateProperty.all(
+                                Colors.yellow.withValues(alpha: 0.3),
                               )
                             : null,
                         cells: [
@@ -488,10 +486,7 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Menampilkan ${startIndex + 1}-$endIndex dari ${filteredTransaksi.length} data' +
-                        (_searchQuery.isNotEmpty
-                            ? ' (dari ${transaksi.length} total)'
-                            : ''),
+                    'Menampilkan ${startIndex + 1}-$endIndex dari ${filteredTransaksi.length} data${_searchQuery.isNotEmpty ? ' (dari ${transaksi.length} total)' : ''}',
                     style: const TextStyle(fontSize: 14),
                   ),
                   Row(
@@ -953,6 +948,8 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                     }
                   }
 
+                  if (!ctx.mounted) return;
+
                   // Show loading
                   showDialog(
                     context: ctx,
@@ -985,7 +982,9 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                     if (ctx.mounted) {
                       Navigator.of(ctx).pop(); // Close loading
                       Navigator.of(ctx).pop(); // Close dialog
+                    }
 
+                    if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Transaksi berhasil diupdate!'),
@@ -996,6 +995,8 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                   } catch (e) {
                     if (ctx.mounted) {
                       Navigator.of(ctx).pop(); // Close loading
+                    }
+                    if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('Gagal update transaksi: $e'),
@@ -1095,6 +1096,8 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
     );
 
     if (confirm == true) {
+      if (!context.mounted) return;
+
       // Show loading
       showDialog(
         context: context,

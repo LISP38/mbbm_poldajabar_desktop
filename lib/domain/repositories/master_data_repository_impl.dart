@@ -26,10 +26,6 @@ class MasterDataRepositoryImpl implements MasterDataRepository {
         AND fk.is_current = 1
       ORDER BY nama_satker
     ''');
-    print('DEBUG getAllSatker: Found ${result.length} satkers');
-    for (var satker in result) {
-      print('DEBUG satker: ${satker['satker_id']}, ${satker['nama_satker']}');
-    }
     return result.map((map) => SatkerModel.fromMap(map)).toList();
   }
 

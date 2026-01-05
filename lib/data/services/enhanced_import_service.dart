@@ -6,7 +6,7 @@ import '../validators/enhanced_import_validator.dart';
 import '../../domain/repositories/kupon_repository.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-enum ImportType { validate_only, dry_run, validate_and_save }
+enum ImportType { validateOnly, dryRun, validateAndSave }
 
 class ImportResult {
   final bool success;
@@ -140,9 +140,9 @@ class EnhancedImportService {
       allMetadata['new_count'] = newKupons.length;
 
       // If validation fails or validate-only mode, return results
-      if (allErrors.isNotEmpty || importType == ImportType.validate_only) {
+      if (allErrors.isNotEmpty || importType == ImportType.validateOnly) {
         return ImportResult(
-          success: importType == ImportType.validate_only,
+          success: importType == ImportType.validateOnly,
           successCount: 0,
           errorCount: allErrors.length,
           duplicateCount: duplicateCount,
@@ -205,14 +205,12 @@ class EnhancedImportService {
     // Auto-insert master data (dim_jenis_bbm, dim_jenis_kupon, dim_satker) if not exist
     await _ensureMasterDataExists(db, newKupons, newKendaraans);
 
-    print('Processing ${newKendaraans.length} kendaraans...');
     for (final kendaraan in newKendaraans) {
       final key =
           '${kendaraan.satkerId}_${kendaraan.jenisRanmor}_${kendaraan.noPolKode}_${kendaraan.noPolNomor}';
 
       // Cek apakah kendaraan dengan kunci ini sudah diproses sebelumnya (menghindari duplikat internal kendaraan)
       if (kendaraanIdMap.containsKey(key)) {
-        print('Skipping duplicate kendaraan key: $key');
         continue;
       }
 
@@ -227,12 +225,9 @@ class EnhancedImportService {
           nopolNomor: kendaraan.noPolNomor,
         );
 
-        print('Inserted/Fetched kendaraan with ID: $kendaraanId for key: $key');
-
         // Simpan mapping
         kendaraanIdMap[key] = kendaraanId;
       } catch (e) {
-        print('ERROR processing kendaraan $key: $e');
         errorCount++;
         errorMessages.add('Failed to insert/update kendaraan $key: $e');
         // Lanjutkan ke kendaraan berikutnya
@@ -240,30 +235,16 @@ class EnhancedImportService {
     }
 
     // Proses kupon Ranjen dan Dukungan
-    print('Processing ${newKupons.length} kupons...');
     for (final kupon in newKupons) {
       try {
-        int? kendaraanId = null;
+        int? kendaraanId;
 
         if (kupon.jenisKuponId == 1) {
           // Ranjen - use kendaraanId from kupon (parsed from Excel)
           kendaraanId = kupon.kendaraanId;
-          if (kendaraanId != null) {
-            print(
-              'Processing RANJEN ${kupon.nomorKupon} with kendaraan_id: $kendaraanId',
-            );
-          } else {
-            // RANJEN with null kendaraanId - still insert but log warning
-            print(
-              '⚠️ WARNING: RANJEN ${kupon.nomorKupon} has null kendaraan_id (will be inserted, can be fixed later via UI)',
-            );
-          }
         } else if (kupon.jenisKuponId == 2) {
           // Dukungan - always set kendaraan_id = null
           kendaraanId = null;
-          print(
-            'Processing DUKUNGAN ${kupon.nomorKupon} (${kupon.namaSatker}), kendaraan_id will be null.',
-          );
         }
 
         // Insert kupon ke dim_kupon (star schema) with SCD Type 2
@@ -326,9 +307,6 @@ class EnhancedImportService {
         if (exactDuplicate.isNotEmpty) {
           // TRUE DUPLICATE - skip insert
           skippedCount++;
-          print(
-            '⏭️ SKIPPED: Kupon ${updatedKupon.nomorKupon} already exists with same attributes (true duplicate)',
-          );
           continue;
         }
 
@@ -359,9 +337,6 @@ class EnhancedImportService {
             where: 'nomor_kupon = ? AND is_current = 1',
             whereArgs: [updatedKupon.nomorKupon],
           );
-          print(
-            '🔄 VERSIONING: Kupon ${updatedKupon.nomorKupon} has changes, creating new version',
-          );
         }
 
         // Insert new version
@@ -379,37 +354,10 @@ class EnhancedImportService {
         await db.insert('dim_kupon', map);
 
         successCount++;
-        print(
-          '✅ Successfully inserted kupon: ${kupon.nomorKupon} (${kupon.jenisKuponId == 1 ? "RANJEN" : "DUKUNGAN"})',
-        );
       } catch (e) {
         errorCount++;
         errorMessages.add('ERROR processing kupon ${kupon.nomorKupon}: $e');
-        print('❌ ERROR processing kupon ${kupon.nomorKupon}: $e');
       }
-    }
-
-    final totalDuplicates = preParsedDuplicateCount + skippedCount;
-    final totalProcessed = newKupons.length + preParsedDuplicateCount;
-
-    print('\n' + '=' * 60);
-    print('📊 IMPORT SUMMARY:');
-    print('   Total dari file Excel: $totalProcessed kupons');
-    print('   ✅ Successfully inserted: $successCount');
-    print('   ⏭️ Skipped (duplicates): $totalDuplicates');
-    if (preParsedDuplicateCount > 0) {
-      print('      └─ Duplikat terdeteksi saat parsing: $preParsedDuplicateCount');
-    }
-    if (skippedCount > 0) {
-      print('      └─ Duplikat terdeteksi saat insert: $skippedCount');
-    }
-    print('   🔄 Versioned (updated): $versionedCount');
-    print('   ❌ Failed (errors): $errorCount');
-    print('=' * 60 + '\n');
-
-    if (errorMessages.isNotEmpty) {
-      print('Error messages:');
-      errorMessages.forEach((msg) => print(' - $msg'));
     }
 
     return {
@@ -435,8 +383,6 @@ class EnhancedImportService {
       ...kendaraans.map((k) => k.satkerId),
     }.toSet();
 
-    print('Ensuring master data exists...');
-
     // Insert dim_jenis_bbm if not exist
     for (final jenisBbmId in jenisBbmIds) {
       final existing = await db.query(
@@ -449,7 +395,6 @@ class EnhancedImportService {
           'jenis_bbm_id': jenisBbmId,
           'nama_jenis_bbm': 'Jenis BBM $jenisBbmId', // Default name
         });
-        print('✅ Auto-inserted dim_jenis_bbm: $jenisBbmId');
       }
     }
 
@@ -470,7 +415,6 @@ class EnhancedImportService {
           'jenis_kupon_id': jenisKuponId,
           'nama_jenis_kupon': namaJenis,
         });
-        print('✅ Auto-inserted dim_jenis_kupon: $jenisKuponId ($namaJenis)');
       }
     }
 
@@ -493,10 +437,7 @@ class EnhancedImportService {
           'nama_satker': satkerName,
           'kode_satker': 'SAT-${satkerId.toString().padLeft(3, '0')}',
         });
-        print('✅ Auto-inserted dim_satker: $satkerId ($satkerName)');
       }
     }
-
-    print('Master data check completed.');
   }
 }

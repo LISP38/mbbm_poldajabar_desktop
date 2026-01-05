@@ -2306,10 +2306,6 @@ class ExportService {
         CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row),
       );
       final totalPemakaian = kupon.kuotaAwal - kupon.kuotaSisa;
-      // Debug: print nilai pemakaian
-      print(
-        'DUK Sheet - Row $row: Kupon ${kupon.nomorKupon}, Pemakaian = $totalPemakaian (${kupon.kuotaAwal} - ${kupon.kuotaSisa})',
-      );
       pemakaiianCell.value = DoubleCellValue(totalPemakaian);
       pemakaiianCell.cellStyle = CellStyle(
         backgroundColorHex: ExcelColor.yellow100,

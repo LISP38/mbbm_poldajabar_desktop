@@ -1,5 +1,29 @@
 import '../../domain/entities/kupon_entity.dart';
 
+/// Data model for Kupon (BBM Coupon).
+///
+/// This model represents a fuel coupon in the system, extending [KuponEntity].
+/// Kupons are issued monthly and can be either:
+/// - **RANJEN** (Kupon Ranmor Jenis): Assigned to a specific vehicle
+/// - **DUKUNGAN** (Support Coupon): Not tied to any specific vehicle
+///
+/// Each kupon has a quota (liters) that can be used for fuel transactions.
+///
+/// Example usage:
+/// ```dart
+/// final kupon = KuponModel(
+///   kuponId: 1,
+///   nomorKupon: '001',
+///   jenisBbmId: 1, // Pertamax
+///   jenisKuponId: 1, // RANJEN
+///   bulanTerbit: 1,
+///   tahunTerbit: 2025,
+///   kuotaAwal: 100.0,
+///   kuotaSisa: 75.0,
+///   satkerId: 1,
+///   namaSatker: 'SATKER A',
+/// );
+/// ```
 class KuponModel extends KuponEntity {
   const KuponModel({
     required super.kuponId,

@@ -192,12 +192,8 @@ class KuponValidator {
       );
 
       if (!ranjenExists) {
-        // PERBAIKAN: Hanya warning, bukan error keras - biarkan DUKUNGAN diproses
-        // Ini mengatasi masalah urutan processing dalam file Excel
-        print(
-          'WARNING: Kupon DUKUNGAN ${newKupon.nomorKupon} tidak memiliki RANJEN yang sesuai, tapi akan tetap diproses',
-        );
-        // Return valid dengan warning
+        // DUKUNGAN tanpa RANJEN tetap diproses - ini bukan error keras
+        // Mengatasi masalah urutan processing dalam file Excel
         return KuponValidationResult(isValid: true);
       }
     }
