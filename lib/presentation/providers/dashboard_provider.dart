@@ -151,13 +151,21 @@ class DashboardProvider extends ChangeNotifier {
     try {
       final rows = await db.query(
         'dim_jenis_bbm',
-        orderBy: 'nama_jenis_bbm COLLATE NOCASE ASC',
+        orderBy: 'jenis_bbm_id ASC', // Order by ID to keep consistent mapping
       );
       final map = <int, String>{};
       final list = <String>[];
+      final seenNames = <String>{}; // Track case-insensitive duplicates
+
       for (final r in rows) {
         final id = r['jenis_bbm_id'] as int?;
         final name = (r['nama_jenis_bbm'] as String).trim();
+        final lowerName = name.toLowerCase();
+
+        // Skip case-insensitive duplicates (keep first occurrence by ID)
+        if (seenNames.contains(lowerName)) continue;
+        seenNames.add(lowerName);
+
         list.add(name);
         if (id != null) map[id] = name;
       }

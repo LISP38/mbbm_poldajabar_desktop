@@ -356,10 +356,18 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         ORDER BY nama_jenis_bbm COLLATE NOCASE ASC
       ''');
 
-      return rows
-          .map<String>((r) => (r['nama']?.toString() ?? ''))
-          .where((s) => s.isNotEmpty)
-          .toList();
+      // Filter case-insensitive duplicates
+      final seen = <String>{};
+      final result = <String>[];
+      for (final r in rows) {
+        final name = (r['nama']?.toString() ?? '').trim();
+        if (name.isEmpty) continue;
+        final lowerName = name.toLowerCase();
+        if (seen.contains(lowerName)) continue;
+        seen.add(lowerName);
+        result.add(name);
+      }
+      return result;
     } catch (e) {
       throw Exception('Failed to fetch distinct jenis BBM: $e');
     }

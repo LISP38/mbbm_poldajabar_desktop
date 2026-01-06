@@ -91,11 +91,12 @@ class _DashboardPageState extends State<DashboardPage>
     final provider = Provider.of<DashboardProvider>(context, listen: false);
 
     // Set filter dengan mempertahankan filter yang sudah ada
-    // Convert selected jenisBBM name to ID if possible
+    // Convert selected jenisBBM name to ID if possible (case-insensitive)
     String? jenisBbmParam;
     if (_selectedJenisBBM != null && _selectedJenisBBM!.isNotEmpty) {
+      final selectedLower = _selectedJenisBBM!.toLowerCase();
       final matches = provider.jenisBbmMap.entries
-          .where((e) => e.value == _selectedJenisBBM)
+          .where((e) => e.value.toLowerCase() == selectedLower)
           .toList();
       if (matches.isNotEmpty) jenisBbmParam = matches.first.key.toString();
     }
@@ -587,7 +588,7 @@ class _DashboardPageState extends State<DashboardPage>
                             ),
                           ];
                           return DropdownButtonFormField<String>(
-                            initialValue: _selectedJenisBBM ?? '',
+                            value: _selectedJenisBBM ?? '',
                             decoration: const InputDecoration(
                               labelText: 'Jenis BBM',
                               border: OutlineInputBorder(),
@@ -689,12 +690,16 @@ class _DashboardPageState extends State<DashboardPage>
                           context,
                           listen: false,
                         );
-                        // Convert selected jenisBBM name to ID using provider map
+                        // Convert selected jenisBBM name to ID using provider map (case-insensitive)
                         String? jenisBbmParam;
                         if (_selectedJenisBBM != null &&
                             _selectedJenisBBM!.isNotEmpty) {
+                          final selectedLower = _selectedJenisBBM!
+                              .toLowerCase();
                           final matches = provider.jenisBbmMap.entries
-                              .where((e) => e.value == _selectedJenisBBM)
+                              .where(
+                                (e) => e.value.toLowerCase() == selectedLower,
+                              )
                               .toList();
                           if (matches.isNotEmpty) {
                             jenisBbmParam = matches.first.key.toString();
@@ -822,7 +827,7 @@ class _DashboardPageState extends State<DashboardPage>
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        initialValue: _selectedSatker,
+                        value: _selectedSatker,
                         decoration: const InputDecoration(
                           labelText: 'Satker',
                           border: OutlineInputBorder(),
@@ -839,7 +844,7 @@ class _DashboardPageState extends State<DashboardPage>
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        initialValue: _selectedJenisBBM ?? '',
+                        value: _selectedJenisBBM ?? '',
                         decoration: const InputDecoration(
                           labelText: 'Jenis BBM',
                           border: OutlineInputBorder(),
@@ -946,12 +951,16 @@ class _DashboardPageState extends State<DashboardPage>
                   children: [
                     ElevatedButton.icon(
                       onPressed: () {
-                        // Convert selected jenisBBM name to ID using provider map
+                        // Convert selected jenisBBM name to ID using provider map (case-insensitive)
                         String? jenisBbmParam;
                         if (_selectedJenisBBM != null &&
                             _selectedJenisBBM!.isNotEmpty) {
+                          final selectedLower = _selectedJenisBBM!
+                              .toLowerCase();
                           final matches = provider.jenisBbmMap.entries
-                              .where((e) => e.value == _selectedJenisBBM)
+                              .where(
+                                (e) => e.value.toLowerCase() == selectedLower,
+                              )
                               .toList();
                           if (matches.isNotEmpty) {
                             jenisBbmParam = matches.first.key.toString();
