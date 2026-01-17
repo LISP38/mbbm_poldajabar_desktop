@@ -20,6 +20,12 @@ class _MainPageState extends State<MainPage> {
 
   Widget _buildPage(int index) {
     if (index == 0) {
+      // DashboardPage - sekarang jadi halaman pertama
+      return DashboardPage(key: _dashboardKey);
+    } else if (index == 1) {
+      // TransactionPage
+      return const TransactionPage();
+    } else {
       // ImportPage with callback to refresh dashboard
       return ImportPage(
         onImportSuccess: () {
@@ -48,11 +54,6 @@ class _MainPageState extends State<MainPage> {
           });
         },
       );
-    } else if (index == 1) {
-      // DashboardPage with key
-      return DashboardPage(key: _dashboardKey);
-    } else {
-      return const TransactionPage();
     }
   }
 
@@ -71,11 +72,6 @@ class _MainPageState extends State<MainPage> {
             labelType: NavigationRailLabelType.all,
             destinations: const <NavigationRailDestination>[
               NavigationRailDestination(
-                icon: Icon(Icons.upload_file),
-                selectedIcon: Icon(Icons.upload_file_outlined),
-                label: Text('Import Excel'),
-              ),
-              NavigationRailDestination(
                 icon: Icon(Icons.dashboard),
                 selectedIcon: Icon(Icons.dashboard_outlined),
                 label: Text('Dashboard'),
@@ -84,6 +80,11 @@ class _MainPageState extends State<MainPage> {
                 icon: Icon(Icons.receipt_long),
                 selectedIcon: Icon(Icons.receipt_long_outlined),
                 label: Text('Data Transaksi'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.upload_file),
+                selectedIcon: Icon(Icons.upload_file_outlined),
+                label: Text('Import Excel'),
               ),
             ],
           ),

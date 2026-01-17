@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 // import 'package:get_it/get_it.dart';
 import '../../providers/transaksi_provider.dart';
 import '../../providers/dashboard_provider.dart';
@@ -165,7 +166,13 @@ class _TransactionPageState extends State<TransactionPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Data Transaksi'),
+        title: Text(
+          'Data Transaksi',
+          style: GoogleFonts.stardosStencil(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.history),
@@ -179,9 +186,6 @@ class _TransactionPageState extends State<TransactionPage>
             Tab(icon: Icon(Icons.list_alt), text: 'Data Transaksi'),
             Tab(icon: Icon(Icons.warning), text: 'Kupon Minus'),
           ],
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
         ),
       ),
       body: Padding(
@@ -189,157 +193,125 @@ class _TransactionPageState extends State<TransactionPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // FILTER SECTION
+            // FILTER & BUTTON SECTION - Single Row
             Row(
               children: [
-                const SizedBox(width: 12),
+                // Filter Satker
                 SizedBox(
-                  width: 260,
+                  width: 180,
                   child: Consumer2<DashboardProvider, TransaksiProvider>(
                     builder: (context, dash, tprov, _) {
                       final satkerList = dash.satkerList;
                       final current = tprov.filterSatker ?? '';
-                      return Row(
-                        children: [
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: current.isEmpty ? '' : current,
-                              decoration: const InputDecoration(
-                                labelText: 'Satker',
-                                border: OutlineInputBorder(),
-                              ),
-                              items: [
-                                const DropdownMenuItem(
-                                  value: '',
-                                  child: Text('Semua Satker'),
-                                ),
-                                ...satkerList.map(
-                                  (s) => DropdownMenuItem(
-                                    value: s,
-                                    child: Text(s),
-                                  ),
-                                ),
-                              ],
-                              onChanged: (val) {
-                                final satker = (val == null || val.isEmpty)
-                                    ? null
-                                    : val;
-                                Provider.of<TransaksiProvider>(
-                                  context,
-                                  listen: false,
-                                ).setFilterTransaksi(satker: satker);
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Reset Satker filter button
-                          IconButton(
-                            tooltip: 'Reset Satker Filter',
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              Provider.of<TransaksiProvider>(
-                                context,
-                                listen: false,
-                              ).clearSatkerFilter();
-                            },
-                          ),
+                      return DropdownButtonFormField<String>(
+                        value: current.isEmpty ? '' : current,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Satker',
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        ),
+                        items: [
+                          const DropdownMenuItem(value: '', child: Text('Semua')),
+                          ...satkerList.map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis))),
                         ],
+                        onChanged: (val) {
+                          final satker = (val == null || val.isEmpty) ? null : val;
+                          Provider.of<TransaksiProvider>(context, listen: false)
+                              .setFilterTransaksi(satker: satker);
+                        },
                       );
                     },
                   ),
                 ),
-                const SizedBox(width: 12),
-                IntrinsicWidth(
+                const SizedBox(width: 8),
+                // Filter Range Tanggal
+                SizedBox(
+                  width: 180,
                   child: GestureDetector(
                     onTap: () => _selectDateRange(context),
                     child: InputDecorator(
                       decoration: const InputDecoration(
                         labelText: "Range Tanggal",
                         border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                       ),
-                      child: Text(
-                        _filterTanggalMulai != null &&
-                                _filterTanggalSelesai != null
-                            ? '${_filterTanggalMulai!.day}/${_filterTanggalMulai!.month}/${_filterTanggalMulai!.year}'
-                                  ' - '
-                                  '${_filterTanggalSelesai!.day}/${_filterTanggalSelesai!.month}/${_filterTanggalSelesai!.year}'
-                            : 'Pilih Range Tanggal',
-                        style: const TextStyle(fontSize: 14),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _filterTanggalMulai != null && _filterTanggalSelesai != null
+                                  ? '${_filterTanggalMulai!.day}/${_filterTanggalMulai!.month} - ${_filterTanggalSelesai!.day}/${_filterTanggalSelesai!.month}'
+                                  : 'Pilih Tanggal',
+                              style: const TextStyle(fontSize: 12),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (_filterTanggalMulai != null)
+                            GestureDetector(
+                              onTap: _clearDateFilter,
+                              child: const Icon(Icons.clear, size: 16),
+                            ),
+                        ],
                       ),
                     ),
                   ),
                 ),
-                if (_filterTanggalMulai != null)
-                  IconButton(
-                    icon: const Icon(Icons.clear),
-                    tooltip: 'Hapus Filter Tanggal',
-                    onPressed: _clearDateFilter,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _exportTransaksi,
-                  icon: const Icon(Icons.download),
-                  label: const Text('Export Transaksi'),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () => _showTambahTransaksiDialog(
-                    context,
-                    jenisBbm: 1,
-                    jenisKuponId: 1,
-                  ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Ranjen - Pertamax'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
+                const SizedBox(width: 8),
+                // Buttons
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 1, jenisKuponId: 1),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('RAN-PX'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
                   ),
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => _showTambahTransaksiDialog(
-                    context,
-                    jenisBbm: 1,
-                    jenisKuponId: 2,
-                  ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Dukungan - Pertamax'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () => _showTambahTransaksiDialog(
-                    context,
-                    jenisBbm: 2,
-                    jenisKuponId: 1,
-                  ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Ranjen - Pertamina Dex'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
+                const SizedBox(width: 4),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 1, jenisKuponId: 2),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('DUK-PX'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
                   ),
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => _showTambahTransaksiDialog(
-                    context,
-                    jenisBbm: 2,
-                    jenisKuponId: 2,
+                const SizedBox(width: 4),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 2, jenisKuponId: 1),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('RAN-DX'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
                   ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Dukungan - Pertamina Dex'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 2, jenisKuponId: 2),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('DUK-DX'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
                   ),
                 ),
               ],
@@ -828,7 +800,7 @@ class _TransactionPageState extends State<TransactionPage>
                         ),
                         DataColumn(
                           label: Text(
-                            'Satker',
+                            'Satuan Kerja',
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
@@ -1002,12 +974,29 @@ class _TransactionPageState extends State<TransactionPage>
               ),
             ),
             const SizedBox(height: 8),
-            // Total pengeluaran dan pagination dalam satu baris
+            // Total pengeluaran, Export, dan pagination dalam satu baris
             Row(
               children: [
                 // Total pengeluaran (ringkas)
-                Expanded(child: _buildTotalPengeluaranRingkas(filteredList)),
-                const SizedBox(width: 16),
+                _buildTotalPengeluaranRingkas(filteredList),
+                const SizedBox(width: 12),
+                // Export button - Expanded to fill space
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _exportTransaksi,
+                    icon: const Icon(Icons.download, size: 18),
+                    label: const Text('Export'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
                 // Pagination controls
                 _buildPaginationControls(context, true),
               ],
@@ -1245,7 +1234,7 @@ class _TransactionPageState extends State<TransactionPage>
                       columns: const [
                         DataColumn(label: Text('Tanggal')),
                         DataColumn(label: Text('Nomor Kupon')),
-                        DataColumn(label: Text('Satker')),
+                        DataColumn(label: Text('Satuan Kerja')),
                         DataColumn(label: Text('Jenis BBM')),
                         DataColumn(label: Text('Jumlah (L)')),
                         DataColumn(label: Text('Aksi')),
@@ -1423,7 +1412,7 @@ class _TransactionPageState extends State<TransactionPage>
                         ),
                         DataColumn(
                           label: Text(
-                            'Satker',
+                            'Satuan Kerja',
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),

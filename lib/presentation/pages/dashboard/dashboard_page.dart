@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:dropdown_search/dropdown_search.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/di/dependency_injection.dart';
 import '../../../domain/entities/kendaraan_entity.dart';
@@ -202,15 +203,6 @@ class _DashboardPageState extends State<DashboardPage>
           Expanded(child: _buildRanjenTable(context)),
           const SizedBox(height: 8),
           _buildPaginationControls(context, true),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
-              onPressed: () => _showExportDialog(context),
-              icon: const Icon(Icons.download),
-              label: const Text('Export Data'),
-            ),
-          ),
         ],
       ),
     );
@@ -228,15 +220,6 @@ class _DashboardPageState extends State<DashboardPage>
           Expanded(child: _buildDukunganTable(context)),
           const SizedBox(height: 8),
           _buildPaginationControls(context, false),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
-              onPressed: () => _showExportDialog(context),
-              icon: const Icon(Icons.download),
-              label: const Text('Export Data'),
-            ),
-          ),
         ],
       ),
     );
@@ -478,25 +461,14 @@ class _DashboardPageState extends State<DashboardPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard Kupon'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.upload_file),
-            tooltip: 'Import Data',
-            onPressed: () async {
-              await Navigator.pushNamed(context, '/import');
-              // PERBAIKAN: Gunakan refreshData() untuk mempertahankan filter/tab saat ini
-              if (!mounted) return;
-              final provider = Provider.of<DashboardProvider>(
-                context,
-                listen: false,
-              );
-              await provider.fetchSatkers(); // Tetap refresh satker
-              await provider
-                  .refreshData(); // Gunakan metode refresh yang sudah disediakan
-            },
+        title: Text(
+          'Dashboard Kupon',
+          style: GoogleFonts.stardosStencil(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
           ),
-        ],
+        ),
+        actions: const [],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -543,7 +515,7 @@ class _DashboardPageState extends State<DashboardPage>
                       child: TextField(
                         controller: _nopolController,
                         decoration: const InputDecoration(
-                          labelText: 'NoPol',
+                          labelText: 'Nomor Polisi',
                           border: OutlineInputBorder(),
                         ),
                       ),
@@ -557,7 +529,7 @@ class _DashboardPageState extends State<DashboardPage>
                       child: DropdownButtonFormField<String>(
                         initialValue: _selectedSatker,
                         decoration: const InputDecoration(
-                          labelText: 'Satker',
+                          labelText: 'Satuan Kerja',
                           border: OutlineInputBorder(),
                         ),
                         items: provider.satkerList
@@ -611,7 +583,7 @@ class _DashboardPageState extends State<DashboardPage>
                           showSearchBox: true,
                           searchFieldProps: TextFieldProps(
                             decoration: InputDecoration(
-                              hintText: 'Cari jenis ranmor...',
+                              hintText: 'Cari jenis kendaraan bermotor...',
                             ),
                           ),
                         ),
@@ -621,7 +593,7 @@ class _DashboardPageState extends State<DashboardPage>
                             .toList(),
                         dropdownDecoratorProps: const DropDownDecoratorProps(
                           dropdownSearchDecoration: InputDecoration(
-                            labelText: 'Jenis Ranmor',
+                            labelText: 'Jenis Kendaraan Bermotor',
                             border: OutlineInputBorder(),
                           ),
                         ),
@@ -779,6 +751,16 @@ class _DashboardPageState extends State<DashboardPage>
                       ),
                       label: const Text('Reset Filter'),
                     ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: () => _showExportDialog(context),
+                      icon: const Icon(Icons.download),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                      label: const Text('Export Data'),
+                    ),
                   ],
                 ),
               ],
@@ -815,7 +797,7 @@ class _DashboardPageState extends State<DashboardPage>
                       child: TextField(
                         controller: _nopolController,
                         decoration: const InputDecoration(
-                          labelText: 'NoPol',
+                          labelText: 'Nomor Polisi',
                           border: OutlineInputBorder(),
                         ),
                       ),
@@ -829,7 +811,7 @@ class _DashboardPageState extends State<DashboardPage>
                       child: DropdownButtonFormField<String>(
                         value: _selectedSatker,
                         decoration: const InputDecoration(
-                          labelText: 'Satker',
+                          labelText: 'Satuan Kerja',
                           border: OutlineInputBorder(),
                         ),
                         items: provider.satkerList
@@ -876,7 +858,7 @@ class _DashboardPageState extends State<DashboardPage>
                           showSearchBox: true,
                           searchFieldProps: TextFieldProps(
                             decoration: InputDecoration(
-                              hintText: 'Cari jenis ranmor...',
+                              hintText: 'Cari jenis kendaraan bermotor...',
                             ),
                           ),
                         ),
@@ -886,7 +868,7 @@ class _DashboardPageState extends State<DashboardPage>
                             .toList(),
                         dropdownDecoratorProps: const DropDownDecoratorProps(
                           dropdownSearchDecoration: InputDecoration(
-                            labelText: 'Jenis Ranmor',
+                            labelText: 'Jenis Kendaraan Bermotor',
                             border: OutlineInputBorder(),
                           ),
                         ),
@@ -900,7 +882,7 @@ class _DashboardPageState extends State<DashboardPage>
                       child: DropdownButtonFormField<String>(
                         initialValue: _selectedBulan,
                         decoration: const InputDecoration(
-                          labelText: 'Bulan',
+                          labelText: 'Bulan Terbit',
                           border: OutlineInputBorder(),
                         ),
                         items: [
@@ -927,7 +909,7 @@ class _DashboardPageState extends State<DashboardPage>
                       child: DropdownButtonFormField<String>(
                         initialValue: _selectedTahun,
                         decoration: const InputDecoration(
-                          labelText: 'Tahun',
+                          labelText: 'Tahun Terbit',
                           border: OutlineInputBorder(),
                         ),
                         items: [
@@ -985,15 +967,70 @@ class _DashboardPageState extends State<DashboardPage>
                               ? int.tryParse(_selectedTahun!)
                               : null,
                         );
+
+                        // Show loading indicator
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Row(
+                              children: [
+                                CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 16),
+                                Text('Memuat data...'),
+                              ],
+                            ),
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
                       },
-                      icon: const Icon(Icons.search),
+                      icon: const Icon(Icons.filter_alt),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                      ),
                       label: const Text('Filter'),
                     ),
                     const SizedBox(width: 8),
                     ElevatedButton.icon(
-                      onPressed: _resetFilters,
+                      onPressed: () {
+                        _resetFilters();
+                        // Show loading indicator
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Row(
+                              children: [
+                                CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 16),
+                                Text('Mereset filter...'),
+                              ],
+                            ),
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                      },
                       icon: const Icon(Icons.refresh),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey,
+                        foregroundColor: Colors.white,
+                      ),
                       label: const Text('Reset Filter'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: () => _showExportDialog(context),
+                      icon: const Icon(Icons.download),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                      label: const Text('Export Data'),
                     ),
                   ],
                 ),
@@ -1034,7 +1071,7 @@ class _DashboardPageState extends State<DashboardPage>
 
         return Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1100),
+            constraints: const BoxConstraints(maxWidth: 1400),
             child: Card(
               elevation: 2,
               child: SingleChildScrollView(
@@ -1049,19 +1086,19 @@ class _DashboardPageState extends State<DashboardPage>
                     columns: const [
                       DataColumn(
                         label: Text(
-                          'No',
+                          'Nomor',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
                       DataColumn(
                         label: Text(
-                          'No Kupon',
+                          'Nomor Kupon',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
                       DataColumn(
                         label: Text(
-                          'Satker',
+                          'Satuan Kerja',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -1073,13 +1110,13 @@ class _DashboardPageState extends State<DashboardPage>
                       ),
                       DataColumn(
                         label: Text(
-                          'NoPol',
+                          'Nomor Polisi',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
                       DataColumn(
                         label: Text(
-                          'Jenis Ranmor',
+                          'Jenis Kendaraan Bermotor',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -1204,7 +1241,7 @@ class _DashboardPageState extends State<DashboardPage>
         // PERBAIKAN: Vertical scroll untuk baris, horizontal scroll untuk kolom lebar
         return Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1100),
+            constraints: const BoxConstraints(maxWidth: 1400),
             child: Card(
               elevation: 2,
               child: SingleChildScrollView(
@@ -1217,16 +1254,66 @@ class _DashboardPageState extends State<DashboardPage>
                       Colors.green.shade50,
                     ),
                     columns: const [
-                      DataColumn(label: Text('No')),
-                      DataColumn(label: Text('No Kupon')),
-                      DataColumn(label: Text('Satker')),
-                      DataColumn(label: Text('Jenis BBM')),
-                      DataColumn(label: Text('NoPol')),
-                      DataColumn(label: Text('Jenis Ranmor')),
-                      DataColumn(label: Text('Bulan/Tahun')),
-                      DataColumn(label: Text('Kuota Sisa')),
-                      DataColumn(label: Text('Status')),
-                      DataColumn(label: Text('Aksi')),
+                      DataColumn(
+                        label: Text(
+                          'Nomor',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Nomor Kupon',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Satuan Kerja',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Jenis BBM',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Nomor Polisi',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Jenis Kendaraan Bermotor',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Bulan/Tahun',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Kuota Sisa',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Status',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      DataColumn(
+                        label: Text(
+                          'Aksi',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
                     ],
                     rows: kupons.asMap().entries.map((entry) {
                       final i = entry.key + 1;
