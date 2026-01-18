@@ -1,6 +1,7 @@
 // lib/presentation/pages/import/import_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../providers/enhanced_import_provider.dart';
@@ -184,7 +185,15 @@ class _ImportPageState extends State<ImportPage> {
     return Consumer<EnhancedImportProvider>(
       builder: (context, provider, child) {
         return Scaffold(
-          appBar: AppBar(title: const Text('Import Kupon dari Excel')),
+          appBar: AppBar(
+            title: Text(
+              'Import Kupon dari Excel',
+              style: GoogleFonts.stardosStencil(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              ), 
+            ),
+          ),
           body: Padding(
             padding: const EdgeInsets.all(24.0),
             child: SingleChildScrollView(
