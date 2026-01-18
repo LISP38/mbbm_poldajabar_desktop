@@ -207,7 +207,7 @@ class _TransactionPageState extends State<TransactionPage>
                         value: current.isEmpty ? '' : current,
                         isExpanded: true,
                         decoration: const InputDecoration(
-                          labelText: 'Satker',
+                          labelText: 'Satuang Kerja',
                           border: OutlineInputBorder(),
                           contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                         ),
@@ -258,59 +258,70 @@ class _TransactionPageState extends State<TransactionPage>
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Buttons
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 1, jenisKuponId: 1),
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('RAN-PX'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                  child : SizedBox(
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 1, jenisKuponId: 1),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('RAN-PX'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 4),
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 1, jenisKuponId: 2),
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('DUK-PX'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: SizedBox(
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 1, jenisKuponId: 2),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('DUK-PX'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 4),
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 2, jenisKuponId: 1),
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('RAN-DX'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: SizedBox(
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 2, jenisKuponId: 1),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('RAN-DX'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 4),
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 2, jenisKuponId: 2),
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('DUK-DX'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: SizedBox(
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 2, jenisKuponId: 2),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('DUK-DX'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
                     ),
                   ),
                 ),
@@ -973,7 +984,7 @@ class _TransactionPageState extends State<TransactionPage>
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             // Total pengeluaran, Export, dan pagination dalam satu baris
             Row(
               children: [
@@ -982,17 +993,20 @@ class _TransactionPageState extends State<TransactionPage>
                 const SizedBox(width: 12),
                 // Export button - Expanded to fill space
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _exportTransaksi,
-                    icon: const Icon(Icons.download, size: 18),
-                    label: const Text('Export'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
+                  child : SizedBox(
+                    height: 44, 
+                    child: ElevatedButton.icon(
+                      onPressed: _exportTransaksi,
+                      icon: const Icon(Icons.download, size: 18),
+                      label: const Text('Export'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
                   ),
                 ),
@@ -1016,6 +1030,7 @@ class _TransactionPageState extends State<TransactionPage>
     );
 
     return Container(
+      height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.blue.shade50,

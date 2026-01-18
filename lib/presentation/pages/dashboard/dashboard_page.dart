@@ -583,7 +583,7 @@ class _DashboardPageState extends State<DashboardPage>
                           showSearchBox: true,
                           searchFieldProps: TextFieldProps(
                             decoration: InputDecoration(
-                              hintText: 'Cari jenis kendaraan bermotor...',
+                              hintText: 'Cari jenis kendaraan...',
                             ),
                           ),
                         ),
@@ -593,7 +593,7 @@ class _DashboardPageState extends State<DashboardPage>
                             .toList(),
                         dropdownDecoratorProps: const DropDownDecoratorProps(
                           dropdownSearchDecoration: InputDecoration(
-                            labelText: 'Jenis Kendaraan Bermotor',
+                            labelText: 'Jenis Kendaraan',
                             border: OutlineInputBorder(),
                           ),
                         ),
@@ -858,7 +858,7 @@ class _DashboardPageState extends State<DashboardPage>
                           showSearchBox: true,
                           searchFieldProps: TextFieldProps(
                             decoration: InputDecoration(
-                              hintText: 'Cari jenis kendaraan bermotor...',
+                              hintText: 'Cari jenis kendaraan...',
                             ),
                           ),
                         ),
@@ -868,7 +868,7 @@ class _DashboardPageState extends State<DashboardPage>
                             .toList(),
                         dropdownDecoratorProps: const DropDownDecoratorProps(
                           dropdownSearchDecoration: InputDecoration(
-                            labelText: 'Jenis Kendaraan Bermotor',
+                            labelText: 'Jenis Kendaraan',
                             border: OutlineInputBorder(),
                           ),
                         ),
@@ -1116,7 +1116,7 @@ class _DashboardPageState extends State<DashboardPage>
                       ),
                       DataColumn(
                         label: Text(
-                          'Jenis Kendaraan Bermotor',
+                          'Jenis Kendaraan',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -1286,7 +1286,7 @@ class _DashboardPageState extends State<DashboardPage>
                       ),
                       DataColumn(
                         label: Text(
-                          'Jenis Kendaraan Bermotor',
+                          'Jenis Kendaraan',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
