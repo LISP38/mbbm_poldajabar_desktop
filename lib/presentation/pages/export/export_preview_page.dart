@@ -107,13 +107,13 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
           )
           .toList();
     } else if (widget.exportType == 'minus') {
-      // Filter untuk 4 sheet - hanya kupon minus (kuotaSisa < kuotaAwal)
+      // Filter untuk 4 sheet - hanya kupon minus (kuotaSisa < 0 = negatif)
       ranPertamax = widget.allKupons
           .where(
             (k) =>
                 k.jenisKuponId == 1 &&
                 k.jenisBbmId == 1 &&
-                k.kuotaSisa < k.kuotaAwal,
+                k.kuotaSisa < 0,
           )
           .toList();
       dukPertamax = widget.allKupons
@@ -121,7 +121,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
             (k) =>
                 k.jenisKuponId == 2 &&
                 k.jenisBbmId == 1 &&
-                k.kuotaSisa < k.kuotaAwal,
+                k.kuotaSisa < 0,
           )
           .toList();
       ranDex = widget.allKupons
@@ -129,7 +129,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
             (k) =>
                 k.jenisKuponId == 1 &&
                 k.jenisBbmId == 2 &&
-                k.kuotaSisa < k.kuotaAwal,
+                k.kuotaSisa < 0,
           )
           .toList();
       dukDex = widget.allKupons
@@ -137,7 +137,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
             (k) =>
                 k.jenisKuponId == 2 &&
                 k.jenisBbmId == 2 &&
-                k.kuotaSisa < k.kuotaAwal,
+                k.kuotaSisa < 0,
           )
           .toList();
     } else if (widget.exportType == 'combined') {
