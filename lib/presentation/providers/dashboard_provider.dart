@@ -71,6 +71,17 @@ class DashboardProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isRanjenMode => _isRanjenMode;
 
+  // --- Total Calculations (Combined Ranjen + Dukungan) ---
+  double get totalKuotaAwal =>
+      _ranjenKupons.fold(0.0, (sum, k) => sum + k.kuotaAwal) +
+      _dukunganKupons.fold(0.0, (sum, k) => sum + k.kuotaAwal);
+  double get totalTerpakai =>
+      _ranjenKupons.fold(0.0, (sum, k) => sum + (k.kuotaAwal - k.kuotaSisa)) +
+      _dukunganKupons.fold(0.0, (sum, k) => sum + (k.kuotaAwal - k.kuotaSisa));
+  double get totalSaldo =>
+      _ranjenKupons.fold(0.0, (sum, k) => sum + k.kuotaSisa) +
+      _dukunganKupons.fold(0.0, (sum, k) => sum + k.kuotaSisa);
+
   // --- Constructor ---
   DashboardProvider(this._kuponRepository);
 

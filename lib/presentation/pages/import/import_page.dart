@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../providers/enhanced_import_provider.dart';
+import 'import_preview_page.dart';
 
 class ImportPage extends StatefulWidget {
   final VoidCallback? onImportSuccess;
@@ -79,6 +80,57 @@ class _ImportPageState extends State<ImportPage> {
             content: Text('Error memilih file: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _navigateToPreview(EnhancedImportProvider provider) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    try {
+      // Parse file and get preview data
+      final parseResult = await provider.getPreviewData();
+
+      if (parseResult == null) {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(
+            content: Text('Gagal memuat data preview'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+
+      // Navigate to preview page
+      final shouldImport = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (context) => ImportPreviewPage(
+            parseResult: parseResult,
+            fileName: _selectedFileName,
+            onConfirmImport: () {
+              Navigator.of(context).pop(true); // Return true to import
+            },
+            onCancel: () {
+              Navigator.of(context).pop(false); // Return false to cancel
+            },
+          ),
+        ),
+      );
+
+      // If user confirmed import from preview page
+      if (shouldImport == true && mounted) {
+        await _performImport(provider);
+      }
+    } catch (e) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Error memuat preview: $e'),
+            backgroundColor: Colors.red,
           ),
         );
       }
@@ -253,7 +305,7 @@ class _ImportPageState extends State<ImportPage> {
 
                   const SizedBox(height: 16),
 
-                  // Import Button - hide after successful import
+                  // Preview Button - Navigate to preview first before import
                   if (provider.selectedFilePath != null &&
                       !_importCompleted) ...[
                     ElevatedButton.icon(
@@ -261,9 +313,9 @@ class _ImportPageState extends State<ImportPage> {
                           provider.isLoading ||
                               provider.selectedFilePath == null
                           ? null
-                          : () => _performImport(provider),
-                      icon: const Icon(Icons.upload_file),
-                      label: const Text('Import Sekarang'),
+                          : () => _navigateToPreview(provider),
+                      icon: const Icon(Icons.preview),
+                      label: const Text('Preview Data'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor: Colors.white,

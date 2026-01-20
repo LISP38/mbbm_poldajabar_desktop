@@ -151,7 +151,7 @@ class _DashboardPageState extends State<DashboardPage>
       _firstLoad = false;
 
       // Schedule the initial data fetch for the next frame
-      Future.microtask(() {
+      Future.microtask(() async {
         if (!mounted) return;
 
         final provider = Provider.of<DashboardProvider>(context, listen: false);
@@ -170,8 +170,10 @@ class _DashboardPageState extends State<DashboardPage>
         provider.bulanTerbit = null;
         provider.tahunTerbit = null;
 
-        // Fetch initial data
-        provider.fetchRanjenKupons();
+        // Fetch initial data - BOTH Ranjen and Dukungan for complete totals
+        // Use await to ensure both are fetched sequentially
+        await provider.fetchRanjenKupons();
+        await provider.fetchDukunganKupons();
         provider.fetchSatkers();
         masterDataProvider.fetchSatkers();
       });
@@ -197,7 +199,8 @@ class _DashboardPageState extends State<DashboardPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // _buildSummarySection(context),
+          _buildSummarySection(context),
+          const SizedBox(height: 16),
           _buildRanjenFilterSection(context),
           const SizedBox(height: 16),
           Expanded(child: _buildRanjenTable(context)),
@@ -214,13 +217,112 @@ class _DashboardPageState extends State<DashboardPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // _buildSummarySection(context),
+          _buildSummarySection(context),
+          const SizedBox(height: 16),
           _buildDukunganFilterSection(context),
           const SizedBox(height: 16),
           Expanded(child: _buildDukunganTable(context)),
           const SizedBox(height: 8),
           _buildPaginationControls(context, false),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSummarySection(BuildContext context) {
+    return Consumer<DashboardProvider>(
+      builder: (context, provider, _) {
+        final totalKuota = provider.totalKuotaAwal;
+        final totalTerpakai = provider.totalTerpakai;
+        final totalSaldo = provider.totalSaldo;
+
+        return Row(
+          children: [
+            Expanded(
+              child: _buildSummaryCard(
+                title: 'Total Kuota',
+                value: '${totalKuota.toInt()} L',
+                icon: Icons.local_gas_station,
+                color: Colors.blue,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildSummaryCard(
+                title: 'Total Terpakai',
+                value: '${totalTerpakai.toInt()} L',
+                icon: Icons.trending_down,
+                color: Colors.orange,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildSummaryCard(
+                title: 'Total Saldo',
+                value: '${totalSaldo.toInt()} L',
+                icon: Icons.account_balance_wallet,
+                color: Colors.green,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSummaryCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Card(
+      elevation: 2,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border(
+            left: BorderSide(color: color, width: 4),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -103,6 +103,12 @@ class _TransactionPageState extends State<TransactionPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    
+    // Auto-filter ke hari ini
+    final today = DateTime.now();
+    _filterTanggalMulai = DateTime(today.year, today.month, today.day);
+    _filterTanggalSelesai = DateTime(today.year, today.month, today.day);
+    
     Future.microtask(() {
       if (!mounted) return;
       Provider.of<TransaksiProvider>(
@@ -193,6 +199,10 @@ class _TransactionPageState extends State<TransactionPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // SUMMARY CARDS - Expenditure per fuel type
+            _buildTransactionSummaryCards(),
+            const SizedBox(height: 12),
+            
             // FILTER & BUTTON SECTION - Single Row
             Row(
               children: [
@@ -337,6 +347,154 @@ class _TransactionPageState extends State<TransactionPage>
                   _buildTransaksiTable(context),
                   // TAB 2: KUPON MINUS
                   _buildKuponMinusTable(context),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Summary cards for transaction expenditure per fuel type
+  Widget _buildTransactionSummaryCards() {
+    return Consumer<TransaksiProvider>(
+      builder: (context, provider, _) {
+        final transaksiList = provider.transaksiList;
+
+        // Apply date filter if set
+        List filteredList = transaksiList;
+        if (_filterTanggalMulai != null && _filterTanggalSelesai != null) {
+          filteredList = transaksiList.where((t) {
+            try {
+              final transaksiDate = DateTime.parse(t.tanggalTransaksi);
+              return transaksiDate.isAfter(
+                    _filterTanggalMulai!.subtract(const Duration(days: 1)),
+                  ) &&
+                  transaksiDate.isBefore(
+                    _filterTanggalSelesai!.add(const Duration(days: 1)),
+                  );
+            } catch (e) {
+              return true;
+            }
+          }).toList();
+        }
+
+        // Calculate totals per fuel type
+        double totalPertamax = 0;
+        double totalDex = 0;
+        int countPertamax = 0;
+        int countDex = 0;
+
+        for (final t in filteredList) {
+          if (t.jenisBbmId == 1) {
+            totalPertamax += t.jumlahLiter;
+            countPertamax++;
+          } else if (t.jenisBbmId == 2) {
+            totalDex += t.jumlahLiter;
+            countDex++;
+          }
+        }
+
+        final totalKeseluruhan = totalPertamax + totalDex;
+        final totalTransaksi = countPertamax + countDex;
+
+        return Row(
+          children: [
+            Expanded(
+              child: _buildFuelSummaryCard(
+                title: 'Pertamax',
+                value: '${totalPertamax.toInt()} L',
+                subtitle: '$countPertamax transaksi',
+                icon: Icons.local_gas_station,
+                color: Colors.blue,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildFuelSummaryCard(
+                title: 'Pertamina Dex',
+                value: '${totalDex.toInt()} L',
+                subtitle: '$countDex transaksi',
+                icon: Icons.local_gas_station,
+                color: Colors.orange,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildFuelSummaryCard(
+                title: 'Total Pengeluaran',
+                value: '${totalKeseluruhan.toInt()} L',
+                subtitle: '$totalTransaksi transaksi',
+                icon: Icons.summarize,
+                color: Colors.green,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildFuelSummaryCard({
+    required String title,
+    required String value,
+    String? subtitle,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Card(
+      elevation: 2,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border(
+            left: BorderSide(color: color, width: 4),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -989,7 +1147,7 @@ class _TransactionPageState extends State<TransactionPage>
             Row(
               children: [
                 // Total pengeluaran (ringkas)
-                _buildTotalPengeluaranRingkas(filteredList),
+                _buildTotalSaldoKupon(),
                 const SizedBox(width: 12),
                 // Export button - Expanded to fill space
                 Expanded(
@@ -1021,46 +1179,47 @@ class _TransactionPageState extends State<TransactionPage>
     );
   }
 
-  // Widget ringkas untuk total pengeluaran (sejajar dengan pagination)
-  Widget _buildTotalPengeluaranRingkas(List<TransaksiModel> transaksiList) {
-    // Hitung total keseluruhan
-    final double totalKeseluruhan = transaksiList.fold(
-      0.0,
-      (sum, t) => sum + t.jumlahLiter,
-    );
+  // Widget ringkas untuk total saldo kupon (sejajar dengan pagination)
+  Widget _buildTotalSaldoKupon() {
+    return Consumer<DashboardProvider>(
+      builder: (context, provider, _) {
+        final double totalSaldo = provider.totalSaldo;
+        final int totalKupon = provider.ranjenKupons.length + provider.dukunganKupons.length;
 
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.shade200),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.summarize, color: Colors.blue.shade700, size: 20),
-          const SizedBox(width: 8),
-          Text(
-            'Total: ',
-            style: TextStyle(fontSize: 14, color: Colors.blue.shade800),
+        return Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.green.shade200),
           ),
-          Text(
-            '${totalKeseluruhan.toInt()} L',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue.shade800,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.account_balance_wallet, color: Colors.green.shade700, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Saldo Tersisa: ',
+                style: TextStyle(fontSize: 14, color: Colors.green.shade800),
+              ),
+              Text(
+                '${totalSaldo.toInt()} L',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green.shade800,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '($totalKupon kupon aktif)',
+                style: TextStyle(fontSize: 12, color: Colors.green.shade600),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Text(
-            '(${transaksiList.length} transaksi)',
-            style: TextStyle(fontSize: 12, color: Colors.blue.shade600),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 

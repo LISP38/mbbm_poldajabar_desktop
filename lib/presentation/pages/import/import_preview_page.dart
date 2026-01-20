@@ -102,6 +102,12 @@ class ImportPreviewPage extends StatelessWidget {
     final duplicateCount = parseResult.duplicateKupons.length;
     final totalCount = newCount + duplicateCount;
 
+    // Extract unique values from all kupons (new + duplicate)
+    final allKupons = [...parseResult.kupons, ...parseResult.duplicateKupons];
+    final uniqueJenisBbm = _getUniqueJenisBbm(allKupons);
+    final uniqueSatker = _getUniqueSatker(allKupons);
+    final uniqueJenisKupon = _getUniqueJenisKupon(allKupons);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Preview Import'),
@@ -111,133 +117,232 @@ class ImportPreviewPage extends StatelessWidget {
       body: Column(
         children: [
           // Summary Card
-          Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.shade200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'File: $fileName',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildSummaryItem('Total', totalCount, Colors.blue),
-                    _buildSummaryItem('Baru', newCount, Colors.green),
-                    _buildSummaryItem(
-                      'Duplikat',
-                      duplicateCount,
-                      Colors.orange,
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  // File & Count Summary
+                  Container(
+                    margin: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
                     ),
-                  ],
-                ),
-                if (parseResult.validationMessages.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Pesan Validasi:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  ...parseResult.validationMessages
-                      .take(3)
-                      .map(
-                        (msg) => Text(
-                          '• $msg',
-                          style: TextStyle(
-                            color: Colors.red.shade700,
-                            fontSize: 12,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'File: $fileName',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
                           ),
                         ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _buildSummaryItem('Total', totalCount, Colors.blue),
+                            _buildSummaryItem('Baru', newCount, Colors.green),
+                            _buildSummaryItem(
+                              'Duplikat',
+                              duplicateCount,
+                              Colors.orange,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Data Summary Section (Jenis BBM, Satker, Jenis Kupon)
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Ringkasan Data yang Akan Diimport',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Jenis BBM
+                        _buildCategoryRow(
+                          icon: Icons.local_gas_station,
+                          label: 'Jenis BBM',
+                          items: uniqueJenisBbm,
+                          color: Colors.purple,
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Satker
+                        _buildCategoryRow(
+                          icon: Icons.business,
+                          label: 'Satuan Kerja',
+                          items: uniqueSatker,
+                          color: Colors.teal,
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Jenis Kupon
+                        _buildCategoryRow(
+                          icon: Icons.confirmation_number,
+                          label: 'Jenis Kupon',
+                          items: uniqueJenisKupon,
+                          color: Colors.indigo,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Validation Messages - Collapsible
+                  if (parseResult.validationMessages.isNotEmpty)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
                       ),
-                  if (parseResult.validationMessages.length > 3)
-                    Text(
-                      '... dan ${parseResult.validationMessages.length - 3} pesan lainnya',
-                      style: TextStyle(
-                        color: Colors.red.shade500,
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
+                      child: Theme(
+                        data: Theme.of(context).copyWith(
+                          dividerColor: Colors.transparent,
+                        ),
+                        child: ExpansionTile(
+                          initiallyExpanded: false,
+                          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                          childrenPadding: const EdgeInsets.only(left: 12, right: 12, bottom: 12),
+                          leading: Icon(Icons.warning_amber, color: Colors.red.shade700, size: 20),
+                          title: Text(
+                            'Pesan Validasi (${parseResult.validationMessages.length})',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.red.shade800,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'Klik untuk melihat detail',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.red.shade500,
+                            ),
+                          ),
+                          iconColor: Colors.red.shade700,
+                          collapsedIconColor: Colors.red.shade700,
+                          children: [
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: parseResult.validationMessages.map(
+                                  (msg) => Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      '• $msg',
+                                      style: TextStyle(
+                                        color: Colors.red.shade700,
+                                        fontSize: 12,
+                                      ),
+                                      textAlign: TextAlign.left,
+                                    ),
+                                  ),
+                                ).toList(),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+
+                  const SizedBox(height: 8),
+
+                  // Column Headers
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    color: Colors.grey.shade200,
+                    child: const Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            'Nomor Kupon',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            'No Pol',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            'Kendaraan',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            'Jenis Kupon',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 1,
+                          child: Text(
+                            'Kuota',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 1,
+                          child: Text(
+                            'Status',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Data List
+                  if (items.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Text('Tidak ada data untuk ditampilkan'),
+                    )
+                  else
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        return _buildDataRow(item, index);
+                      },
+                    ),
                 ],
-              ],
+              ),
             ),
-          ),
-
-          // Column Headers
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.grey.shade100,
-            child: const Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    'Nomor Kupon',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'No Pol',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Kendaraan',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Jenis Kupon',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  flex: 1,
-                  child: Text(
-                    'Kuota',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  flex: 1,
-                  child: Text(
-                    'Status',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Data List
-          Expanded(
-            child: items.isEmpty
-                ? const Center(child: Text('Tidak ada data untuk ditampilkan'))
-                : ListView.builder(
-                    itemCount: items.length,
-                    itemBuilder: (context, index) {
-                      final item = items[index];
-                      return _buildDataRow(item, index);
-                    },
-                  ),
           ),
 
           // Action Buttons
@@ -275,6 +380,88 @@ class ImportPreviewPage extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  // Helper: Get unique Jenis BBM names
+  List<String> _getUniqueJenisBbm(List<KuponModel> kupons) {
+    final Map<int, String> bbmNames = {
+      1: 'Pertamax',
+      2: 'Pertamax Turbo',
+      3: 'Pertalite',
+      4: 'Pertamina Dex',
+      5: 'Solar',
+      6: 'Bio Solar',
+    };
+    final uniqueIds = kupons.map((k) => k.jenisBbmId).toSet();
+    return uniqueIds.map((id) => bbmNames[id] ?? 'BBM ID: $id').toList();
+  }
+
+  // Helper: Get unique Satker names
+  List<String> _getUniqueSatker(List<KuponModel> kupons) {
+    return kupons.map((k) => k.namaSatker).where((s) => s.isNotEmpty).toSet().toList();
+  }
+
+  // Helper: Get unique Jenis Kupon names
+  List<String> _getUniqueJenisKupon(List<KuponModel> kupons) {
+    final uniqueIds = kupons.map((k) => k.jenisKuponId).toSet();
+    return uniqueIds.map((id) => _getJenisKuponText(id)).toList();
+  }
+
+  // Helper: Build category row with chips
+  Widget _buildCategoryRow({
+    required IconData icon,
+    required String label,
+    required List<String> items,
+    required Color color,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$label (${items.length}):',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: items.map((item) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: color.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      item,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: color,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
