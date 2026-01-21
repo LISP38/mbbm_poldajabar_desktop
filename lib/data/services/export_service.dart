@@ -7,7 +7,7 @@ import '../datasources/database_datasource.dart';
 class ExportService {
   // Helper function to get transaksi data grouped by date
   // Returns Map<kuponId, Map<dayOfMonth, totalLiter>>
-  static Future<Map<int, Map<int, double>>> _getTransaksiByDate(
+  static Future<Map<int, Map<int, int>>> _getTransaksiByDate(
     DatabaseDatasource dbDatasource,
     List<int> kuponIds,
     int currentMonth,
@@ -86,13 +86,13 @@ class ExportService {
     // Convert hasil query ke nested map
     // Key format: <kuponId>_<columnOffset>
     // columnOffset: 0-31 untuk bulan current, 32-63 untuk bulan next
-    final Map<int, Map<int, double>> transaksiByDate = {};
+    final Map<int, Map<int, int>> transaksiByDate = {};
     for (final row in result) {
       final kuponId = row['kupon_key'] as int;
       final dayOfMonth = row['day_of_month'] as int;
       final month = row['month'] as int;
       final year = row['year'] as int;
-      final totalLiter = (row['total_liter'] as num).toDouble();
+      final totalLiter = ((row['total_liter'] as num?)?.toInt() ?? 0);
 
       // Tentukan column offset berdasarkan bulan
       // Bulan current: col 8-39 (offset 1-31 dari base 7)
@@ -191,6 +191,155 @@ class ExportService {
     }
   }
 
+  /// Export Data Kupon dengan penggunaan harian - 5 sheets (4 detail + 1 rekap harian)
+  /// Setiap detail sheet menampilkan kupon dengan pemakaian per tanggal (2 bulan)
+  /// Default filter bulan: bulan sekarang + bulan berikutnya jika tidak ada filter
+  static Future<bool> exportDataKuponWithDaily({
+    required List<KuponEntity> allKupons,
+    required Future<String?> Function(int?) getNopolByKendaraanId,
+    required Future<String?> Function(int?) getJenisRanmorByKendaraanId,
+    required DatabaseDatasource dbDatasource,
+    required int filterBulan,
+    required int filterTahun,
+  }) async {
+    try {
+      final excel = Excel.createExcel();
+
+      // Buat 5 sheets: 4 detail + 1 rekap harian
+      excel['RAN.PX'];
+      excel['DUK.PX'];
+      excel['RAN.DX'];
+      excel['DUK.DX'];
+      excel['Rekap Harian'];
+
+      // Hapus sheet default
+      if (excel.sheets.containsKey('Sheet1')) {
+        excel.delete('Sheet1');
+      }
+
+      // Filter data berdasarkan jenis kupon dan BBM - semua kupon
+      final ranPertamax = allKupons
+          .where((k) => k.jenisKuponId == 1 && k.jenisBbmId == 1)
+          .toList();
+      final dukPertamax = allKupons
+          .where((k) => k.jenisKuponId == 2 && k.jenisBbmId == 1)
+          .toList();
+      final ranDex = allKupons
+          .where((k) => k.jenisKuponId == 1 && k.jenisBbmId == 2)
+          .toList();
+      final dukDex = allKupons
+          .where((k) => k.jenisKuponId == 2 && k.jenisBbmId == 2)
+          .toList();
+
+      // Tentukan periode: selected month + next month
+      final month1 = filterBulan;
+      final year1 = filterTahun;
+      final month2 = month1 == 12 ? 1 : month1 + 1;
+
+      // Buat detail sheets dengan penggunaan harian
+      await _createRanjenSheet(
+        excel,
+        'RAN.PX',
+        ranPertamax,
+        getNopolByKendaraanId,
+        getJenisRanmorByKendaraanId,
+        dbDatasource,
+        true, // fillTransaksiData
+        month1,
+        year1,
+        null, // filterTanggalMulai
+        null, // filterTanggalSelesai
+      );
+      await _createDukunganSheet(
+        excel,
+        'DUK.PX',
+        dukPertamax,
+        dbDatasource,
+        true, // fillTransaksiData
+        month1,
+        year1,
+        null,
+        null,
+      );
+      await _createRanjenSheet(
+        excel,
+        'RAN.DX',
+        ranDex,
+        getNopolByKendaraanId,
+        getJenisRanmorByKendaraanId,
+        dbDatasource,
+        true, // fillTransaksiData
+        month1,
+        year1,
+        null,
+        null,
+      );
+      await _createDukunganSheet(
+        excel,
+        'DUK.DX',
+        dukDex,
+        dbDatasource,
+        true, // fillTransaksiData
+        month1,
+        year1,
+        null,
+        null,
+      );
+
+      // Buat sheet Rekap Harian
+      await _createRekapHarianSheet(
+        excel: excel,
+        sheetName: 'Rekap Harian',
+        allKupons: allKupons,
+        dbDatasource: dbDatasource,
+        filterBulan: month1,
+        filterTahun: year1,
+        filterTanggalMulai: null,
+        filterTanggalSelesai: null,
+      );
+
+      // Save file
+      final now = DateTime.now();
+      final timestamp =
+          '${now.day.toString().padLeft(2, '0')}${now.month.toString().padLeft(2, '0')}${now.year}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}';
+
+      final monthNames = [
+        '',
+        'JANUARI',
+        'FEBRUARI',
+        'MARET',
+        'APRIL',
+        'MEI',
+        'JUNI',
+        'JULI',
+        'AGUSTUS',
+        'SEPTEMBER',
+        'OKTOBER',
+        'NOVEMBER',
+        'DESEMBER',
+      ];
+
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: 'Simpan Data Kupon dengan Penggunaan Harian',
+        fileName:
+            'Data_Kupon_${monthNames[month1]}_${monthNames[month2]}_$timestamp.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (result != null) {
+        final file = File(result);
+        await file.writeAsBytes(excel.encode()!);
+        return true;
+      }
+      return false;
+    } catch (e, stackTrace) {
+      print('ERROR in exportDataKuponWithDaily: $e');
+      print('StackTrace: $stackTrace');
+      return false;
+    }
+  }
+
   // Export Data Kupon (4 sheets: RAN.PX, DUK.PX, RAN.DX, DUK.DX)
   static Future<bool> exportDataKupon({
     required List<KuponEntity> allKupons,
@@ -207,11 +356,12 @@ class ExportService {
     try {
       final excel = Excel.createExcel();
 
-      // Buat sheets terlebih dahulu
+      // Buat sheets terlebih dahulu (5 sheets: 4 kupon + 1 rekap harian)
       excel['RAN.PX'];
       excel['DUK.PX'];
       excel['RAN.DX'];
       excel['DUK.DX'];
+      excel['Rekap Harian'];
 
       // Hapus sheet default setelah membuat sheet baru
       if (excel.sheets.containsKey('Sheet1')) {
@@ -302,6 +452,18 @@ class ExportService {
         filterTanggalSelesai,
       );
 
+      // Buat sheet Rekap Harian
+      await _createRekapHarianSheet(
+        excel: excel,
+        sheetName: 'Rekap Harian',
+        allKupons: allKupons,
+        dbDatasource: dbDatasource,
+        filterBulan: filterBulan,
+        filterTahun: filterTahun,
+        filterTanggalMulai: filterTanggalMulai,
+        filterTanggalSelesai: filterTanggalSelesai,
+      );
+
       // Save file
       final now = DateTime.now();
       final timestamp =
@@ -326,7 +488,7 @@ class ExportService {
     }
   }
 
-  // Export Gabungan (6 sheets: RAN.PX, DUK.PX, RAN.DX, DUK.DX, REKAP.PX, REKAP.DX)
+  // Export Gabungan (7 sheets: RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Harian, REKAP.PX, REKAP.DX)
   static Future<bool> exportGabungan({
     required List<KuponEntity> allKupons,
     required Map<int, String> jenisBBMMap,
@@ -342,11 +504,12 @@ class ExportService {
     try {
       final excel = Excel.createExcel();
 
-      // Buat 6 sheets terlebih dahulu
+      // Buat 7 sheets terlebih dahulu
       excel['RAN.PX'];
       excel['DUK.PX'];
       excel['RAN.DX'];
       excel['DUK.DX'];
+      excel['Rekap Harian'];
       excel['REKAP.PX'];
       excel['REKAP.DX'];
 
@@ -437,6 +600,18 @@ class ExportService {
         filterTahun,
         filterTanggalMulai,
         filterTanggalSelesai,
+      );
+
+      // Buat sheet Rekap Harian
+      await _createRekapHarianSheet(
+        excel: excel,
+        sheetName: 'Rekap Harian',
+        allKupons: allKupons,
+        dbDatasource: dbDatasource,
+        filterBulan: filterBulan,
+        filterTahun: filterTahun,
+        filterTanggalMulai: filterTanggalMulai,
+        filterTanggalSelesai: filterTanggalSelesai,
       );
 
       // Buat sheets rekap satker (2 sheets) - filter hanya yang ada transaksi
@@ -777,7 +952,7 @@ class ExportService {
 
     // Get transaksi data untuk semua kupons di sheet ini (jika diperlukan)
     // Map<kuponId, Map<columnOffset, totalLiter>>
-    Map<int, Map<int, double>> transaksiByDate = {};
+    Map<int, Map<int, int>> transaksiByDate = {};
     if (fillTransaksiData) {
       transaksiByDate = await _getTransaksiByDate(
         dbDatasource,
@@ -1248,7 +1423,7 @@ class ExportService {
 
     // Get transaksi data untuk semua kupons di sheet ini (jika diperlukan)
     // Map<kuponId, Map<columnOffset, totalLiter>>
-    Map<int, Map<int, double>> transaksiByDate = {};
+    Map<int, Map<int, int>> transaksiByDate = {};
     if (fillTransaksiData) {
       transaksiByDate = await _getTransaksiByDate(
         dbDatasource,
@@ -1433,12 +1608,11 @@ class ExportService {
       final kuotaCell = sheet.cell(
         CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row),
       );
-      kuotaCell.value = DoubleCellValue(kupon.kuotaAwal);
+      kuotaCell.value = IntCellValue(kupon.kuotaAwal.toInt());
       kuotaCell.cellStyle = CellStyle(
         backgroundColorHex: isEvenRow ? ExcelColor.blue50 : ExcelColor.white,
         horizontalAlign: HorizontalAlign.Right,
         verticalAlign: VerticalAlign.Center,
-        numberFormat: NumFormat.standard_2,
         bottomBorder: Border(borderStyle: BorderStyle.Thin),
         topBorder: Border(borderStyle: BorderStyle.Thin),
         leftBorder: Border(borderStyle: BorderStyle.Thin),
@@ -1450,12 +1624,11 @@ class ExportService {
         CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: row),
       );
       final totalPemakaian = kupon.kuotaAwal - kupon.kuotaSisa;
-      pemakaiianCell.value = DoubleCellValue(totalPemakaian);
+      pemakaiianCell.value = IntCellValue(totalPemakaian.toInt());
       pemakaiianCell.cellStyle = CellStyle(
         backgroundColorHex: ExcelColor.yellow100,
         horizontalAlign: HorizontalAlign.Right,
         verticalAlign: VerticalAlign.Center,
-        numberFormat: NumFormat.standard_2,
         bottomBorder: Border(borderStyle: BorderStyle.Thin),
         topBorder: Border(borderStyle: BorderStyle.Thin),
         leftBorder: Border(borderStyle: BorderStyle.Thin),
@@ -2361,5 +2534,645 @@ class ExportService {
         rightBorder: Border(borderStyle: BorderStyle.Thin),
       );
     }
+  }
+
+  // ============================================================
+  // EXPORT REKAP HARIAN - Agregat per Jenis Kupon dengan distribusi harian
+  // ============================================================
+
+  /// Export Rekap Harian - Single sheet dengan blok PX dan DX
+  /// Setiap blok: RANJEN, DUK, TOTAL dengan kolom KUOTA, PAKAI, SISA, + tanggal 2 bulan
+  static Future<bool> exportRekapHarian({
+    required List<KuponEntity> allKupons,
+    required DatabaseDatasource dbDatasource,
+  }) async {
+    try {
+      final excel = Excel.createExcel();
+
+      // Buat sheet utama
+      final sheet = excel['Rekap Harian'];
+
+      // Hapus sheet default
+      if (excel.sheets.containsKey('Sheet1')) {
+        excel.delete('Sheet1');
+      }
+
+      // Tentukan periode berdasarkan bulan terbit kupon (ambil dari kupon pertama yang ada)
+      int month1 = DateTime.now().month;
+      int year1 = DateTime.now().year;
+
+      // Cari bulan terbit dari kupon yang ada
+      final kuponsWithData = allKupons
+          .where((k) => k.kuotaSisa < k.kuotaAwal)
+          .toList();
+      if (kuponsWithData.isNotEmpty) {
+        month1 = kuponsWithData.first.bulanTerbit;
+        year1 = kuponsWithData.first.tahunTerbit;
+      }
+
+      final month2 = month1 == 12 ? 1 : month1 + 1;
+      final year2 = month1 == 12 ? year1 + 1 : year1;
+
+      // Get nama bulan
+      final monthNames = [
+        '',
+        'JANUARI',
+        'FEBRUARI',
+        'MARET',
+        'APRIL',
+        'MEI',
+        'JUNI',
+        'JULI',
+        'AGUSTUS',
+        'SEPTEMBER',
+        'OKTOBER',
+        'NOVEMBER',
+        'DESEMBER',
+      ];
+
+      // Filter kupon berdasarkan jenis BBM
+      final kuponsPX = allKupons.where((k) => k.jenisBbmId == 1).toList();
+      final kuponsDX = allKupons.where((k) => k.jenisBbmId == 2).toList();
+
+      // Get transaksi aggregated untuk semua kupon
+      final transaksiMap = await _getAggregatedDailyTransaksi(
+        dbDatasource,
+        allKupons.map((k) => k.kuponId).toList(),
+        month1,
+        year1,
+        month2,
+        year2,
+      );
+
+      int currentRow = 0;
+
+      // ====== BLOK PERTAMAX (PX) ======
+      currentRow = await _createRekapHarianBlock(
+        sheet: sheet,
+        startRow: currentRow,
+        blockTitle: 'PERTAMAX',
+        blockCode: 'PX',
+        kupons: kuponsPX,
+        transaksiMap: transaksiMap,
+        month1: month1,
+        year1: year1,
+        month2: month2,
+        year2: year2,
+        monthNames: monthNames,
+      );
+
+      // Gap antara blok PX dan DX
+      currentRow += 2;
+
+      // ====== BLOK PERTAMINA DEX (DX) ======
+      currentRow = await _createRekapHarianBlock(
+        sheet: sheet,
+        startRow: currentRow,
+        blockTitle: 'PERTAMINA DEX',
+        blockCode: 'DX',
+        kupons: kuponsDX,
+        transaksiMap: transaksiMap,
+        month1: month1,
+        year1: year1,
+        month2: month2,
+        year2: year2,
+        monthNames: monthNames,
+      );
+
+      // Save file
+      final now = DateTime.now();
+      final timestamp =
+          '${now.day.toString().padLeft(2, '0')}${now.month.toString().padLeft(2, '0')}${now.year}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}';
+
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: 'Simpan Rekap Harian',
+        fileName:
+            'Rekap_Harian_${monthNames[month1]}_${monthNames[month2]}_$timestamp.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (result != null) {
+        final file = File(result);
+        await file.writeAsBytes(excel.encode()!);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Helper: Buat blok rekap harian untuk satu jenis BBM (PX atau DX)
+  static Future<int> _createRekapHarianBlock({
+    required Sheet sheet,
+    required int startRow,
+    required String blockTitle,
+    required String blockCode,
+    required List<KuponEntity> kupons,
+    required Map<String, int> transaksiMap,
+    required int month1,
+    required int year1,
+    required int month2,
+    required int year2,
+    required List<String> monthNames,
+  }) async {
+    // Kolom: Label | KUOTA | PAKAI | SISA | 1-31 (bulan1) | separator | 1-31 (bulan2)
+    // Total kolom: 4 + 31 + 1 + 31 = 67
+
+    // Style untuk header kuning
+    final headerStyle = CellStyle(
+      bold: true,
+      fontSize: 12,
+      fontColorHex: ExcelColor.black,
+      backgroundColorHex: ExcelColor.fromHexString('#FFFF00'), // Kuning
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Thin),
+      topBorder: Border(borderStyle: BorderStyle.Thin),
+      leftBorder: Border(borderStyle: BorderStyle.Thin),
+      rightBorder: Border(borderStyle: BorderStyle.Thin),
+    );
+
+    // Style untuk separator ungu
+    final separatorStyle = CellStyle(
+      backgroundColorHex: ExcelColor.fromHexString('#9966CC'), // Ungu
+      bottomBorder: Border(borderStyle: BorderStyle.Thin),
+      topBorder: Border(borderStyle: BorderStyle.Thin),
+      leftBorder: Border(borderStyle: BorderStyle.Thin),
+      rightBorder: Border(borderStyle: BorderStyle.Thin),
+    );
+
+    int row = startRow;
+
+    // ===== BARIS HEADER BULAN =====
+    // Header blok title
+    final titleCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row),
+    );
+    titleCell.value = TextCellValue(blockTitle);
+    titleCell.cellStyle = headerStyle;
+
+    // Merge kolom 0-3 untuk title
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row),
+      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: row),
+    );
+
+    // Header bulan 1 (kolom 4-34)
+    final month1Cell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row),
+    );
+    month1Cell.value = TextCellValue('${monthNames[month1]} $year1');
+    month1Cell.cellStyle = headerStyle;
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row),
+      CellIndex.indexByColumnRow(columnIndex: 34, rowIndex: row),
+    );
+
+    // Separator ungu (kolom 35)
+    final sepCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 35, rowIndex: row),
+    );
+    sepCell.cellStyle = separatorStyle;
+
+    // Header bulan 2 (kolom 36-66)
+    final month2Cell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 36, rowIndex: row),
+    );
+    month2Cell.value = TextCellValue('${monthNames[month2]} $year2');
+    month2Cell.cellStyle = headerStyle;
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 36, rowIndex: row),
+      CellIndex.indexByColumnRow(columnIndex: 66, rowIndex: row),
+    );
+
+    row++;
+
+    // ===== BARIS HEADER KOLOM =====
+    final colHeaders = ['', 'KUOTA', 'PAKAI', 'SISA'];
+    for (int i = 0; i < colHeaders.length; i++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: i, rowIndex: row),
+      );
+      cell.value = TextCellValue(colHeaders[i]);
+      cell.cellStyle = headerStyle;
+    }
+
+    // Tanggal 1-31 untuk bulan 1
+    for (int d = 1; d <= 31; d++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 3 + d, rowIndex: row),
+      );
+      cell.value = IntCellValue(d);
+      cell.cellStyle = headerStyle;
+    }
+
+    // Separator ungu
+    sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 35, rowIndex: row))
+            .cellStyle =
+        separatorStyle;
+
+    // Tanggal 1-31 untuk bulan 2
+    for (int d = 1; d <= 31; d++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 35 + d, rowIndex: row),
+      );
+      cell.value = IntCellValue(d);
+      cell.cellStyle = headerStyle;
+    }
+
+    row++;
+
+    // ===== DATA ROWS: RANJEN, DUK, TOTAL =====
+    final ranjenKupons = kupons.where((k) => k.jenisKuponId == 1).toList();
+    final dukKupons = kupons.where((k) => k.jenisKuponId == 2).toList();
+
+    // Hitung agregat untuk RANJEN
+    final ranjenData = _calculateRowData(
+      kupons: ranjenKupons,
+      transaksiMap: transaksiMap,
+      month1: month1,
+      year1: year1,
+      month2: month2,
+      year2: year2,
+    );
+
+    // Hitung agregat untuk DUK
+    final dukData = _calculateRowData(
+      kupons: dukKupons,
+      transaksiMap: transaksiMap,
+      month1: month1,
+      year1: year1,
+      month2: month2,
+      year2: year2,
+    );
+
+    // Baris RANJEN
+    _writeDataRow(
+      sheet: sheet,
+      row: row,
+      label: 'RANJEN',
+      data: ranjenData,
+      isTotal: false,
+    );
+    row++;
+
+    // Baris DUK
+    _writeDataRow(
+      sheet: sheet,
+      row: row,
+      label: 'DUK',
+      data: dukData,
+      isTotal: false,
+    );
+    row++;
+
+    // Baris TOTAL (RANJEN + DUK)
+    final totalData = _sumRowData(ranjenData, dukData);
+    _writeDataRow(
+      sheet: sheet,
+      row: row,
+      label: 'TOTAL',
+      data: totalData,
+      isTotal: true,
+    );
+    row++;
+
+    return row;
+  }
+
+  /// Helper: Hitung data agregat untuk satu kategori (RANJEN atau DUK)
+  static Map<String, dynamic> _calculateRowData({
+    required List<KuponEntity> kupons,
+    required Map<String, int> transaksiMap,
+    required int month1,
+    required int year1,
+    required int month2,
+    required int year2,
+  }) {
+    int totalKuota = 0;
+    Map<int, int> dailyMonth1 = {};
+    Map<int, int> dailyMonth2 = {};
+
+    // Initialize daily maps
+    for (int d = 1; d <= 31; d++) {
+      dailyMonth1[d] = 0;
+      dailyMonth2[d] = 0;
+    }
+
+    // Sum kuota dan transaksi per kupon
+    for (final kupon in kupons) {
+      totalKuota += kupon.kuotaAwal.toInt();
+
+      // Get transaksi per tanggal untuk kupon ini
+      for (int d = 1; d <= 31; d++) {
+        final key1 = '${kupon.kuponId}_${month1}_${year1}_$d';
+        final key2 = '${kupon.kuponId}_${month2}_${year2}_$d';
+
+        if (transaksiMap.containsKey(key1)) {
+          dailyMonth1[d] = dailyMonth1[d]! + transaksiMap[key1]!;
+        }
+        if (transaksiMap.containsKey(key2)) {
+          dailyMonth2[d] = dailyMonth2[d]! + transaksiMap[key2]!;
+        }
+      }
+    }
+
+    // Hitung total pakai
+    int totalPakai = 0;
+    for (int d = 1; d <= 31; d++) {
+      totalPakai += dailyMonth1[d]!;
+      totalPakai += dailyMonth2[d]!;
+    }
+
+    return {
+      'kuota': totalKuota,
+      'pakai': totalPakai,
+      'sisa': totalKuota - totalPakai,
+      'dailyMonth1': dailyMonth1,
+      'dailyMonth2': dailyMonth2,
+    };
+  }
+
+  /// Helper: Sum dua row data (untuk menghitung TOTAL = RANJEN + DUK)
+  static Map<String, dynamic> _sumRowData(
+    Map<String, dynamic> data1,
+    Map<String, dynamic> data2,
+  ) {
+    Map<int, int> dailyMonth1 = {};
+    Map<int, int> dailyMonth2 = {};
+
+    for (int d = 1; d <= 31; d++) {
+      dailyMonth1[d] =
+          (data1['dailyMonth1'][d] ?? 0) + (data2['dailyMonth1'][d] ?? 0);
+      dailyMonth2[d] =
+          (data1['dailyMonth2'][d] ?? 0) + (data2['dailyMonth2'][d] ?? 0);
+    }
+
+    return {
+      'kuota': (data1['kuota'] ?? 0) + (data2['kuota'] ?? 0),
+      'pakai': (data1['pakai'] ?? 0) + (data2['pakai'] ?? 0),
+      'sisa': (data1['sisa'] ?? 0) + (data2['sisa'] ?? 0),
+      'dailyMonth1': dailyMonth1,
+      'dailyMonth2': dailyMonth2,
+    };
+  }
+
+  /// Helper: Tulis satu baris data ke sheet
+  static void _writeDataRow({
+    required Sheet sheet,
+    required int row,
+    required String label,
+    required Map<String, dynamic> data,
+    required bool isTotal,
+  }) {
+    final dataStyle = CellStyle(
+      bold: isTotal,
+      backgroundColorHex: isTotal
+          ? ExcelColor.fromHexString('#E0E0E0')
+          : ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Right,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Thin),
+      topBorder: Border(borderStyle: BorderStyle.Thin),
+      leftBorder: Border(borderStyle: BorderStyle.Thin),
+      rightBorder: Border(borderStyle: BorderStyle.Thin),
+    );
+
+    final labelStyle = CellStyle(
+      bold: isTotal,
+      backgroundColorHex: isTotal
+          ? ExcelColor.fromHexString('#E0E0E0')
+          : ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Left,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Thin),
+      topBorder: Border(borderStyle: BorderStyle.Thin),
+      leftBorder: Border(borderStyle: BorderStyle.Thin),
+      rightBorder: Border(borderStyle: BorderStyle.Thin),
+    );
+
+    final separatorStyle = CellStyle(
+      backgroundColorHex: ExcelColor.fromHexString('#9966CC'),
+      bottomBorder: Border(borderStyle: BorderStyle.Thin),
+      topBorder: Border(borderStyle: BorderStyle.Thin),
+      leftBorder: Border(borderStyle: BorderStyle.Thin),
+      rightBorder: Border(borderStyle: BorderStyle.Thin),
+    );
+
+    // Kolom Label
+    final labelCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row),
+    );
+    labelCell.value = TextCellValue(label);
+    labelCell.cellStyle = labelStyle;
+
+    // Kolom KUOTA
+    final kuotaCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row),
+    );
+    kuotaCell.value = IntCellValue((data['kuota'] ?? 0).toInt());
+    kuotaCell.cellStyle = dataStyle;
+
+    // Kolom PAKAI
+    final pakaiCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row),
+    );
+    pakaiCell.value = IntCellValue((data['pakai'] ?? 0).toInt());
+    pakaiCell.cellStyle = dataStyle;
+
+    // Kolom SISA
+    final sisaCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: row),
+    );
+    sisaCell.value = IntCellValue((data['sisa'] ?? 0).toInt());
+    sisaCell.cellStyle = dataStyle;
+
+    // Tanggal 1-31 bulan 1
+    final dailyMonth1 = data['dailyMonth1'] as Map<int, int>;
+    for (int d = 1; d <= 31; d++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 3 + d, rowIndex: row),
+      );
+      final value = dailyMonth1[d] ?? 0;
+      if (value > 0) {
+        cell.value = IntCellValue(value.toInt());
+      } else {
+        cell.value = TextCellValue('-');
+      }
+      cell.cellStyle = dataStyle;
+    }
+
+    // Separator ungu
+    sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 35, rowIndex: row))
+            .cellStyle =
+        separatorStyle;
+
+    // Tanggal 1-31 bulan 2
+    final dailyMonth2 = data['dailyMonth2'] as Map<int, int>;
+    for (int d = 1; d <= 31; d++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 35 + d, rowIndex: row),
+      );
+      final value = dailyMonth2[d] ?? 0;
+      if (value > 0) {
+        cell.value = IntCellValue(value.toInt());
+      } else {
+        cell.value = TextCellValue('-');
+      }
+      cell.cellStyle = dataStyle;
+    }
+  }
+
+  /// Helper: Query aggregated transaksi per tanggal per kupon
+  /// Returns Map dengan key: "kuponId_month_year_day" dan value: total liter
+  static Future<Map<String, int>> _getAggregatedDailyTransaksi(
+    DatabaseDatasource dbDatasource,
+    List<int> kuponIds,
+    int month1,
+    int year1,
+    int month2,
+    int year2,
+  ) async {
+    if (kuponIds.isEmpty) return {};
+
+    final db = await dbDatasource.database;
+
+    final result = await db.rawQuery('''
+      SELECT 
+        t.kupon_key,
+        CAST(strftime('%d', t.tanggal_transaksi) AS INTEGER) as day_of_month,
+        CAST(strftime('%m', t.tanggal_transaksi) AS INTEGER) as month,
+        CAST(strftime('%Y', t.tanggal_transaksi) AS INTEGER) as year,
+        SUM(t.jumlah_liter) as total_liter
+      FROM fact_transaksi t
+      WHERE t.kupon_key IN (${kuponIds.join(',')}) 
+        AND t.is_deleted = 0
+        AND (
+          (CAST(strftime('%Y', t.tanggal_transaksi) AS INTEGER) = $year1 
+           AND CAST(strftime('%m', t.tanggal_transaksi) AS INTEGER) = $month1)
+          OR
+          (CAST(strftime('%Y', t.tanggal_transaksi) AS INTEGER) = $year2 
+           AND CAST(strftime('%m', t.tanggal_transaksi) AS INTEGER) = $month2)
+        )
+      GROUP BY t.kupon_key, day_of_month, month, year
+      ORDER BY t.kupon_key, year, month, day_of_month
+    ''');
+
+    final Map<String, int> transaksiMap = {};
+    for (final row in result) {
+      final kuponId = row['kupon_key'] as int;
+      final day = row['day_of_month'] as int;
+      final month = row['month'] as int;
+      final year = row['year'] as int;
+      final totalLiter = ((row['total_liter'] as num?)?.toInt() ?? 0);
+
+      final key = '${kuponId}_${month}_${year}_$day';
+      if (totalLiter > 0) {
+        transaksiMap[key] = totalLiter;
+      }
+    }
+
+    return transaksiMap;
+  }
+
+  /// Helper: Buat sheet Rekap Harian dalam file gabungan
+  /// Menambahkan blok PX dan DX dengan distribusi harian ke sheet yang sudah ada
+  static Future<void> _createRekapHarianSheet({
+    required Excel excel,
+    required String sheetName,
+    required List<KuponEntity> allKupons,
+    required DatabaseDatasource dbDatasource,
+    int? filterBulan,
+    int? filterTahun,
+    DateTime? filterTanggalMulai,
+    DateTime? filterTanggalSelesai,
+  }) async {
+    final sheet = excel[sheetName];
+
+    // Tentukan periode
+    int month1 = DateTime.now().month;
+    int year1 = DateTime.now().year;
+
+    // Cari bulan terbit dari kupon yang ada
+    final kuponsWithData = allKupons
+        .where((k) => k.kuotaSisa < k.kuotaAwal)
+        .toList();
+    if (kuponsWithData.isNotEmpty) {
+      month1 = kuponsWithData.first.bulanTerbit;
+      year1 = kuponsWithData.first.tahunTerbit;
+    }
+
+    final month2 = month1 == 12 ? 1 : month1 + 1;
+    final year2 = month1 == 12 ? year1 + 1 : year1;
+
+    // Get nama bulan
+    final monthNames = [
+      '',
+      'JANUARI',
+      'FEBRUARI',
+      'MARET',
+      'APRIL',
+      'MEI',
+      'JUNI',
+      'JULI',
+      'AGUSTUS',
+      'SEPTEMBER',
+      'OKTOBER',
+      'NOVEMBER',
+      'DESEMBER',
+    ];
+
+    // Filter kupon berdasarkan jenis BBM
+    final kuponsPX = allKupons.where((k) => k.jenisBbmId == 1).toList();
+    final kuponsDX = allKupons.where((k) => k.jenisBbmId == 2).toList();
+
+    // Get transaksi aggregated
+    final transaksiMap = await _getAggregatedDailyTransaksi(
+      dbDatasource,
+      allKupons.map((k) => k.kuponId).toList(),
+      month1,
+      year1,
+      month2,
+      year2,
+    );
+
+    int currentRow = 0;
+
+    // ====== BLOK PERTAMAX (PX) ======
+    currentRow = await _createRekapHarianBlock(
+      sheet: sheet,
+      startRow: currentRow,
+      blockTitle: 'PERTAMAX',
+      blockCode: 'PX',
+      kupons: kuponsPX,
+      transaksiMap: transaksiMap,
+      month1: month1,
+      year1: year1,
+      month2: month2,
+      year2: year2,
+      monthNames: monthNames,
+    );
+
+    // Gap antara blok PX dan DX
+    currentRow += 2;
+
+    // ====== BLOK PERTAMINA DEX (DX) ======
+    currentRow = await _createRekapHarianBlock(
+      sheet: sheet,
+      startRow: currentRow,
+      blockTitle: 'PERTAMINA DEX',
+      blockCode: 'DX',
+      kupons: kuponsDX,
+      transaksiMap: transaksiMap,
+      month1: month1,
+      year1: year1,
+      month2: month2,
+      year2: year2,
+      monthNames: monthNames,
+    );
   }
 }

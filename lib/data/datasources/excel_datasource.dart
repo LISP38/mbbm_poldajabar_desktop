@@ -379,7 +379,18 @@ class ExcelDatasource {
 
     for (int i = 0; i < kupons.length; i++) {
       final k = kupons[i];
-      final kendaraan = i < newKendaraans.length ? newKendaraans[i] : null;
+      // PERBAIKAN: Cari kendaraan berdasarkan kendaraanId, bukan index
+      // Karena tidak semua kupon punya kendaraan (DUKUNGAN tidak punya)
+      // dan urutan list kupons tidak sama dengan urutan list newKendaraans
+      KendaraanModel? kendaraan;
+      if (k.kendaraanId != null) {
+        for (final kend in newKendaraans) {
+          if (kend.kendaraanId == k.kendaraanId) {
+            kendaraan = kend;
+            break;
+          }
+        }
+      }
       final uniqueKey = _generateUniqueKey(k);
       final rowNum = i + 1; // Baris aktual di Excel (1-based)
 

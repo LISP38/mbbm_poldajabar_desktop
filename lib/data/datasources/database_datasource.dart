@@ -697,15 +697,17 @@ class DatabaseDatasource {
     }
 
     // 2) Try matching by textual no_pol_kode/no_pol_nomor (canonical final schema)
+    // PERBAIKAN: Ini adalah satu-satunya cara yang benar untuk mencari kendaraan
+    // Kendaraan harus diidentifikasi dengan satker + nomor polisi lengkap
     final useNoPol =
         cols.contains('no_pol_kode') && cols.contains('no_pol_nomor');
-    if (useNoPol) {
+    if (useNoPol && nopolKode != null && nopolNomor != null) {
       final whereConds = <String>[
         'satker_id = ?',
         'no_pol_kode = ?',
         'no_pol_nomor = ?',
       ];
-      final whereArgs = [satkerId, nopolKode ?? '', nopolNomor ?? ''];
+      final whereArgs = [satkerId, nopolKode, nopolNomor];
       final existing = await db.query(
         'dim_kendaraan',
         where: whereConds.join(' AND '),
@@ -715,17 +717,10 @@ class DatabaseDatasource {
       if (existing.isNotEmpty) return existing.first['kendaraan_id'] as int;
     }
 
-    // 3) As a last resort, try matching only by satker + jenis_ranmor text
-    if (cols.contains('jenis_ranmor')) {
-      final where = 'satker_id = ? AND jenis_ranmor = ?';
-      final existing = await db.query(
-        'dim_kendaraan',
-        where: where,
-        whereArgs: [satkerId, jenisRanmorText ?? '-'],
-        limit: 1,
-      );
-      if (existing.isNotEmpty) return existing.first['kendaraan_id'] as int;
-    }
+    // PERBAIKAN: Hapus fallback step 3 yang hanya match by satker + jenis_ranmor
+    // Fallback lama menyebabkan semua kendaraan jenis sama di satker sama
+    // dianggap sebagai satu kendaraan (SALAH!)
+    // Sekarang jika tidak ditemukan, langsung insert kendaraan baru
 
     // Not found -> insert. Only include columns that exist in the schema.
     final insertMap = <String, Object?>{};

@@ -8,6 +8,7 @@ import '../../../domain/entities/kendaraan_entity.dart';
 import '../../../domain/entities/kupon_entity.dart';
 import '../../../data/models/kendaraan_model.dart';
 import '../../../data/services/export_service.dart';
+import '../../../data/datasources/database_datasource.dart';
 import '../../../domain/repositories/kendaraan_repository.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../providers/master_data_provider.dart';
@@ -282,9 +283,7 @@ class _DashboardPageState extends State<DashboardPage>
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          border: Border(
-            left: BorderSide(color: color, width: 4),
-          ),
+          border: Border(left: BorderSide(color: color, width: 4)),
         ),
         child: Row(
           children: [
@@ -463,7 +462,7 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  // Export Master Data Kupon - tanpa kolom tanggal
+  // Export Data Kupon dengan penggunaan harian - 5 sheets (detail + rekap harian)
   Future<void> _exportDataKupon() async {
     try {
       if (!mounted) return;
@@ -484,6 +483,7 @@ class _DashboardPageState extends State<DashboardPage>
       );
 
       final provider = Provider.of<DashboardProvider>(context, listen: false);
+      final dbDatasource = getIt<DatabaseDatasource>();
 
       // Pastikan data dari kedua tab sudah dimuat
       if (provider.ranjenKupons.isEmpty) {
@@ -511,24 +511,33 @@ class _DashboardPageState extends State<DashboardPage>
             children: [
               CircularProgressIndicator(),
               SizedBox(width: 16),
-              Text('Mengekspor master data kupon...'),
+              Text('Mengekspor data kupon dengan penggunaan harian...'),
             ],
           ),
         ),
       );
 
-      // Export menggunakan fungsi master data (9 kolom, tanpa tanggal)
-      final success = await ExportService.exportMasterDataKupon(
+      // Tentukan filter bulan/tahun - default ke bulan sekarang jika tidak ada filter
+      int filterBulan = provider.bulanTerbit ?? DateTime.now().month;
+      int filterTahun = provider.tahunTerbit ?? DateTime.now().year;
+
+      // Export dengan penggunaan harian 2 bulan + sheet rekap harian
+      final success = await ExportService.exportDataKuponWithDaily(
         allKupons: provider.allKuponsForExport,
         getNopolByKendaraanId: _getNopolByKendaraanId,
         getJenisRanmorByKendaraanId: _getJenisRanmorByKendaraanId,
+        dbDatasource: dbDatasource,
+        filterBulan: filterBulan,
+        filterTahun: filterTahun,
       );
 
       if (!mounted) return;
       Navigator.of(context).pop(); // Tutup loading dialog
 
       if (success) {
-        _showMessage('Master data kupon berhasil di-export');
+        _showMessage(
+          'Data kupon dengan penggunaan harian berhasil di-export (5 sheets)',
+        );
       } else {
         _showMessage('Export dibatalkan atau terjadi kesalahan', isError: true);
       }
