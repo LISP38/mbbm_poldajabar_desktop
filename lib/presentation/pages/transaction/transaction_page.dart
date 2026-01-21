@@ -103,12 +103,12 @@ class _TransactionPageState extends State<TransactionPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    
+
     // Auto-filter ke hari ini
     final today = DateTime.now();
     _filterTanggalMulai = DateTime(today.year, today.month, today.day);
     _filterTanggalSelesai = DateTime(today.year, today.month, today.day);
-    
+
     Future.microtask(() {
       if (!mounted) return;
       Provider.of<TransaksiProvider>(
@@ -202,7 +202,7 @@ class _TransactionPageState extends State<TransactionPage>
             // SUMMARY CARDS - Expenditure per fuel type
             _buildTransactionSummaryCards(),
             const SizedBox(height: 12),
-            
+
             // FILTER & BUTTON SECTION - Single Row
             Row(
               children: [
@@ -219,16 +219,31 @@ class _TransactionPageState extends State<TransactionPage>
                         decoration: const InputDecoration(
                           labelText: 'Satuang Kerja',
                           border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 8,
+                          ),
                         ),
                         items: [
-                          const DropdownMenuItem(value: '', child: Text('Semua')),
-                          ...satkerList.map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis))),
+                          const DropdownMenuItem(
+                            value: '',
+                            child: Text('Semua'),
+                          ),
+                          ...satkerList.map(
+                            (s) => DropdownMenuItem(
+                              value: s,
+                              child: Text(s, overflow: TextOverflow.ellipsis),
+                            ),
+                          ),
                         ],
                         onChanged: (val) {
-                          final satker = (val == null || val.isEmpty) ? null : val;
-                          Provider.of<TransaksiProvider>(context, listen: false)
-                              .setFilterTransaksi(satker: satker);
+                          final satker = (val == null || val.isEmpty)
+                              ? null
+                              : val;
+                          Provider.of<TransaksiProvider>(
+                            context,
+                            listen: false,
+                          ).setFilterTransaksi(satker: satker);
                         },
                       );
                     },
@@ -244,13 +259,17 @@ class _TransactionPageState extends State<TransactionPage>
                       decoration: const InputDecoration(
                         labelText: "Range Tanggal",
                         border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 8,
+                        ),
                       ),
                       child: Row(
                         children: [
                           Expanded(
                             child: Text(
-                              _filterTanggalMulai != null && _filterTanggalSelesai != null
+                              _filterTanggalMulai != null &&
+                                      _filterTanggalSelesai != null
                                   ? '${_filterTanggalMulai!.day}/${_filterTanggalMulai!.month} - ${_filterTanggalSelesai!.day}/${_filterTanggalSelesai!.month}'
                                   : 'Pilih Tanggal',
                               style: const TextStyle(fontSize: 12),
@@ -269,7 +288,7 @@ class _TransactionPageState extends State<TransactionPage>
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child : SizedBox(
+                  child: SizedBox(
                     height: 44,
                     child: ElevatedButton.icon(
                       onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 1, jenisKuponId: 1, themeColor: Colors.blue,),
@@ -278,7 +297,9 @@ class _TransactionPageState extends State<TransactionPage>
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
@@ -295,7 +316,9 @@ class _TransactionPageState extends State<TransactionPage>
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
@@ -312,7 +335,9 @@ class _TransactionPageState extends State<TransactionPage>
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orange,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
@@ -329,7 +354,9 @@ class _TransactionPageState extends State<TransactionPage>
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
@@ -449,9 +476,7 @@ class _TransactionPageState extends State<TransactionPage>
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          border: Border(
-            left: BorderSide(color: color, width: 4),
-          ),
+          border: Border(left: BorderSide(color: color, width: 4)),
         ),
         child: Row(
           children: [
@@ -489,10 +514,7 @@ class _TransactionPageState extends State<TransactionPage>
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey[500],
-                      ),
+                      style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                     ),
                   ],
                 ],
@@ -562,9 +584,9 @@ class _TransactionPageState extends State<TransactionPage>
               const SizedBox(height: 12),
               ListTile(
                 leading: const Icon(Icons.folder_special, color: Colors.green),
-                title: const Text('Transaksi Detail (4 Sheet)'),
+                title: const Text('Transaksi Detail (5 Sheet)'),
                 subtitle: const Text(
-                  'RAN.PX, DUK.PX, RAN.DX, DUK.DX - Detail per kupon',
+                  'RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Harian - Detail per kupon',
                   style: TextStyle(fontSize: 12),
                 ),
                 tileColor: Colors.green.shade50,
@@ -606,10 +628,28 @@ class _TransactionPageState extends State<TransactionPage>
               ),
               const SizedBox(height: 12),
               ListTile(
-                leading: const Icon(Icons.table_rows, color: Colors.purple),
-                title: const Text('Gabungan (6 Sheet)'),
+                leading: const Icon(
+                  Icons.calendar_view_month,
+                  color: Colors.indigo,
+                ),
+                title: const Text('Rekap Harian (1 Sheet)'),
                 subtitle: const Text(
-                  'Kupon + Satker - Semua data',
+                  'PX + DX - Agregat per jenis kupon dengan distribusi harian',
+                  style: TextStyle(fontSize: 12),
+                ),
+                tileColor: Colors.indigo.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.indigo.shade200),
+                ),
+                onTap: () => Navigator.pop(context, 'rekap_harian'),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.table_rows, color: Colors.purple),
+                title: const Text('Gabungan (7 Sheet)'),
+                subtitle: const Text(
+                  'RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Harian, REKAP.PX, REKAP.DX',
                   style: TextStyle(fontSize: 12),
                 ),
                 tileColor: Colors.purple.shade50,
@@ -1172,8 +1212,8 @@ class _TransactionPageState extends State<TransactionPage>
                 const SizedBox(width: 12),
                 // Export button - Expanded to fill space
                 Expanded(
-                  child : SizedBox(
-                    height: 44, 
+                  child: SizedBox(
+                    height: 44,
                     child: ElevatedButton.icon(
                       onPressed: _exportTransaksi,
                       icon: const Icon(Icons.download, size: 18),
@@ -1205,7 +1245,8 @@ class _TransactionPageState extends State<TransactionPage>
     return Consumer<DashboardProvider>(
       builder: (context, provider, _) {
         final double totalSaldo = provider.totalSaldo;
-        final int totalKupon = provider.ranjenKupons.length + provider.dukunganKupons.length;
+        final int totalKupon =
+            provider.ranjenKupons.length + provider.dukunganKupons.length;
 
         return Container(
           height: 44,
@@ -1218,7 +1259,11 @@ class _TransactionPageState extends State<TransactionPage>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.account_balance_wallet, color: Colors.green.shade700, size: 20),
+              Icon(
+                Icons.account_balance_wallet,
+                color: Colors.green.shade700,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Saldo Tersisa: ',

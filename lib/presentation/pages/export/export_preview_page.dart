@@ -59,8 +59,10 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
     _prepareData();
     _tabController = TabController(
       length: widget.exportType == 'combined'
-          ? 6
-          : (widget.exportType == 'satker' ? 2 : 4),
+          ? 7
+          : (widget.exportType == 'kupon'
+                ? 5
+                : (widget.exportType == 'satker' ? 2 : 4)),
       vsync: this,
     );
     // Hanya preload vehicle data jika diperlukan (bukan untuk transaksi_rekap dan satker)
@@ -110,34 +112,22 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
       // Filter untuk 4 sheet - hanya kupon minus (kuotaSisa < 0 = negatif)
       ranPertamax = widget.allKupons
           .where(
-            (k) =>
-                k.jenisKuponId == 1 &&
-                k.jenisBbmId == 1 &&
-                k.kuotaSisa < 0,
+            (k) => k.jenisKuponId == 1 && k.jenisBbmId == 1 && k.kuotaSisa < 0,
           )
           .toList();
       dukPertamax = widget.allKupons
           .where(
-            (k) =>
-                k.jenisKuponId == 2 &&
-                k.jenisBbmId == 1 &&
-                k.kuotaSisa < 0,
+            (k) => k.jenisKuponId == 2 && k.jenisBbmId == 1 && k.kuotaSisa < 0,
           )
           .toList();
       ranDex = widget.allKupons
           .where(
-            (k) =>
-                k.jenisKuponId == 1 &&
-                k.jenisBbmId == 2 &&
-                k.kuotaSisa < 0,
+            (k) => k.jenisKuponId == 1 && k.jenisBbmId == 2 && k.kuotaSisa < 0,
           )
           .toList();
       dukDex = widget.allKupons
           .where(
-            (k) =>
-                k.jenisKuponId == 2 &&
-                k.jenisBbmId == 2 &&
-                k.kuotaSisa < 0,
+            (k) => k.jenisKuponId == 2 && k.jenisBbmId == 2 && k.kuotaSisa < 0,
           )
           .toList();
     } else if (widget.exportType == 'combined') {
@@ -268,9 +258,9 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
       case 'transaksi_rekap':
         return '4 sheet rekap transaksi per satker akan dibuat';
       case 'combined':
-        return '6 sheet (4 kupon + 2 satker) akan dibuat';
+        return '7 sheet (4 kupon + Rekap Harian + 2 satker) akan dibuat';
       case 'kupon':
-        return '4 sheet detail kupon akan dibuat';
+        return '5 sheet detail kupon + Rekap Harian akan dibuat';
       case 'minus':
         return '4 sheet kupon minus akan dibuat';
       default:
@@ -318,6 +308,16 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
               const Icon(Icons.description, size: 16),
               const SizedBox(width: 4),
               Text('DUK.DX (${dukDex.length})'),
+            ],
+          ),
+        ),
+        Tab(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.calendar_view_month, size: 16),
+              const SizedBox(width: 4),
+              const Text('Rekap Harian'),
             ],
           ),
         ),
@@ -381,6 +381,16 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
               const Icon(Icons.description, size: 16),
               const SizedBox(width: 4),
               Text('DUK.DX (${dukDex.length})'),
+            ],
+          ),
+        ),
+        Tab(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.calendar_view_month, size: 16),
+              const SizedBox(width: 4),
+              const Text('Rekap Harian'),
             ],
           ),
         ),
@@ -461,6 +471,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
         _buildKuponPreview('DUK.PX', dukPertamax, isRanjen: false),
         _buildKuponPreview('RAN.DX', ranDex, isRanjen: true),
         _buildKuponPreview('DUK.DX', dukDex, isRanjen: false),
+        _buildRekapHarianPreview(),
         _buildSatkerPreview('REKAP.PX', pertamaxKupons),
         _buildSatkerPreview('REKAP.DX', dexKupons),
       ];
@@ -470,6 +481,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
         _buildKuponPreview('DUK.PX', dukPertamax, isRanjen: false),
         _buildKuponPreview('RAN.DX', ranDex, isRanjen: true),
         _buildKuponPreview('DUK.DX', dukDex, isRanjen: false),
+        _buildRekapHarianPreview(),
       ];
     } else if (widget.exportType == 'transaksi_rekap') {
       return [
@@ -509,7 +521,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
 
       bool success;
       if (widget.exportType == 'combined') {
-        // Export gabungan: 1 file dengan 6 sheets (4 kupon + 2 rekap satker)
+        // Export gabungan: 1 file dengan 7 sheets (4 kupon + Rekap Harian + 2 rekap satker)
         success = await ExportService.exportGabungan(
           allKupons: widget.allKupons,
           jenisBBMMap: widget.jenisBBMMap,
@@ -542,6 +554,12 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
           allKupons: widget.allKupons,
           jenisBBMMap: widget.jenisBBMMap,
         );
+      } else if (widget.exportType == 'rekap_harian') {
+        // Export rekap harian: 1 sheet dengan blok PX dan DX agregat per jenis kupon
+        success = await ExportService.exportRekapHarian(
+          allKupons: widget.allKupons,
+          dbDatasource: dbDatasource,
+        );
       } else {
         success = await ExportService.exportDataSatker(
           allKupons: widget.allKupons,
@@ -566,6 +584,8 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                       ? 'Data Kupon Minus berhasil di-export!'
                       : widget.exportType == 'transaksi_rekap'
                       ? 'Transaksi Rekap berhasil di-export!'
+                      : widget.exportType == 'rekap_harian'
+                      ? 'Rekap Harian berhasil di-export!'
                       : widget.exportType == 'combined'
                       ? 'Data Gabungan berhasil di-export!'
                       : 'Data Satker berhasil di-export!',
@@ -1191,6 +1211,146 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                   ),
                 ],
               ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRekapHarianPreview() {
+    // Simple preview for Rekap Harian sheet
+    // Show summary of what will be exported
+    final allKupons = widget.allKupons
+        .where((k) => k.kuotaSisa < k.kuotaAwal)
+        .toList();
+
+    final pertamaxTotal = allKupons
+        .where((k) => k.jenisBbmId == 1)
+        .fold<double>(0, (sum, k) => sum + (k.kuotaAwal - k.kuotaSisa));
+
+    final dexTotal = allKupons
+        .where((k) => k.jenisBbmId == 2)
+        .fold<double>(0, (sum, k) => sum + (k.kuotaAwal - k.kuotaSisa));
+
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          color: Colors.blue.shade50,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Rekap Harian - Agregat per Jenis Kupon',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Sheet ini menampilkan total pemakaian BBM per jenis (Pertamax dan Pertamina DEX) dengan distribusi harian.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Ringkasan Data yang akan di-export:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.blue.shade200,
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Pertamax (PX)',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '${pertamaxTotal.toStringAsFixed(0)} Liter',
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.blue.shade700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.green.shade200,
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Pertamina DEX (DX)',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '${dexTotal.toStringAsFixed(0)} Liter',
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.green.shade700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),

@@ -38,20 +38,19 @@ class ImportPreviewPage extends StatelessWidget {
     for (int i = 0; i < parseResult.kupons.length; i++) {
       final kupon = parseResult.kupons[i];
 
-      // Cari kendaraan yang sesuai berdasarkan satker, bukan indeks
+      // PERBAIKAN: Cari kendaraan berdasarkan kendaraanId, bukan satkerId
+      // Karena satu satker bisa punya banyak kendaraan dengan nomor polisi berbeda
       KendaraanModel? kendaraan;
-      if (kupon.jenisKuponId == 1) {
-        // Kupon RANJEN - cari kendaraan yang sesuai berdasarkan satkerId
+      if (kupon.jenisKuponId == 1 && kupon.kendaraanId != null) {
+        // Kupon RANJEN - cari kendaraan yang sesuai berdasarkan kendaraanId
         for (final k in parseResult.newKendaraans) {
-          if (k.satkerId == kupon.satkerId) {
+          if (k.kendaraanId == kupon.kendaraanId) {
             kendaraan = k;
             break;
           }
         }
-      } else if (kupon.jenisKuponId == 2) {
-        // Kupon DUKUNGAN - tidak ada kendaraan langsung
-        kendaraan = null;
       }
+      // Kupon DUKUNGAN (jenisKuponId == 2) tidak punya kendaraan
 
       items.add(
         ImportPreviewItem(
@@ -67,20 +66,18 @@ class ImportPreviewPage extends StatelessWidget {
     for (int i = 0; i < parseResult.duplicateKupons.length; i++) {
       final kupon = parseResult.duplicateKupons[i];
 
-      // Cari kendaraan duplicate yang sesuai berdasarkan satker, bukan indeks
+      // PERBAIKAN: Cari kendaraan berdasarkan kendaraanId, bukan satkerId
       KendaraanModel? kendaraan;
-      if (kupon.jenisKuponId == 1) {
-        // Kupon RANJEN duplicate - cari kendaraan yang sesuai berdasarkan satkerId
+      if (kupon.jenisKuponId == 1 && kupon.kendaraanId != null) {
+        // Kupon RANJEN duplicate - cari kendaraan yang sesuai berdasarkan kendaraanId
         for (final k in parseResult.duplicateKendaraans) {
-          if (k.satkerId == kupon.satkerId) {
+          if (k.kendaraanId == kupon.kendaraanId) {
             kendaraan = k;
             break;
           }
         }
-      } else if (kupon.jenisKuponId == 2) {
-        // Kupon DUKUNGAN duplicate - tidak ada kendaraan langsung
-        kendaraan = null;
       }
+      // Kupon DUKUNGAN duplicate tidak punya kendaraan
 
       items.add(
         ImportPreviewItem(
@@ -281,6 +278,13 @@ class ImportPreviewPage extends StatelessWidget {
                           flex: 3,
                           child: Text(
                             'Nomor Kupon',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            'Satker',
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
@@ -495,6 +499,14 @@ class ImportPreviewPage extends StatelessWidget {
             child: Text(
               _formatNomorKupon(item.kupon),
               style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              item.kupon.namaSatker,
+              style: const TextStyle(fontSize: 11),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           Expanded(
