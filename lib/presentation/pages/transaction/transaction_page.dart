@@ -291,11 +291,7 @@ class _TransactionPageState extends State<TransactionPage>
                   child: SizedBox(
                     height: 44,
                     child: ElevatedButton.icon(
-                      onPressed: () => _showTambahTransaksiDialog(
-                        context,
-                        jenisBbm: 1,
-                        jenisKuponId: 1,
-                      ),
+                      onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 1, jenisKuponId: 1, themeColor: Colors.blue,),
                       icon: const Icon(Icons.add, size: 16),
                       label: const Text('RAN-PX'),
                       style: ElevatedButton.styleFrom(
@@ -314,11 +310,7 @@ class _TransactionPageState extends State<TransactionPage>
                   child: SizedBox(
                     height: 44,
                     child: ElevatedButton.icon(
-                      onPressed: () => _showTambahTransaksiDialog(
-                        context,
-                        jenisBbm: 1,
-                        jenisKuponId: 2,
-                      ),
+                      onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 1, jenisKuponId: 2, themeColor: Colors.green,),
                       icon: const Icon(Icons.add, size: 16),
                       label: const Text('DUK-PX'),
                       style: ElevatedButton.styleFrom(
@@ -337,11 +329,7 @@ class _TransactionPageState extends State<TransactionPage>
                   child: SizedBox(
                     height: 44,
                     child: ElevatedButton.icon(
-                      onPressed: () => _showTambahTransaksiDialog(
-                        context,
-                        jenisBbm: 2,
-                        jenisKuponId: 1,
-                      ),
+                      onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 2, jenisKuponId: 1, themeColor: Colors.orange,),
                       icon: const Icon(Icons.add, size: 16),
                       label: const Text('RAN-DX'),
                       style: ElevatedButton.styleFrom(
@@ -360,11 +348,7 @@ class _TransactionPageState extends State<TransactionPage>
                   child: SizedBox(
                     height: 44,
                     child: ElevatedButton.icon(
-                      onPressed: () => _showTambahTransaksiDialog(
-                        context,
-                        jenisBbm: 2,
-                        jenisKuponId: 2,
-                      ),
+                      onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 2, jenisKuponId: 2, themeColor: Colors.red,),
                       icon: const Icon(Icons.add, size: 16),
                       label: const Text('DUK-DX'),
                       style: ElevatedButton.styleFrom(
@@ -680,6 +664,7 @@ class _TransactionPageState extends State<TransactionPage>
     BuildContext context, {
     required int jenisBbm,
     required int jenisKuponId,
+    required Color themeColor,
   }) async {
     final dashboardProvider = Provider.of<DashboardProvider>(
       context,
@@ -725,8 +710,27 @@ class _TransactionPageState extends State<TransactionPage>
     await showDialog(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
-          title: Text('Tambah Transaksi'),
+      return Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(
+            primary: themeColor,
+          ),
+          inputDecorationTheme: InputDecorationTheme(
+            labelStyle: TextStyle(color: themeColor),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: themeColor, width: 2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: themeColor),
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),  
+        child: AlertDialog(
+          title: Text(
+            'Tambah Transaksi', 
+            style: TextStyle(color: themeColor)),
           content: Form(
             key: formKey,
             child: Column(
@@ -886,6 +890,7 @@ class _TransactionPageState extends State<TransactionPage>
               child: const Text('Simpan'),
             ),
           ],
+        ),
         );
       },
     );
