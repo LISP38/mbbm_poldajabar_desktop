@@ -6,7 +6,7 @@ import '../../../core/di/dependency_injection.dart';
 
 class ExportPreviewPage extends StatefulWidget {
   final String
-  exportType; // 'kupon', 'satker', 'combined', 'minus', 'transaksi_rekap'
+  exportType; // 'kupon', 'satker', 'minus'
   final List<KuponEntity> allKupons;
   final Map<int, String> jenisBBMMap;
   final Future<String?> Function(int?)? getNopolByKendaraanId;
@@ -58,24 +58,27 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
     super.initState();
     _prepareData();
     _tabController = TabController(
-      length: widget.exportType == 'combined'
-          ? 7
+      length: widget.exportType == 'satker'
+          ? 5  // 5 sheet: RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Bulanan
           : (widget.exportType == 'kupon'
-                ? 5
-                : (widget.exportType == 'satker' ? 2 : 4)),
+                ? 5  // 5 sheet: RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Harian
+                : 4),  // 4 sheet untuk minus: RAN.PX, DUK.PX, RAN.DX, DUK.DX
       vsync: this,
     );
-    // Hanya preload vehicle data jika diperlukan (bukan untuk transaksi_rekap dan satker)
-    if (widget.exportType != 'transaksi_rekap' &&
-        widget.exportType != 'satker') {
+    // Preload vehicle data untuk kupon dan minus
+    if (widget.exportType == 'kupon' || widget.exportType == 'minus') {
       _preloadVehicleData();
     }
   }
 
   void _prepareData() {
-    if (widget.exportType == 'kupon' ||
-        widget.exportType == 'transaksi_rekap') {
-      // Filter untuk 4 sheet - hanya kupon yang ada transaksi (kuotaSisa < kuotaAwal)
+    // Inisialisasi pertamaxKupons dan dexKupons untuk semua mode
+    pertamaxKupons = [];
+    dexKupons = [];
+
+    if (widget.exportType == 'satker' ||
+        widget.exportType == 'kupon') {
+      // Filter untuk 4-5 sheet - hanya kupon yang ada transaksi (kuotaSisa < kuotaAwal)
       ranPertamax = widget.allKupons
           .where(
             (k) =>
@@ -130,54 +133,12 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
             (k) => k.jenisKuponId == 2 && k.jenisBbmId == 2 && k.kuotaSisa < 0,
           )
           .toList();
-    } else if (widget.exportType == 'combined') {
-      // Filter untuk 6 sheet - hanya kupon yang ada transaksi
-      ranPertamax = widget.allKupons
-          .where(
-            (k) =>
-                k.jenisKuponId == 1 &&
-                k.jenisBbmId == 1 &&
-                k.kuotaSisa < k.kuotaAwal,
-          )
-          .toList();
-      dukPertamax = widget.allKupons
-          .where(
-            (k) =>
-                k.jenisKuponId == 2 &&
-                k.jenisBbmId == 1 &&
-                k.kuotaSisa < k.kuotaAwal,
-          )
-          .toList();
-      ranDex = widget.allKupons
-          .where(
-            (k) =>
-                k.jenisKuponId == 1 &&
-                k.jenisBbmId == 2 &&
-                k.kuotaSisa < k.kuotaAwal,
-          )
-          .toList();
-      dukDex = widget.allKupons
-          .where(
-            (k) =>
-                k.jenisKuponId == 2 &&
-                k.jenisBbmId == 2 &&
-                k.kuotaSisa < k.kuotaAwal,
-          )
-          .toList();
-      pertamaxKupons = widget.allKupons
-          .where((k) => k.jenisBbmId == 1 && k.kuotaSisa < k.kuotaAwal)
-          .toList();
-      dexKupons = widget.allKupons
-          .where((k) => k.jenisBbmId == 2 && k.kuotaSisa < k.kuotaAwal)
-          .toList();
     } else {
-      // Filter untuk 2 sheet - per satker, hanya yang ada transaksi
-      pertamaxKupons = widget.allKupons
-          .where((k) => k.jenisBbmId == 1 && k.kuotaSisa < k.kuotaAwal)
-          .toList();
-      dexKupons = widget.allKupons
-          .where((k) => k.jenisBbmId == 2 && k.kuotaSisa < k.kuotaAwal)
-          .toList();
+      // Fallback - inisialisasi semua list kosong
+      ranPertamax = [];
+      dukPertamax = [];
+      ranDex = [];
+      dukDex = [];
     }
   }
 
@@ -222,16 +183,14 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
 
   String _getTitle() {
     switch (widget.exportType) {
-      case 'transaksi_rekap':
-        return 'Preview Export Transaksi Rekap (4 Sheet)';
+      case 'satker':
+        return 'Preview Export Rekapitulasi per Satker (5 Sheet)';
       case 'kupon':
-        return 'Preview Export Transaksi Detail (4 Sheet)';
+        return 'Preview Export Rekapitulasi per Kupon (5 Sheet)';
       case 'minus':
         return 'Preview Export Kupon Minus (4 Sheet)';
-      case 'combined':
-        return 'Preview Export Gabungan (6 Sheet)';
       default:
-        return 'Preview Export Data Satker (2 Sheet)';
+        return 'Preview Export';
     }
   }
 
@@ -255,153 +214,26 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
 
   String _getSheetInfo() {
     switch (widget.exportType) {
-      case 'transaksi_rekap':
-        return '4 sheet rekap transaksi per satker akan dibuat';
-      case 'combined':
-        return '7 sheet (4 kupon + Rekap Harian + 2 satker) akan dibuat';
+      case 'satker':
+        return '5 sheet: RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekapitulasi Bulanan';
       case 'kupon':
-        return '5 sheet detail kupon + Rekap Harian akan dibuat';
+        return '5 sheet: RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Harian';
       case 'minus':
-        return '4 sheet kupon minus akan dibuat';
+        return '4 sheet: RAN.PX, DUK.PX, RAN.DX, DUK.DX (kupon minus)';
       default:
-        return '2 sheet rekap per satker akan dibuat';
+        return 'Sheet export akan dibuat';
     }
   }
 
   List<Widget> _buildTabs() {
-    if (widget.exportType == 'combined') {
+    if (widget.exportType == 'satker') {
+      // 5 tabs untuk satker: 4 detail + 1 rekap bulanan
       return [
-        Tab(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.description, size: 16),
-              const SizedBox(width: 4),
-              Text('RAN.PX (${ranPertamax.length})'),
-            ],
-          ),
-        ),
-        Tab(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.description, size: 16),
-              const SizedBox(width: 4),
-              Text('DUK.PX (${dukPertamax.length})'),
-            ],
-          ),
-        ),
-        Tab(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.description, size: 16),
-              const SizedBox(width: 4),
-              Text('RAN.DX (${ranDex.length})'),
-            ],
-          ),
-        ),
-        Tab(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.description, size: 16),
-              const SizedBox(width: 4),
-              Text('DUK.DX (${dukDex.length})'),
-            ],
-          ),
-        ),
-        Tab(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.calendar_view_month, size: 16),
-              const SizedBox(width: 4),
-              const Text('Rekap Harian'),
-            ],
-          ),
-        ),
         Tab(
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.business, size: 16),
-              const SizedBox(width: 4),
-              Text('REKAP.PX (${_getUniqueSatkers(pertamaxKupons)})'),
-            ],
-          ),
-        ),
-        Tab(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.business, size: 16),
-              const SizedBox(width: 4),
-              Text('REKAP.DX (${_getUniqueSatkers(dexKupons)})'),
-            ],
-          ),
-        ),
-      ];
-    } else if (widget.exportType == 'kupon' || widget.exportType == 'minus') {
-      return [
-        Tab(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.description, size: 16),
-              const SizedBox(width: 4),
-              Text('RAN.PX (${ranPertamax.length})'),
-            ],
-          ),
-        ),
-        Tab(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.description, size: 16),
-              const SizedBox(width: 4),
-              Text('DUK.PX (${dukPertamax.length})'),
-            ],
-          ),
-        ),
-        Tab(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.description, size: 16),
-              const SizedBox(width: 4),
-              Text('RAN.DX (${ranDex.length})'),
-            ],
-          ),
-        ),
-        Tab(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.description, size: 16),
-              const SizedBox(width: 4),
-              Text('DUK.DX (${dukDex.length})'),
-            ],
-          ),
-        ),
-        Tab(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.calendar_view_month, size: 16),
-              const SizedBox(width: 4),
-              const Text('Rekap Harian'),
-            ],
-          ),
-        ),
-      ];
-    } else if (widget.exportType == 'transaksi_rekap') {
-      return [
-        Tab(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.summarize, size: 16),
               const SizedBox(width: 4),
               Text('RAN.PX (${_getUniqueSatkers(ranPertamax)})'),
             ],
@@ -411,7 +243,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.summarize, size: 16),
+              const Icon(Icons.business, size: 16),
               const SizedBox(width: 4),
               Text('DUK.PX (${_getUniqueSatkers(dukPertamax)})'),
             ],
@@ -421,7 +253,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.summarize, size: 16),
+              const Icon(Icons.business, size: 16),
               const SizedBox(width: 4),
               Text('RAN.DX (${_getUniqueSatkers(ranDex)})'),
             ],
@@ -431,22 +263,33 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.summarize, size: 16),
+              const Icon(Icons.business, size: 16),
               const SizedBox(width: 4),
               Text('DUK.DX (${_getUniqueSatkers(dukDex)})'),
             ],
           ),
         ),
+        Tab(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.summarize, size: 16),
+              const SizedBox(width: 4),
+              const Text('Rekap Bulanan'),
+            ],
+          ),
+        ),
       ];
-    } else {
+    } else if (widget.exportType == 'kupon') {
+      // 5 tabs untuk kupon: 4 detail + 1 rekap harian
       return [
         Tab(
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.business, size: 16),
+              const Icon(Icons.credit_card, size: 16),
               const SizedBox(width: 4),
-              Text('REKAP.PX (${_getUniqueSatkers(pertamaxKupons)})'),
+              Text('RAN.PX (${ranPertamax.length})'),
             ],
           ),
         ),
@@ -454,9 +297,83 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.business, size: 16),
+              const Icon(Icons.credit_card, size: 16),
               const SizedBox(width: 4),
-              Text('REKAP.DX (${_getUniqueSatkers(dexKupons)})'),
+              Text('DUK.PX (${dukPertamax.length})'),
+            ],
+          ),
+        ),
+        Tab(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.credit_card, size: 16),
+              const SizedBox(width: 4),
+              Text('RAN.DX (${ranDex.length})'),
+            ],
+          ),
+        ),
+        Tab(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.credit_card, size: 16),
+              const SizedBox(width: 4),
+              Text('DUK.DX (${dukDex.length})'),
+            ],
+          ),
+        ),
+        Tab(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.calendar_view_month, size: 16),
+              const SizedBox(width: 4),
+              const Text('Rekap Harian'),
+            ],
+          ),
+        ),
+      ];
+    } else {
+      // 4 tabs untuk minus
+      return [
+        Tab(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.remove_circle, size: 16),
+              const SizedBox(width: 4),
+              Text('RAN.PX (${ranPertamax.length})'),
+            ],
+          ),
+        ),
+        Tab(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.remove_circle, size: 16),
+              const SizedBox(width: 4),
+              Text('DUK.PX (${dukPertamax.length})'),
+            ],
+          ),
+        ),
+        Tab(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.remove_circle, size: 16),
+              const SizedBox(width: 4),
+              Text('RAN.DX (${ranDex.length})'),
+            ],
+          ),
+        ),
+        Tab(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.remove_circle, size: 16),
+              const SizedBox(width: 4),
+              Text('DUK.DX (${dukDex.length})'),
             ],
           ),
         ),
@@ -465,43 +382,31 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
   }
 
   List<Widget> _buildTabViews() {
-    if (widget.exportType == 'combined') {
-      return [
-        _buildKuponPreview('RAN.PX', ranPertamax, isRanjen: true),
-        _buildKuponPreview('DUK.PX', dukPertamax, isRanjen: false),
-        _buildKuponPreview('RAN.DX', ranDex, isRanjen: true),
-        _buildKuponPreview('DUK.DX', dukDex, isRanjen: false),
-        _buildRekapHarianPreview(),
-        _buildSatkerPreview('REKAP.PX', pertamaxKupons),
-        _buildSatkerPreview('REKAP.DX', dexKupons),
-      ];
-    } else if (widget.exportType == 'kupon' || widget.exportType == 'minus') {
-      return [
-        _buildKuponPreview('RAN.PX', ranPertamax, isRanjen: true),
-        _buildKuponPreview('DUK.PX', dukPertamax, isRanjen: false),
-        _buildKuponPreview('RAN.DX', ranDex, isRanjen: true),
-        _buildKuponPreview('DUK.DX', dukDex, isRanjen: false),
-        _buildRekapHarianPreview(),
-      ];
-    } else if (widget.exportType == 'transaksi_rekap') {
+    if (widget.exportType == 'satker') {
+      // 5 tab views untuk satker: 4 preview satker + 1 rekap bulanan
       return [
         _buildTransaksiRekapPreview('RAN.PX', ranPertamax, 'RANJEN - PERTAMAX'),
-        _buildTransaksiRekapPreview(
-          'DUK.PX',
-          dukPertamax,
-          'DUKUNGAN - PERTAMAX',
-        ),
+        _buildTransaksiRekapPreview('DUK.PX', dukPertamax, 'DUKUNGAN - PERTAMAX'),
         _buildTransaksiRekapPreview('RAN.DX', ranDex, 'RANJEN - PERTAMINA DEX'),
-        _buildTransaksiRekapPreview(
-          'DUK.DX',
-          dukDex,
-          'DUKUNGAN - PERTAMINA DEX',
-        ),
+        _buildTransaksiRekapPreview('DUK.DX', dukDex, 'DUKUNGAN - PERTAMINA DEX'),
+        _buildRekapHarianPreview(), // Rekap Bulanan menggunakan preview yang sama
+      ];
+    } else if (widget.exportType == 'kupon') {
+      // 5 tab views untuk kupon: 4 preview kupon + 1 rekap harian
+      return [
+        _buildKuponPreview('RAN.PX', ranPertamax, isRanjen: true),
+        _buildKuponPreview('DUK.PX', dukPertamax, isRanjen: false),
+        _buildKuponPreview('RAN.DX', ranDex, isRanjen: true),
+        _buildKuponPreview('DUK.DX', dukDex, isRanjen: false),
+        _buildRekapHarianPreview(),
       ];
     } else {
+      // 4 tab views untuk minus
       return [
-        _buildSatkerPreview('REKAP.PX', pertamaxKupons),
-        _buildSatkerPreview('REKAP.DX', dexKupons),
+        _buildKuponPreview('RAN.PX', ranPertamax, isRanjen: true),
+        _buildKuponPreview('DUK.PX', dukPertamax, isRanjen: false),
+        _buildKuponPreview('RAN.DX', ranDex, isRanjen: true),
+        _buildKuponPreview('DUK.DX', dukDex, isRanjen: false),
       ];
     }
   }
@@ -520,50 +425,41 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
       final dbDatasource = getIt<DatabaseDatasource>();
 
       bool success;
-      if (widget.exportType == 'combined') {
-        // Export gabungan: 1 file dengan 7 sheets (4 kupon + Rekap Harian + 2 rekap satker)
-        success = await ExportService.exportGabungan(
+      if (widget.exportType == 'satker') {
+        // Export Rekapitulasi per Satker: 5 sheet (4 detail + 1 rekap bulanan)
+        success = await ExportService.exportDataSatker(
           allKupons: widget.allKupons,
           jenisBBMMap: widget.jenisBBMMap,
-          getNopolByKendaraanId: widget.getNopolByKendaraanId!,
-          getJenisRanmorByKendaraanId: widget.getJenisRanmorByKendaraanId!,
           dbDatasource: dbDatasource,
-          fillTransaksiData: widget.fillTransaksiData,
           filterBulan: widget.filterBulan,
           filterTahun: widget.filterTahun,
           filterTanggalMulai: widget.filterTanggalMulai,
           filterTanggalSelesai: widget.filterTanggalSelesai,
         );
-      } else if (widget.exportType == 'kupon' || widget.exportType == 'minus') {
-        // For both 'kupon' (all data) and 'minus' (filtered data), use same export format
+      } else if (widget.exportType == 'kupon') {
+        // Export Rekapitulasi per Kupon: 5 sheet (4 detail + 1 rekap harian)
         success = await ExportService.exportDataKupon(
           allKupons: widget.allKupons,
           jenisBBMMap: widget.jenisBBMMap,
           getNopolByKendaraanId: widget.getNopolByKendaraanId!,
           getJenisRanmorByKendaraanId: widget.getJenisRanmorByKendaraanId!,
           dbDatasource: dbDatasource,
-          fillTransaksiData: widget.fillTransaksiData,
+          fillTransaksiData: true,
           filterBulan: widget.filterBulan,
           filterTahun: widget.filterTahun,
           filterTanggalMulai: widget.filterTanggalMulai,
           filterTanggalSelesai: widget.filterTanggalSelesai,
         );
-      } else if (widget.exportType == 'transaksi_rekap') {
-        // Export transaksi rekap: 4 sheet dengan SUM per satker
+      } else {
+        // Export Kupon Minus: 4 sheet
         success = await ExportService.exportTransaksiRekap(
           allKupons: widget.allKupons,
           jenisBBMMap: widget.jenisBBMMap,
-        );
-      } else if (widget.exportType == 'rekap_harian') {
-        // Export rekap harian: 1 sheet dengan blok PX dan DX agregat per jenis kupon
-        success = await ExportService.exportRekapHarian(
-          allKupons: widget.allKupons,
           dbDatasource: dbDatasource,
-        );
-      } else {
-        success = await ExportService.exportDataSatker(
-          allKupons: widget.allKupons,
-          jenisBBMMap: widget.jenisBBMMap,
+          filterBulan: widget.filterBulan,
+          filterTahun: widget.filterTahun,
+          filterTanggalMulai: widget.filterTanggalMulai,
+          filterTanggalSelesai: widget.filterTanggalSelesai,
         );
       }
 
@@ -578,17 +474,11 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 8),
                 Text(
-                  widget.exportType == 'kupon'
-                      ? 'Transaksi Detail berhasil di-export!'
-                      : widget.exportType == 'minus'
-                      ? 'Data Kupon Minus berhasil di-export!'
-                      : widget.exportType == 'transaksi_rekap'
-                      ? 'Transaksi Rekap berhasil di-export!'
-                      : widget.exportType == 'rekap_harian'
-                      ? 'Rekap Harian berhasil di-export!'
-                      : widget.exportType == 'combined'
-                      ? 'Data Gabungan berhasil di-export!'
-                      : 'Data Satker berhasil di-export!',
+                  widget.exportType == 'satker'
+                      ? 'Rekapitulasi per Satker berhasil di-export!'
+                      : widget.exportType == 'kupon'
+                      ? 'Rekapitulasi per Kupon berhasil di-export!'
+                      : 'Data Kupon Minus berhasil di-export!',
                 ),
               ],
             ),
@@ -708,9 +598,11 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                   : const Icon(Icons.download),
               label: Text(_isExporting ? 'Exporting...' : 'Export Sekarang'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: widget.exportType == 'kupon'
+                backgroundColor: widget.exportType == 'satker'
                     ? Colors.blue
-                    : Colors.green,
+                    : widget.exportType == 'kupon'
+                    ? Colors.green
+                    : Colors.red,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 24,

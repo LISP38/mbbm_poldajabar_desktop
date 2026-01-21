@@ -5,6 +5,31 @@ import '../../domain/entities/kupon_entity.dart';
 import '../datasources/database_datasource.dart';
 
 class ExportService {
+  /// Smart period selection helper based on filters
+  /// Logic:
+  /// 1. If filterBulan & filterTahun exist: use them
+  /// 2. Else if filterTanggalMulai exists: extract month from start date
+  /// 3. Else: use current month as default
+  /// Returns: (displayMonth, displayYear) for the 2-month period
+  static (int, int) _getDisplayMonthYear({
+    int? filterBulan,
+    int? filterTahun,
+    DateTime? filterTanggalMulai,
+  }) {
+    final now = DateTime.now();
+
+    if (filterBulan != null && filterTahun != null) {
+      // Use filter month and year
+      return (filterBulan, filterTahun);
+    } else if (filterTanggalMulai != null) {
+      // Extract month from date range start
+      return (filterTanggalMulai.month, filterTanggalMulai.year);
+    } else {
+      // Default: current month
+      return (now.month, now.year);
+    }
+  }
+
   // Helper function to get transaksi data grouped by date
   // Returns Map<kuponId, Map<dayOfMonth, totalLiter>>
   static Future<Map<int, Map<int, int>>> _getTransaksiByDate(
@@ -199,8 +224,10 @@ class ExportService {
     required Future<String?> Function(int?) getNopolByKendaraanId,
     required Future<String?> Function(int?) getJenisRanmorByKendaraanId,
     required DatabaseDatasource dbDatasource,
-    required int filterBulan,
-    required int filterTahun,
+    int? filterBulan,
+    int? filterTahun,
+    DateTime? filterTanggalMulai,
+    DateTime? filterTanggalSelesai,
   }) async {
     try {
       final excel = Excel.createExcel();
@@ -231,10 +258,14 @@ class ExportService {
           .where((k) => k.jenisKuponId == 2 && k.jenisBbmId == 2)
           .toList();
 
-      // Tentukan periode: selected month + next month
-      final month1 = filterBulan;
-      final year1 = filterTahun;
+      // Smart period selection dengan helper
+      final (month1, year1) = _getDisplayMonthYear(
+        filterBulan: filterBulan,
+        filterTahun: filterTahun,
+        filterTanggalMulai: filterTanggalMulai,
+      );
       final month2 = month1 == 12 ? 1 : month1 + 1;
+      final year2 = month1 == 12 ? year1 + 1 : year1;
 
       // Buat detail sheets dengan penggunaan harian
       await _createRanjenSheet(
@@ -247,8 +278,8 @@ class ExportService {
         true, // fillTransaksiData
         month1,
         year1,
-        null, // filterTanggalMulai
-        null, // filterTanggalSelesai
+        filterTanggalMulai,
+        filterTanggalSelesai,
       );
       await _createDukunganSheet(
         excel,
@@ -258,8 +289,8 @@ class ExportService {
         true, // fillTransaksiData
         month1,
         year1,
-        null,
-        null,
+        filterTanggalMulai,
+        filterTanggalSelesai,
       );
       await _createRanjenSheet(
         excel,
@@ -271,8 +302,8 @@ class ExportService {
         true, // fillTransaksiData
         month1,
         year1,
-        null,
-        null,
+        filterTanggalMulai,
+        filterTanggalSelesai,
       );
       await _createDukunganSheet(
         excel,
@@ -282,8 +313,8 @@ class ExportService {
         true, // fillTransaksiData
         month1,
         year1,
-        null,
-        null,
+        filterTanggalMulai,
+        filterTanggalSelesai,
       );
 
       // Buat sheet Rekap Harian
@@ -294,8 +325,8 @@ class ExportService {
         dbDatasource: dbDatasource,
         filterBulan: month1,
         filterTahun: year1,
-        filterTanggalMulai: null,
-        filterTanggalSelesai: null,
+        filterTanggalMulai: filterTanggalMulai,
+        filterTanggalSelesai: filterTanggalSelesai,
       );
 
       // Save file
@@ -659,13 +690,21 @@ class ExportService {
   static Future<bool> exportDataSatker({
     required List<KuponEntity> allKupons,
     required Map<int, String> jenisBBMMap,
+    required DatabaseDatasource dbDatasource,
+    int? filterBulan,
+    int? filterTahun,
+    DateTime? filterTanggalMulai,
+    DateTime? filterTanggalSelesai,
   }) async {
     try {
       final excel = Excel.createExcel();
 
-      // Buat sheets terlebih dahulu
-      excel['REKAP.PX'];
-      excel['REKAP.DX'];
+      // Buat 5 sheets: 4 rekap satker per jenis kupon + 1 rekap bulanan
+      excel['RAN.PX'];
+      excel['DUK.PX'];
+      excel['RAN.DX'];
+      excel['DUK.DX'];
+      excel['Rekapitulasi Bulanan'];
 
       // Hapus sheet default setelah membuat sheet baru
       if (excel.sheets.containsKey('Sheet1')) {
@@ -677,18 +716,77 @@ class ExportService {
           .where((k) => k.kuotaSisa < k.kuotaAwal)
           .toList();
 
-      _createRekapSheet(
+      // Filter berdasarkan jenis kupon dan BBM
+      final ranPertamax = kuponsWithTransaction
+          .where((k) => k.jenisKuponId == 1 && k.jenisBbmId == 1)
+          .toList();
+      final dukPertamax = kuponsWithTransaction
+          .where((k) => k.jenisKuponId == 2 && k.jenisBbmId == 1)
+          .toList();
+      final ranDex = kuponsWithTransaction
+          .where((k) => k.jenisKuponId == 1 && k.jenisBbmId == 2)
+          .toList();
+      final dukDex = kuponsWithTransaction
+          .where((k) => k.jenisKuponId == 2 && k.jenisBbmId == 2)
+          .toList();
+
+      // Buat 4 sheets rekap satker dengan detail tanggal
+      await _createTransaksiRekapSheet(
         excel,
-        'REKAP.PX',
-        kuponsWithTransaction,
-        1,
-      ); // Pertamax
-      _createRekapSheet(
+        'RAN.PX',
+        ranPertamax,
+        'RANJEN - PERTAMAX',
+        dbDatasource,
+        filterBulan,
+        filterTahun,
+        filterTanggalMulai,
+        filterTanggalSelesai,
+      );
+      await _createTransaksiRekapSheet(
         excel,
-        'REKAP.DX',
-        kuponsWithTransaction,
-        2,
-      ); // Pertamina Dex
+        'DUK.PX',
+        dukPertamax,
+        'DUKUNGAN - PERTAMAX',
+        dbDatasource,
+        filterBulan,
+        filterTahun,
+        filterTanggalMulai,
+        filterTanggalSelesai,
+      );
+      await _createTransaksiRekapSheet(
+        excel,
+        'RAN.DX',
+        ranDex,
+        'RANJEN - PERTAMINA DEX',
+        dbDatasource,
+        filterBulan,
+        filterTahun,
+        filterTanggalMulai,
+        filterTanggalSelesai,
+      );
+      await _createTransaksiRekapSheet(
+        excel,
+        'DUK.DX',
+        dukDex,
+        'DUKUNGAN - PERTAMINA DEX',
+        dbDatasource,
+        filterBulan,
+        filterTahun,
+        filterTanggalMulai,
+        filterTanggalSelesai,
+      );
+
+      // Buat sheet Rekapitulasi Bulanan dengan 2 tabel (PX dan DX)
+      await _createRekapBulananSheet(
+        excel: excel,
+        sheetName: 'Rekapitulasi Bulanan',
+        allKupons: kuponsWithTransaction,
+        dbDatasource: dbDatasource,
+        filterBulan: filterBulan,
+        filterTahun: filterTahun,
+        filterTanggalMulai: filterTanggalMulai,
+        filterTanggalSelesai: filterTanggalSelesai,
+      );
 
       // Save file
       final now = DateTime.now();
@@ -709,16 +807,21 @@ class ExportService {
       }
       return false;
     } catch (e) {
-      // Logger akan ditambahkan jika diperlukan
+      print('ERROR in exportDataSatker: $e');
       return false;
     }
   }
 
   // Export Transaksi Rekap (4 sheets: RAN.PX, DUK.PX, RAN.DX, DUK.DX)
-  // Setiap sheet berisi SUM per Satker (tidak per kupon)
+  // Setiap sheet berisi SUM per Satker dengan detail tanggal
   static Future<bool> exportTransaksiRekap({
     required List<KuponEntity> allKupons,
     required Map<int, String> jenisBBMMap,
+    required DatabaseDatasource dbDatasource,
+    int? filterBulan,
+    int? filterTahun,
+    DateTime? filterTanggalMulai,
+    DateTime? filterTanggalSelesai,
   }) async {
     try {
       final excel = Excel.createExcel();
@@ -754,29 +857,49 @@ class ExportService {
           .toList();
 
       // Buat sheets rekap untuk setiap kombinasi
-      _createTransaksiRekapSheet(
+      await _createTransaksiRekapSheet(
         excel,
         'RAN.PX',
         ranPertamax,
         'RANJEN - PERTAMAX',
+        dbDatasource,
+        filterBulan,
+        filterTahun,
+        filterTanggalMulai,
+        filterTanggalSelesai,
       );
-      _createTransaksiRekapSheet(
+      await _createTransaksiRekapSheet(
         excel,
         'DUK.PX',
         dukPertamax,
         'DUKUNGAN - PERTAMAX',
+        dbDatasource,
+        filterBulan,
+        filterTahun,
+        filterTanggalMulai,
+        filterTanggalSelesai,
       );
-      _createTransaksiRekapSheet(
+      await _createTransaksiRekapSheet(
         excel,
         'RAN.DX',
         ranDex,
         'RANJEN - PERTAMINA DEX',
+        dbDatasource,
+        filterBulan,
+        filterTahun,
+        filterTanggalMulai,
+        filterTanggalSelesai,
       );
-      _createTransaksiRekapSheet(
+      await _createTransaksiRekapSheet(
         excel,
         'DUK.DX',
         dukDex,
         'DUKUNGAN - PERTAMINA DEX',
+        dbDatasource,
+        filterBulan,
+        filterTahun,
+        filterTanggalMulai,
+        filterTanggalSelesai,
       );
 
       // Save file
@@ -798,27 +921,75 @@ class ExportService {
       }
       return false;
     } catch (e) {
-      // Logger akan ditambahkan jika diperlukan
+      print('ERROR in exportTransaksiRekap: $e');
       return false;
     }
   }
 
-  // Buat sheet Transaksi Rekap per Satker (untuk satu kombinasi jenis kupon + BBM)
-  static void _createTransaksiRekapSheet(
+  // Buat sheet Transaksi Rekap per Satker dengan detail tanggal
+  static Future<void> _createTransaksiRekapSheet(
     Excel excel,
     String sheetName,
     List<KuponEntity> kupons,
     String title,
-  ) {
+    DatabaseDatasource dbDatasource,
+    int? filterBulan,
+    int? filterTahun,
+    DateTime? filterTanggalMulai,
+    DateTime? filterTanggalSelesai,
+  ) async {
     final sheet = excel[sheetName];
 
     final now = DateTime.now();
     final currentMonth = now.month;
     final currentYear = now.year;
+    final nextMonth = currentMonth == 12 ? 1 : currentMonth + 1;
+    final nextYear = currentMonth == 12 ? currentYear + 1 : currentYear;
 
-    // BARIS 1: Header periode dan judul
+    // Month names untuk header
+    final monthNames = [
+      '',
+      'JANUARI',
+      'FEBRUARI',
+      'MARET',
+      'APRIL',
+      'MEI',
+      'JUNI',
+      'JULI',
+      'AGUSTUS',
+      'SEPTEMBER',
+      'OKTOBER',
+      'NOVEMBER',
+      'DESEMBER',
+    ];
+
+    // Smart period selection dengan helper
+    final (displayMonth, displayYear) = _getDisplayMonthYear(
+      filterBulan: filterBulan,
+      filterTahun: filterTahun,
+      filterTanggalMulai: filterTanggalMulai,
+    );
+    final nextDisplayMonth = displayMonth == 12 ? 1 : displayMonth + 1;
+    final nextDisplayYear = displayMonth == 12 ? displayYear + 1 : displayYear;
+
+    // Get transaksi data untuk semua kupons di sheet ini
+    Map<int, Map<int, int>> transaksiByDate = {};
+    if (kupons.isNotEmpty) {
+      transaksiByDate = await _getTransaksiByDate(
+        dbDatasource,
+        kupons.map((k) => k.kuponId).toList(),
+        currentMonth,
+        currentYear,
+        filterBulan,
+        filterTahun,
+        filterTanggalMulai,
+        filterTanggalSelesai,
+      );
+    }
+
+    // BARIS 1: Header periode dan judul - merge dari A1 sampai kolom terakhir (71)
     sheet.cell(CellIndex.indexByString('A1')).value = TextCellValue(
-      '$title - PERIODE $currentMonth-$currentYear',
+      '$title - PERIODE ${monthNames[displayMonth]} $displayYear',
     );
     sheet.cell(CellIndex.indexByString('A1')).cellStyle = CellStyle(
       bold: true,
@@ -832,11 +1003,119 @@ class ExportService {
       leftBorder: Border(borderStyle: BorderStyle.Medium),
       rightBorder: Border(borderStyle: BorderStyle.Medium),
     );
-    // Merge cells A1 sampai kolom D untuk periode
     sheet.merge(
       CellIndex.indexByString('A1'),
-      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: 0),
+      CellIndex.indexByColumnRow(columnIndex: 71, rowIndex: 0),
     );
+
+    // BARIS 2: Header kolom utama
+    final headers = ['NO', 'SATKER', 'KUOTA', 'PEMAKAIAN', 'SALDO'];
+    for (int i = 0; i < headers.length; i++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 1),
+      );
+      cell.value = TextCellValue(headers[i]);
+      cell.cellStyle = CellStyle(
+        bold: true,
+        fontSize: 12,
+        fontColorHex: ExcelColor.white,
+        backgroundColorHex: ExcelColor.blue600,
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+      // Merge header utama sampai baris 3
+      sheet.merge(
+        CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 1),
+        CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 2),
+      );
+    }
+
+    // Header bulan 1 - merge dari kolom 5 sampai 36
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: 1)).value =
+        TextCellValue('${monthNames[displayMonth]} $displayYear');
+    sheet
+        .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: 1))
+        .cellStyle = CellStyle(
+      bold: true,
+      fontSize: 11,
+      fontColorHex: ExcelColor.white,
+      backgroundColorHex: ExcelColor.green600,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Thin),
+      topBorder: Border(borderStyle: BorderStyle.Thin),
+      leftBorder: Border(borderStyle: BorderStyle.Thin),
+      rightBorder: Border(borderStyle: BorderStyle.Thin),
+    );
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: 1),
+      CellIndex.indexByColumnRow(columnIndex: 36, rowIndex: 1),
+    );
+
+    // Header bulan 2 - merge dari kolom 37 sampai 68
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 37, rowIndex: 1)).value =
+        TextCellValue('${monthNames[nextDisplayMonth]} $nextDisplayYear');
+    sheet
+        .cell(CellIndex.indexByColumnRow(columnIndex: 37, rowIndex: 1))
+        .cellStyle = CellStyle(
+      bold: true,
+      fontSize: 11,
+      fontColorHex: ExcelColor.white,
+      backgroundColorHex: ExcelColor.green600,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Thin),
+      topBorder: Border(borderStyle: BorderStyle.Thin),
+      leftBorder: Border(borderStyle: BorderStyle.Thin),
+      rightBorder: Border(borderStyle: BorderStyle.Thin),
+    );
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 37, rowIndex: 1),
+      CellIndex.indexByColumnRow(columnIndex: 68, rowIndex: 1),
+    );
+
+    // BARIS 3: Tanggal 1-31 untuk kedua bulan
+    // Bulan 1: kolom 5-36 (E-AJ)
+    for (int i = 1; i <= 31; i++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 4 + i, rowIndex: 2),
+      );
+      cell.value = IntCellValue(i);
+      cell.cellStyle = CellStyle(
+        bold: true,
+        fontSize: 10,
+        backgroundColorHex: ExcelColor.green100,
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+    }
+
+    // Bulan 2: kolom 37-68 (AK-BQ)
+    for (int i = 1; i <= 31; i++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 36 + i, rowIndex: 2),
+      );
+      cell.value = IntCellValue(i);
+      cell.cellStyle = CellStyle(
+        bold: true,
+        fontSize: 10,
+        backgroundColorHex: ExcelColor.green100,
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+    }
 
     // Group by satker
     final satkerMap = <String, List<KuponEntity>>{};
@@ -856,29 +1135,9 @@ class ExportService {
         return a.compareTo(b);
       });
 
-    // BARIS 2: Header kolom dengan styling yang konsisten
-    final headers = ['SATKER', 'KUOTA', 'PEMAKAIAN', 'SALDO'];
-    for (int i = 0; i < headers.length; i++) {
-      final cell = sheet.cell(
-        CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 1),
-      );
-      cell.value = TextCellValue(headers[i]);
-      cell.cellStyle = CellStyle(
-        bold: true,
-        fontSize: 12,
-        fontColorHex: ExcelColor.white,
-        backgroundColorHex: ExcelColor.blue600,
-        horizontalAlign: HorizontalAlign.Center,
-        verticalAlign: VerticalAlign.Center,
-        bottomBorder: Border(borderStyle: BorderStyle.Thin),
-        topBorder: Border(borderStyle: BorderStyle.Thin),
-        leftBorder: Border(borderStyle: BorderStyle.Thin),
-        rightBorder: Border(borderStyle: BorderStyle.Thin),
-      );
-    }
-
-    // Data dengan styling yang konsisten
-    int rowIndex = 2;
+    // Data rows - mulai dari row 3
+    int rowIndex = 3;
+    int noIndex = 1;
     double grandTotalKuota = 0;
     double grandTotalPemakaian = 0;
     double grandTotalSaldo = 0;
@@ -901,31 +1160,315 @@ class ExportService {
       grandTotalPemakaian += totalPemakaian;
       grandTotalSaldo += totalSisa;
 
-      _addSatkerRow(
-        sheet,
-        rowIndex,
-        satker,
-        totalKuota,
-        totalPemakaian,
-        totalSisa,
-        isEvenRow,
-        false,
+      // Nomor
+      final noCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
       );
+      noCell.value = IntCellValue(noIndex);
+      noCell.cellStyle = CellStyle(
+        bold: false,
+        backgroundColorHex: isEvenRow ? ExcelColor.blue50 : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+
+      // Satker
+      final satkerCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex),
+      );
+      satkerCell.value = TextCellValue(satker);
+      satkerCell.cellStyle = CellStyle(
+        bold: false,
+        backgroundColorHex: isEvenRow ? ExcelColor.blue50 : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Left,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+
+      // Kuota
+      final kuotaCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex),
+      );
+      kuotaCell.value = IntCellValue(totalKuota.toInt());
+      kuotaCell.cellStyle = CellStyle(
+        bold: false,
+        backgroundColorHex: isEvenRow ? ExcelColor.blue50 : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Right,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+
+      // Pemakaian
+      final pemakaiianCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex),
+      );
+      pemakaiianCell.value = IntCellValue(totalPemakaian.toInt());
+      pemakaiianCell.cellStyle = CellStyle(
+        bold: false,
+        backgroundColorHex: ExcelColor.yellow100,
+        horizontalAlign: HorizontalAlign.Right,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+
+      // Saldo
+      final saldoCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex),
+      );
+      saldoCell.value = IntCellValue(totalSisa.toInt());
+      saldoCell.cellStyle = CellStyle(
+        bold: false,
+        backgroundColorHex: isEvenRow ? ExcelColor.blue50 : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Right,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+
+      // Isi kolom tanggal (bulan 1 dan bulan 2)
+      // Untuk setiap satker, hitung total transaksi per tanggal dari kupons di satker tersebut
+      final kuponIds = kuponList.map((k) => k.kuponId).toList();
+      for (int day = 1; day <= 31; day++) {
+        // Bulan 1
+        final colIndex1 = 4 + day; // Column E onwards
+        int totalDay1 = 0;
+        for (final kuponId in kuponIds) {
+          if (transaksiByDate.containsKey(kuponId) &&
+              transaksiByDate[kuponId]!.containsKey(day)) {
+            totalDay1 += transaksiByDate[kuponId]![day] ?? 0;
+          }
+        }
+        final cell1 = sheet.cell(
+          CellIndex.indexByColumnRow(
+            columnIndex: colIndex1,
+            rowIndex: rowIndex,
+          ),
+        );
+        if (totalDay1 > 0) {
+          cell1.value = IntCellValue(totalDay1);
+          cell1.cellStyle = CellStyle(
+            bold: false,
+            backgroundColorHex: isEvenRow
+                ? ExcelColor.blue50
+                : ExcelColor.white,
+            horizontalAlign: HorizontalAlign.Right,
+            verticalAlign: VerticalAlign.Center,
+            bottomBorder: Border(borderStyle: BorderStyle.Thin),
+            topBorder: Border(borderStyle: BorderStyle.Thin),
+            leftBorder: Border(borderStyle: BorderStyle.Thin),
+            rightBorder: Border(borderStyle: BorderStyle.Thin),
+          );
+        } else {
+          cell1.cellStyle = CellStyle(
+            backgroundColorHex: isEvenRow
+                ? ExcelColor.blue50
+                : ExcelColor.white,
+            bottomBorder: Border(borderStyle: BorderStyle.Thin),
+            topBorder: Border(borderStyle: BorderStyle.Thin),
+            leftBorder: Border(borderStyle: BorderStyle.Thin),
+            rightBorder: Border(borderStyle: BorderStyle.Thin),
+          );
+        }
+
+        // Bulan 2
+        final colIndex2 = 36 + day; // Column AK onwards
+        int totalDay2 = 0;
+        for (final kuponId in kuponIds) {
+          if (transaksiByDate.containsKey(kuponId) &&
+              transaksiByDate[kuponId]!.containsKey(31 + day)) {
+            totalDay2 += transaksiByDate[kuponId]![31 + day] ?? 0;
+          }
+        }
+        final cell2 = sheet.cell(
+          CellIndex.indexByColumnRow(
+            columnIndex: colIndex2,
+            rowIndex: rowIndex,
+          ),
+        );
+        if (totalDay2 > 0) {
+          cell2.value = IntCellValue(totalDay2);
+          cell2.cellStyle = CellStyle(
+            bold: false,
+            backgroundColorHex: isEvenRow
+                ? ExcelColor.blue50
+                : ExcelColor.white,
+            horizontalAlign: HorizontalAlign.Right,
+            verticalAlign: VerticalAlign.Center,
+            bottomBorder: Border(borderStyle: BorderStyle.Thin),
+            topBorder: Border(borderStyle: BorderStyle.Thin),
+            leftBorder: Border(borderStyle: BorderStyle.Thin),
+            rightBorder: Border(borderStyle: BorderStyle.Thin),
+          );
+        } else {
+          cell2.cellStyle = CellStyle(
+            backgroundColorHex: isEvenRow
+                ? ExcelColor.blue50
+                : ExcelColor.white,
+            bottomBorder: Border(borderStyle: BorderStyle.Thin),
+            topBorder: Border(borderStyle: BorderStyle.Thin),
+            leftBorder: Border(borderStyle: BorderStyle.Thin),
+            rightBorder: Border(borderStyle: BorderStyle.Thin),
+          );
+        }
+      }
+
       rowIndex++;
+      noIndex++;
     }
 
     // GRAND TOTAL
-    _addSatkerRow(
-      sheet,
-      rowIndex,
-      'GRAND TOTAL',
-      grandTotalKuota,
-      grandTotalPemakaian,
-      grandTotalSaldo,
-      false,
-      true,
-      isGrandTotal: true,
+    final grandTotalNoCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
     );
+    grandTotalNoCell.value = TextCellValue('');
+    grandTotalNoCell.cellStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.blue700,
+      fontColorHex: ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
+    );
+
+    final grandTotalSatkerCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex),
+    );
+    grandTotalSatkerCell.value = TextCellValue('GRAND TOTAL');
+    grandTotalSatkerCell.cellStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.blue700,
+      fontColorHex: ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
+    );
+
+    final grandTotalKuotaCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex),
+    );
+    grandTotalKuotaCell.value = IntCellValue(grandTotalKuota.toInt());
+    grandTotalKuotaCell.cellStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.blue700,
+      fontColorHex: ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Right,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
+    );
+
+    final grandTotalPemakaianCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex),
+    );
+    grandTotalPemakaianCell.value = IntCellValue(grandTotalPemakaian.toInt());
+    grandTotalPemakaianCell.cellStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.orange600,
+      fontColorHex: ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Right,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
+    );
+
+    final grandTotalSaldoCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex),
+    );
+    grandTotalSaldoCell.value = IntCellValue(grandTotalSaldo.toInt());
+    grandTotalSaldoCell.cellStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.blue700,
+      fontColorHex: ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Right,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
+    );
+
+    // Grand Total untuk kolom tanggal (pemakaian per hari)
+    Map<int, double> grandTotalPerTanggal = {};
+    for (int day = 1; day <= 31; day++) {
+      for (final kuponId in kupons.map((k) => k.kuponId)) {
+        // Bulan 1
+        if (transaksiByDate.containsKey(kuponId) &&
+            transaksiByDate[kuponId]!.containsKey(day)) {
+          grandTotalPerTanggal[day] =
+              (grandTotalPerTanggal[day] ?? 0) +
+              (transaksiByDate[kuponId]![day] ?? 0);
+        }
+        // Bulan 2
+        if (transaksiByDate.containsKey(kuponId) &&
+            transaksiByDate[kuponId]!.containsKey(31 + day)) {
+          grandTotalPerTanggal[31 + day] =
+              (grandTotalPerTanggal[31 + day] ?? 0) +
+              (transaksiByDate[kuponId]![31 + day] ?? 0);
+        }
+      }
+    }
+
+    // Isi kolom tanggal grand total
+    for (int col = 5; col <= 69; col++) {
+      final grandTotalDateCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex),
+      );
+      final dayOffset = col - 4;
+      final totalForDay = grandTotalPerTanggal[dayOffset] ?? 0;
+
+      if (totalForDay > 0) {
+        grandTotalDateCell.value = IntCellValue(totalForDay.toInt());
+        grandTotalDateCell.cellStyle = CellStyle(
+          bold: true,
+          fontSize: 10,
+          fontColorHex: ExcelColor.black,
+          backgroundColorHex: ExcelColor.yellow200,
+          horizontalAlign: HorizontalAlign.Right,
+          verticalAlign: VerticalAlign.Center,
+          bottomBorder: Border(borderStyle: BorderStyle.Medium),
+          topBorder: Border(borderStyle: BorderStyle.Medium),
+          leftBorder: Border(borderStyle: BorderStyle.Thin),
+          rightBorder: Border(borderStyle: BorderStyle.Thin),
+        );
+      } else {
+        grandTotalDateCell.cellStyle = CellStyle(
+          bold: true,
+          backgroundColorHex: ExcelColor.blue800,
+          fontColorHex: ExcelColor.white,
+          horizontalAlign: HorizontalAlign.Right,
+          verticalAlign: VerticalAlign.Center,
+          bottomBorder: Border(borderStyle: BorderStyle.Medium),
+          topBorder: Border(borderStyle: BorderStyle.Medium),
+          leftBorder: Border(borderStyle: BorderStyle.Thin),
+          rightBorder: Border(borderStyle: BorderStyle.Thin),
+        );
+      }
+    }
   }
 
   // Buat sheet Ranjen dengan format 3 baris header yang bersih
@@ -950,6 +1493,32 @@ class ExportService {
     final nextMonth = currentMonth == 12 ? 1 : currentMonth + 1;
     final nextYear = currentMonth == 12 ? currentYear + 1 : currentYear;
 
+    // Month names untuk header
+    final monthNames = [
+      '',
+      'JANUARI',
+      'FEBRUARI',
+      'MARET',
+      'APRIL',
+      'MEI',
+      'JUNI',
+      'JULI',
+      'AGUSTUS',
+      'SEPTEMBER',
+      'OKTOBER',
+      'NOVEMBER',
+      'DESEMBER',
+    ];
+
+    // Smart period selection dengan helper
+    final (displayMonth, displayYear) = _getDisplayMonthYear(
+      filterBulan: filterBulan,
+      filterTahun: filterTahun,
+      filterTanggalMulai: filterTanggalMulai,
+    );
+    final nextDisplayMonth = displayMonth == 12 ? 1 : displayMonth + 1;
+    final nextDisplayYear = displayMonth == 12 ? displayYear + 1 : displayYear;
+
     // Get transaksi data untuk semua kupons di sheet ini (jika diperlukan)
     // Map<kuponId, Map<columnOffset, totalLiter>>
     Map<int, Map<int, int>> transaksiByDate = {};
@@ -968,7 +1537,7 @@ class ExportService {
 
     // BARIS 1: Header periode - merge dari A1 sampai kolom terakhir
     sheet.cell(CellIndex.indexByString('A1')).value = TextCellValue(
-      'PERIODE $currentMonth-$currentYear',
+      'PERIODE ${monthNames[displayMonth]} $displayYear',
     );
     sheet.cell(CellIndex.indexByString('A1')).cellStyle = CellStyle(
       bold: true,
@@ -1025,7 +1594,7 @@ class ExportService {
 
     // Header bulan 1 - merge dari kolom 8 sampai 39 (karena ada tambahan kolom NOMOR KUPON)
     sheet.cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: 1)).value =
-        TextCellValue('BULAN $currentMonth-$currentYear');
+        TextCellValue('${monthNames[displayMonth]} $displayYear');
     sheet
         .cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: 1))
         .cellStyle = CellStyle(
@@ -1047,7 +1616,7 @@ class ExportService {
 
     // Header bulan 2 - merge dari kolom 40 sampai 71
     sheet.cell(CellIndex.indexByColumnRow(columnIndex: 40, rowIndex: 1)).value =
-        TextCellValue('BULAN $nextMonth-$nextYear');
+        TextCellValue('${monthNames[nextDisplayMonth]} $nextDisplayYear');
     sheet
         .cell(CellIndex.indexByColumnRow(columnIndex: 40, rowIndex: 1))
         .cellStyle = CellStyle(
@@ -1421,6 +1990,32 @@ class ExportService {
     final nextMonth = currentMonth == 12 ? 1 : currentMonth + 1;
     final nextYear = currentMonth == 12 ? currentYear + 1 : currentYear;
 
+    // Month names untuk header
+    final monthNames = [
+      '',
+      'JANUARI',
+      'FEBRUARI',
+      'MARET',
+      'APRIL',
+      'MEI',
+      'JUNI',
+      'JULI',
+      'AGUSTUS',
+      'SEPTEMBER',
+      'OKTOBER',
+      'NOVEMBER',
+      'DESEMBER',
+    ];
+
+    // Smart period selection dengan helper
+    final (displayMonth, displayYear) = _getDisplayMonthYear(
+      filterBulan: filterBulan,
+      filterTahun: filterTahun,
+      filterTanggalMulai: filterTanggalMulai,
+    );
+    final nextDisplayMonth = displayMonth == 12 ? 1 : displayMonth + 1;
+    final nextDisplayYear = displayMonth == 12 ? displayYear + 1 : displayYear;
+
     // Get transaksi data untuk semua kupons di sheet ini (jika diperlukan)
     // Map<kuponId, Map<columnOffset, totalLiter>>
     Map<int, Map<int, int>> transaksiByDate = {};
@@ -1439,7 +2034,7 @@ class ExportService {
 
     // BARIS 1: Header periode - merge dari A1 sampai kolom terakhir
     sheet.cell(CellIndex.indexByString('A1')).value = TextCellValue(
-      'PERIODE $currentMonth-$currentYear',
+      'PERIODE ${monthNames[displayMonth]} $displayYear',
     );
     sheet.cell(CellIndex.indexByString('A1')).cellStyle = CellStyle(
       bold: true,
@@ -1487,7 +2082,7 @@ class ExportService {
 
     // Header bulan 1 - merge dari kolom F sampai AK (5-36)
     sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: 1)).value =
-        TextCellValue('BULAN $currentMonth-$currentYear');
+        TextCellValue('${monthNames[displayMonth]} $displayYear');
     sheet
         .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: 1))
         .cellStyle = CellStyle(
@@ -1509,7 +2104,7 @@ class ExportService {
 
     // Header bulan 2 - merge dari kolom AL sampai BP (37-69)
     sheet.cell(CellIndex.indexByColumnRow(columnIndex: 37, rowIndex: 1)).value =
-        TextCellValue('BULAN $nextMonth-$nextYear');
+        TextCellValue('${monthNames[nextDisplayMonth]} $nextDisplayYear');
     sheet
         .cell(CellIndex.indexByColumnRow(columnIndex: 37, rowIndex: 1))
         .cellStyle = CellStyle(
@@ -1829,9 +2424,26 @@ class ExportService {
     final currentMonth = now.month;
     final currentYear = now.year;
 
+    // Month names untuk header
+    final monthNames = [
+      '',
+      'JANUARI',
+      'FEBRUARI',
+      'MARET',
+      'APRIL',
+      'MEI',
+      'JUNI',
+      'JULI',
+      'AGUSTUS',
+      'SEPTEMBER',
+      'OKTOBER',
+      'NOVEMBER',
+      'DESEMBER',
+    ];
+
     // BARIS 1: Header periode - merge dari A1 sampai kolom terakhir
     sheet.cell(CellIndex.indexByString('A1')).value = TextCellValue(
-      'PERIODE $currentMonth-$currentYear',
+      'PERIODE ${monthNames[currentMonth]} $currentYear',
     );
     sheet.cell(CellIndex.indexByString('A1')).cellStyle = CellStyle(
       bold: true,
@@ -3093,18 +3705,12 @@ class ExportService {
   }) async {
     final sheet = excel[sheetName];
 
-    // Tentukan periode
-    int month1 = DateTime.now().month;
-    int year1 = DateTime.now().year;
-
-    // Cari bulan terbit dari kupon yang ada
-    final kuponsWithData = allKupons
-        .where((k) => k.kuotaSisa < k.kuotaAwal)
-        .toList();
-    if (kuponsWithData.isNotEmpty) {
-      month1 = kuponsWithData.first.bulanTerbit;
-      year1 = kuponsWithData.first.tahunTerbit;
-    }
+    // Smart period selection dengan helper
+    final (month1, year1) = _getDisplayMonthYear(
+      filterBulan: filterBulan,
+      filterTahun: filterTahun,
+      filterTanggalMulai: filterTanggalMulai,
+    );
 
     final month2 = month1 == 12 ? 1 : month1 + 1;
     final year2 = month1 == 12 ? year1 + 1 : year1;
@@ -3173,6 +3779,693 @@ class ExportService {
       month2: month2,
       year2: year2,
       monthNames: monthNames,
+    );
+  }
+
+  // Buat sheet Rekapitulasi Bulanan per Satker dengan 2 tabel (PX dan DX)
+  static Future<void> _createRekapBulananSheet({
+    required Excel excel,
+    required String sheetName,
+    required List<KuponEntity> allKupons,
+    required DatabaseDatasource dbDatasource,
+    int? filterBulan,
+    int? filterTahun,
+    DateTime? filterTanggalMulai,
+    DateTime? filterTanggalSelesai,
+  }) async {
+    final sheet = excel[sheetName];
+
+    // Smart period selection dengan helper
+    final (month1, year1) = _getDisplayMonthYear(
+      filterBulan: filterBulan,
+      filterTahun: filterTahun,
+      filterTanggalMulai: filterTanggalMulai,
+    );
+
+    // Month names untuk header
+    final monthNames = [
+      '',
+      'JANUARI',
+      'FEBRUARI',
+      'MARET',
+      'APRIL',
+      'MEI',
+      'JUNI',
+      'JULI',
+      'AGUSTUS',
+      'SEPTEMBER',
+      'OKTOBER',
+      'NOVEMBER',
+      'DESEMBER',
+    ];
+
+    // Get transaksi data
+    Map<int, Map<int, int>> transaksiByDate = {};
+    if (allKupons.isNotEmpty) {
+      transaksiByDate = await _getTransaksiByDate(
+        dbDatasource,
+        allKupons.map((k) => k.kuponId).toList(),
+        month1,
+        year1,
+        filterBulan,
+        filterTahun,
+        filterTanggalMulai,
+        filterTanggalSelesai,
+      );
+    }
+
+    // Group kupons by satker dan jenis BBM
+    final satkerMap = <String, Map<int, List<KuponEntity>>>{};
+    for (final kupon in allKupons) {
+      final satker = kupon.namaSatker;
+      final jenisBbmId = kupon.jenisBbmId;
+
+      if (!satkerMap.containsKey(satker)) {
+        satkerMap[satker] = {};
+      }
+      if (!satkerMap[satker]!.containsKey(jenisBbmId)) {
+        satkerMap[satker]![jenisBbmId] = [];
+      }
+      satkerMap[satker]![jenisBbmId]!.add(kupon);
+    }
+
+    // Sort satker: CADANGAN paling bawah
+    final sortedSatkerKeys = satkerMap.keys.toList()
+      ..sort((a, b) {
+        if (a.toUpperCase() == 'CADANGAN') return 1;
+        if (b.toUpperCase() == 'CADANGAN') return -1;
+        return a.compareTo(b);
+      });
+
+    // TABEL 1: PERTAMAX (jenisBbmId = 1)
+    int currentRow = 0;
+
+    // Title PX
+    sheet
+        .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow))
+        .value = TextCellValue(
+      'REKAPITULASI BULANAN - PERTAMAX',
+    );
+    sheet
+        .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow))
+        .cellStyle = CellStyle(
+      bold: true,
+      fontSize: 13,
+      fontColorHex: ExcelColor.white,
+      backgroundColorHex: ExcelColor.blue700,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+    );
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow),
+      CellIndex.indexByColumnRow(columnIndex: 36, rowIndex: currentRow),
+    );
+    currentRow++;
+
+    // Header untuk tabel PX
+    final headersRekap = ['NO', 'SATKER', 'KUOTA', 'PEMAKAIAN', 'SALDO'];
+    for (int i = 0; i < headersRekap.length; i++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow),
+      );
+      cell.value = TextCellValue(headersRekap[i]);
+      cell.cellStyle = CellStyle(
+        bold: true,
+        fontSize: 11,
+        fontColorHex: ExcelColor.white,
+        backgroundColorHex: ExcelColor.blue600,
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+      if (i < 5) {
+        sheet.merge(
+          CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow),
+          CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow + 1),
+        );
+      }
+    }
+
+    // Header bulan PX
+    sheet
+        .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: currentRow))
+        .value = TextCellValue(
+      '${monthNames[month1]} $year1',
+    );
+    sheet
+        .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: currentRow))
+        .cellStyle = CellStyle(
+      bold: true,
+      fontSize: 11,
+      fontColorHex: ExcelColor.white,
+      backgroundColorHex: ExcelColor.green600,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+    );
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: currentRow),
+      CellIndex.indexByColumnRow(columnIndex: 36, rowIndex: currentRow),
+    );
+    currentRow++;
+
+    // Tanggal header untuk PX
+    for (int day = 1; day <= 31; day++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 4 + day, rowIndex: currentRow),
+      );
+      cell.value = IntCellValue(day);
+      cell.cellStyle = CellStyle(
+        bold: true,
+        fontSize: 10,
+        backgroundColorHex: ExcelColor.green100,
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+    }
+    currentRow++;
+
+    // Data PX
+    int noPX = 1;
+    double gtKuotaPX = 0, gtPemakaiPX = 0, gtSaldoPX = 0;
+    for (final satker in sortedSatkerKeys) {
+      final kuponListPX = satkerMap[satker]?[1] ?? [];
+      if (kuponListPX.isEmpty) continue;
+
+      final totalKuota = kuponListPX.fold<double>(
+        0,
+        (sum, k) => sum + k.kuotaAwal,
+      );
+      final totalSisa = kuponListPX.fold<double>(
+        0,
+        (sum, k) => sum + k.kuotaSisa,
+      );
+      final totalPemakaian = totalKuota - totalSisa;
+
+      gtKuotaPX += totalKuota;
+      gtPemakaiPX += totalPemakaian;
+      gtSaldoPX += totalSisa;
+
+      final isEvenRow = (currentRow % 2) == 0;
+
+      // NO
+      final noCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow),
+      );
+      noCell.value = IntCellValue(noPX);
+      noCell.cellStyle = CellStyle(
+        backgroundColorHex: isEvenRow ? ExcelColor.blue50 : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+
+      // Satker
+      final satkerCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow),
+      );
+      satkerCell.value = TextCellValue(satker);
+      satkerCell.cellStyle = CellStyle(
+        backgroundColorHex: isEvenRow ? ExcelColor.blue50 : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Left,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+
+      // Kuota
+      final kuotaCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: currentRow),
+      );
+      kuotaCell.value = IntCellValue(totalKuota.toInt());
+      kuotaCell.cellStyle = CellStyle(
+        backgroundColorHex: isEvenRow ? ExcelColor.blue50 : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Right,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+
+      // Pemakaian
+      final pemakaiCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: currentRow),
+      );
+      pemakaiCell.value = IntCellValue(totalPemakaian.toInt());
+      pemakaiCell.cellStyle = CellStyle(
+        backgroundColorHex: ExcelColor.yellow100,
+        horizontalAlign: HorizontalAlign.Right,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+
+      // Saldo
+      final saldoCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: currentRow),
+      );
+      saldoCell.value = IntCellValue(totalSisa.toInt());
+      saldoCell.cellStyle = CellStyle(
+        backgroundColorHex: isEvenRow ? ExcelColor.blue50 : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Right,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+
+      // Isi detail tanggal untuk setiap hari
+      final kuponIds = kuponListPX.map((k) => k.kuponId).toList();
+      for (int day = 1; day <= 31; day++) {
+        int totalDay = 0;
+        for (final kuponId in kuponIds) {
+          if (transaksiByDate.containsKey(kuponId) &&
+              transaksiByDate[kuponId]!.containsKey(day)) {
+            totalDay += transaksiByDate[kuponId]![day] ?? 0;
+          }
+        }
+        final cell = sheet.cell(
+          CellIndex.indexByColumnRow(
+            columnIndex: 4 + day,
+            rowIndex: currentRow,
+          ),
+        );
+        if (totalDay > 0) {
+          cell.value = IntCellValue(totalDay);
+        }
+        cell.cellStyle = CellStyle(
+          backgroundColorHex: isEvenRow ? ExcelColor.blue50 : ExcelColor.white,
+          horizontalAlign: HorizontalAlign.Right,
+          verticalAlign: VerticalAlign.Center,
+          bottomBorder: Border(borderStyle: BorderStyle.Thin),
+          topBorder: Border(borderStyle: BorderStyle.Thin),
+          leftBorder: Border(borderStyle: BorderStyle.Thin),
+          rightBorder: Border(borderStyle: BorderStyle.Thin),
+        );
+      }
+
+      currentRow++;
+      noPX++;
+    }
+
+    // Grand Total PX
+    final gtNoCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow),
+    );
+    gtNoCell.cellStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.blue700,
+      fontColorHex: ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
+    );
+
+    final gtSatkerCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow),
+    );
+    gtSatkerCell.value = TextCellValue('GRAND TOTAL');
+    gtSatkerCell.cellStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.blue700,
+      fontColorHex: ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
+    );
+
+    final gtKuotaCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: currentRow),
+    );
+    gtKuotaCell.value = IntCellValue(gtKuotaPX.toInt());
+    gtKuotaCell.cellStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.blue700,
+      fontColorHex: ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Right,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
+    );
+
+    final gtPemakaiCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: currentRow),
+    );
+    gtPemakaiCell.value = IntCellValue(gtPemakaiPX.toInt());
+    gtPemakaiCell.cellStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.orange600,
+      fontColorHex: ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Right,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
+    );
+
+    final gtSaldoCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: currentRow),
+    );
+    gtSaldoCell.value = IntCellValue(gtSaldoPX.toInt());
+    gtSaldoCell.cellStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.blue700,
+      fontColorHex: ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Right,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
+    );
+
+    currentRow += 3; // Space between tables
+
+    // TABEL 2: PERTAMINA DEX (jenisBbmId = 2)
+    // Title DX
+    sheet
+        .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow))
+        .value = TextCellValue(
+      'REKAPITULASI BULANAN - PERTAMINA DEX',
+    );
+    sheet
+        .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow))
+        .cellStyle = CellStyle(
+      bold: true,
+      fontSize: 13,
+      fontColorHex: ExcelColor.white,
+      backgroundColorHex: ExcelColor.red700,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+    );
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow),
+      CellIndex.indexByColumnRow(columnIndex: 36, rowIndex: currentRow),
+    );
+    currentRow++;
+
+    // Header untuk tabel DX
+    for (int i = 0; i < headersRekap.length; i++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow),
+      );
+      cell.value = TextCellValue(headersRekap[i]);
+      cell.cellStyle = CellStyle(
+        bold: true,
+        fontSize: 11,
+        fontColorHex: ExcelColor.white,
+        backgroundColorHex: ExcelColor.red600,
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+      if (i < 5) {
+        sheet.merge(
+          CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow),
+          CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow + 1),
+        );
+      }
+    }
+
+    // Header bulan DX
+    sheet
+        .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: currentRow))
+        .value = TextCellValue(
+      '${monthNames[month1]} $year1',
+    );
+    sheet
+        .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: currentRow))
+        .cellStyle = CellStyle(
+      bold: true,
+      fontSize: 11,
+      fontColorHex: ExcelColor.white,
+      backgroundColorHex: ExcelColor.orange600,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+    );
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: currentRow),
+      CellIndex.indexByColumnRow(columnIndex: 36, rowIndex: currentRow),
+    );
+    currentRow++;
+
+    // Tanggal header untuk DX
+    for (int day = 1; day <= 31; day++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 4 + day, rowIndex: currentRow),
+      );
+      cell.value = IntCellValue(day);
+      cell.cellStyle = CellStyle(
+        bold: true,
+        fontSize: 10,
+        backgroundColorHex: ExcelColor.orange100,
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+    }
+    currentRow++;
+
+    // Data DX
+    int noDX = 1;
+    double gtKuotaDX = 0, gtPemakaiDX = 0, gtSaldoDX = 0;
+    for (final satker in sortedSatkerKeys) {
+      final kuponListDX = satkerMap[satker]?[2] ?? [];
+      if (kuponListDX.isEmpty) continue;
+
+      final totalKuota = kuponListDX.fold<double>(
+        0,
+        (sum, k) => sum + k.kuotaAwal,
+      );
+      final totalSisa = kuponListDX.fold<double>(
+        0,
+        (sum, k) => sum + k.kuotaSisa,
+      );
+      final totalPemakaian = totalKuota - totalSisa;
+
+      gtKuotaDX += totalKuota;
+      gtPemakaiDX += totalPemakaian;
+      gtSaldoDX += totalSisa;
+
+      final isEvenRow = (currentRow % 2) == 0;
+
+      // NO
+      final noCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow),
+      );
+      noCell.value = IntCellValue(noDX);
+      noCell.cellStyle = CellStyle(
+        backgroundColorHex: isEvenRow ? ExcelColor.red50 : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+
+      // Satker
+      final satkerCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow),
+      );
+      satkerCell.value = TextCellValue(satker);
+      satkerCell.cellStyle = CellStyle(
+        backgroundColorHex: isEvenRow ? ExcelColor.red50 : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Left,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+
+      // Kuota
+      final kuotaCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: currentRow),
+      );
+      kuotaCell.value = IntCellValue(totalKuota.toInt());
+      kuotaCell.cellStyle = CellStyle(
+        backgroundColorHex: isEvenRow ? ExcelColor.red50 : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Right,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+
+      // Pemakaian
+      final pemakaiCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: currentRow),
+      );
+      pemakaiCell.value = IntCellValue(totalPemakaian.toInt());
+      pemakaiCell.cellStyle = CellStyle(
+        backgroundColorHex: ExcelColor.yellow100,
+        horizontalAlign: HorizontalAlign.Right,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+
+      // Saldo
+      final saldoCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: currentRow),
+      );
+      saldoCell.value = IntCellValue(totalSisa.toInt());
+      saldoCell.cellStyle = CellStyle(
+        backgroundColorHex: isEvenRow ? ExcelColor.red50 : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Right,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+
+      // Isi detail tanggal untuk setiap hari
+      final kuponIds = kuponListDX.map((k) => k.kuponId).toList();
+      for (int day = 1; day <= 31; day++) {
+        int totalDay = 0;
+        for (final kuponId in kuponIds) {
+          if (transaksiByDate.containsKey(kuponId) &&
+              transaksiByDate[kuponId]!.containsKey(day)) {
+            totalDay += transaksiByDate[kuponId]![day] ?? 0;
+          }
+        }
+        final cell = sheet.cell(
+          CellIndex.indexByColumnRow(
+            columnIndex: 4 + day,
+            rowIndex: currentRow,
+          ),
+        );
+        if (totalDay > 0) {
+          cell.value = IntCellValue(totalDay);
+        }
+        cell.cellStyle = CellStyle(
+          backgroundColorHex: isEvenRow ? ExcelColor.red50 : ExcelColor.white,
+          horizontalAlign: HorizontalAlign.Right,
+          verticalAlign: VerticalAlign.Center,
+          bottomBorder: Border(borderStyle: BorderStyle.Thin),
+          topBorder: Border(borderStyle: BorderStyle.Thin),
+          leftBorder: Border(borderStyle: BorderStyle.Thin),
+          rightBorder: Border(borderStyle: BorderStyle.Thin),
+        );
+      }
+
+      currentRow++;
+      noDX++;
+    }
+
+    // Grand Total DX
+    final gtNoCellDX = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow),
+    );
+    gtNoCellDX.cellStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.red700,
+      fontColorHex: ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
+    );
+
+    final gtSatkerCellDX = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow),
+    );
+    gtSatkerCellDX.value = TextCellValue('GRAND TOTAL');
+    gtSatkerCellDX.cellStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.red700,
+      fontColorHex: ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
+    );
+
+    final gtKuotaCellDX = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: currentRow),
+    );
+    gtKuotaCellDX.value = IntCellValue(gtKuotaDX.toInt());
+    gtKuotaCellDX.cellStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.red700,
+      fontColorHex: ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Right,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
+    );
+
+    final gtPemakaiCellDX = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: currentRow),
+    );
+    gtPemakaiCellDX.value = IntCellValue(gtPemakaiDX.toInt());
+    gtPemakaiCellDX.cellStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.orange600,
+      fontColorHex: ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Right,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
+    );
+
+    final gtSaldoCellDX = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: currentRow),
+    );
+    gtSaldoCellDX.value = IntCellValue(gtSaldoDX.toInt());
+    gtSaldoCellDX.cellStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.red700,
+      fontColorHex: ExcelColor.white,
+      horizontalAlign: HorizontalAlign.Right,
+      verticalAlign: VerticalAlign.Center,
+      bottomBorder: Border(borderStyle: BorderStyle.Medium),
+      topBorder: Border(borderStyle: BorderStyle.Medium),
+      leftBorder: Border(borderStyle: BorderStyle.Medium),
+      rightBorder: Border(borderStyle: BorderStyle.Medium),
     );
   }
 }

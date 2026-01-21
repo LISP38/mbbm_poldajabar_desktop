@@ -583,26 +583,28 @@ class _TransactionPageState extends State<TransactionPage>
                 style: TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 16),
+              // 1. Rekapitulasi Transaksi per Satker (5 Sheet)
               ListTile(
-                leading: const Icon(Icons.summarize, color: Colors.teal),
-                title: const Text('Transaksi Rekap (4 Sheet)'),
+                leading: const Icon(Icons.business, color: Colors.blue),
+                title: const Text('Rekapitulasi Transaksi per Satker'),
                 subtitle: const Text(
-                  'RAN.PX, DUK.PX, RAN.DX, DUK.DX - SUM per Satker',
+                  '5 Sheet: RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Bulanan\nDetail tanggal (1-31) per satker + SUM',
                   style: TextStyle(fontSize: 12),
                 ),
-                tileColor: Colors.teal.shade50,
+                tileColor: Colors.blue.shade50,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.teal.shade200),
+                  side: BorderSide(color: Colors.blue.shade200),
                 ),
-                onTap: () => Navigator.pop(context, 'transaksi_rekap'),
+                onTap: () => Navigator.pop(context, 'satker'),
               ),
               const SizedBox(height: 12),
+              // 2. Rekapitulasi Transaksi per Kupon (5 Sheet)
               ListTile(
-                leading: const Icon(Icons.folder_special, color: Colors.green),
-                title: const Text('Transaksi Detail (5 Sheet)'),
+                leading: const Icon(Icons.credit_card, color: Colors.green),
+                title: const Text('Rekapitulasi Transaksi per Kupon'),
                 subtitle: const Text(
-                  'RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Harian - Detail per kupon',
+                  '5 Sheet: RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Harian\nDetail tanggal (1-31) per kupon + SUM',
                   style: TextStyle(fontSize: 12),
                 ),
                 tileColor: Colors.green.shade50,
@@ -613,11 +615,12 @@ class _TransactionPageState extends State<TransactionPage>
                 onTap: () => Navigator.pop(context, 'kupon'),
               ),
               const SizedBox(height: 12),
+              // 3. Kupon Minus (4 Sheet)
               ListTile(
                 leading: const Icon(Icons.remove_circle, color: Colors.red),
-                title: const Text('Kupon Minus (4 Sheet)'),
+                title: const Text('Kupon Minus'),
                 subtitle: const Text(
-                  'RAN.PM, DUK.PM, RAN.DX, DUK.DX - Hanya kupon minus',
+                  '4 Sheet: RAN.PX, DUK.PX, RAN.DX, DUK.DX\nKupon dengan saldo minus + detail tanggal',
                   style: TextStyle(fontSize: 12),
                 ),
                 tileColor: Colors.red.shade50,
@@ -626,54 +629,6 @@ class _TransactionPageState extends State<TransactionPage>
                   side: BorderSide(color: Colors.red.shade200),
                 ),
                 onTap: () => Navigator.pop(context, 'minus'),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                leading: const Icon(Icons.business, color: Colors.orange),
-                title: const Text('Data Satker (2 Sheet)'),
-                subtitle: const Text(
-                  'Pertamax, Dexlite - Rekap per satker',
-                  style: TextStyle(fontSize: 12),
-                ),
-                tileColor: Colors.orange.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.orange.shade200),
-                ),
-                onTap: () => Navigator.pop(context, 'satker'),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                leading: const Icon(
-                  Icons.calendar_view_month,
-                  color: Colors.indigo,
-                ),
-                title: const Text('Rekap Harian (1 Sheet)'),
-                subtitle: const Text(
-                  'PX + DX - Agregat per jenis kupon dengan distribusi harian',
-                  style: TextStyle(fontSize: 12),
-                ),
-                tileColor: Colors.indigo.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.indigo.shade200),
-                ),
-                onTap: () => Navigator.pop(context, 'rekap_harian'),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                leading: const Icon(Icons.table_rows, color: Colors.purple),
-                title: const Text('Gabungan (7 Sheet)'),
-                subtitle: const Text(
-                  'RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Harian, REKAP.PX, REKAP.DX',
-                  style: TextStyle(fontSize: 12),
-                ),
-                tileColor: Colors.purple.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.purple.shade200),
-                ),
-                onTap: () => Navigator.pop(context, 'combined'),
               ),
             ],
           ),
@@ -1225,8 +1180,8 @@ class _TransactionPageState extends State<TransactionPage>
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Pagination controls
-                _buildPaginationControls(context, true),
+                // Pagination controls - wrap in Flexible to prevent overflow
+                Flexible(child: _buildPaginationControls(context, true)),
               ],
             ),
           ],
@@ -1742,96 +1697,100 @@ class _TransactionPageState extends State<TransactionPage>
         return Card(
           elevation: 1,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Menampilkan $startItem - $endItem dari $totalItems data',
-                  style: const TextStyle(fontSize: 14),
-                ),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.first_page),
-                      onPressed: currentPage > 1
-                          ? () {
-                              setState(() {
-                                if (isTransaksi) {
-                                  _currentPageTransaksi = 1;
-                                } else {
-                                  _currentPageKuponMinus = 1;
-                                }
-                              });
-                            }
-                          : null,
-                      tooltip: 'Halaman Pertama',
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    '$startItem - $endItem dari $totalItems',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  const SizedBox(width: 12),
+                  IconButton(
+                    icon: const Icon(Icons.first_page),
+                    iconSize: 18,
+                    onPressed: currentPage > 1
+                        ? () {
+                            setState(() {
+                              if (isTransaksi) {
+                                _currentPageTransaksi = 1;
+                              } else {
+                                _currentPageKuponMinus = 1;
+                              }
+                            });
+                          }
+                        : null,
+                    tooltip: 'Pertama',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left),
+                    iconSize: 18,
+                    onPressed: currentPage > 1
+                        ? () {
+                            setState(() {
+                              if (isTransaksi) {
+                                _currentPageTransaksi--;
+                              } else {
+                                _currentPageKuponMinus--;
+                              }
+                            });
+                          }
+                        : null,
+                    tooltip: 'Sebelumnya',
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.chevron_left),
-                      onPressed: currentPage > 1
-                          ? () {
-                              setState(() {
-                                if (isTransaksi) {
-                                  _currentPageTransaksi--;
-                                } else {
-                                  _currentPageKuponMinus--;
-                                }
-                              });
-                            }
-                          : null,
-                      tooltip: 'Halaman Sebelumnya',
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                    child: Text(
+                      '$currentPage/$totalPages',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'Halaman $currentPage dari $totalPages',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.chevron_right),
-                      onPressed: currentPage < totalPages
-                          ? () {
-                              setState(() {
-                                if (isTransaksi) {
-                                  _currentPageTransaksi++;
-                                } else {
-                                  _currentPageKuponMinus++;
-                                }
-                              });
-                            }
-                          : null,
-                      tooltip: 'Halaman Berikutnya',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.last_page),
-                      onPressed: currentPage < totalPages
-                          ? () {
-                              setState(() {
-                                if (isTransaksi) {
-                                  _currentPageTransaksi = totalPages;
-                                } else {
-                                  _currentPageKuponMinus = totalPages;
-                                }
-                              });
-                            }
-                          : null,
-                      tooltip: 'Halaman Terakhir',
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right),
+                    iconSize: 18,
+                    onPressed: currentPage < totalPages
+                        ? () {
+                            setState(() {
+                              if (isTransaksi) {
+                                _currentPageTransaksi++;
+                              } else {
+                                _currentPageKuponMinus++;
+                              }
+                            });
+                          }
+                        : null,
+                    tooltip: 'Berikutnya',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.last_page),
+                    iconSize: 18,
+                    onPressed: currentPage < totalPages
+                        ? () {
+                            setState(() {
+                              if (isTransaksi) {
+                                _currentPageTransaksi = totalPages;
+                              } else {
+                                _currentPageKuponMinus = totalPages;
+                              }
+                            });
+                          }
+                        : null,
+                    tooltip: 'Terakhir',
+                  ),
+                ],
+              ),
             ),
           ),
         );
