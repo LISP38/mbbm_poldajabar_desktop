@@ -3409,6 +3409,10 @@ class ExportService {
       final month2 = month1 == 12 ? 1 : month1 + 1;
       final year2 = month1 == 12 ? year1 + 1 : year1;
 
+      // Get hari dalam bulan
+      final daysInMonth1 = _getDaysInMonth(month1, year1);
+      final daysInMonth2 = _getDaysInMonth(month2, year2);
+
       // Get nama bulan
       final monthNames = [
         '',
@@ -3455,6 +3459,8 @@ class ExportService {
         month2: month2,
         year2: year2,
         monthNames: monthNames,
+        daysInMonth1: daysInMonth1,
+        daysInMonth2: daysInMonth2,
       );
 
       // Gap antara blok PX dan DX
@@ -3473,6 +3479,8 @@ class ExportService {
         month2: month2,
         year2: year2,
         monthNames: monthNames,
+        daysInMonth1: daysInMonth1,
+        daysInMonth2: daysInMonth2,
       );
 
       // Save file
@@ -3512,9 +3520,11 @@ class ExportService {
     required int month2,
     required int year2,
     required List<String> monthNames,
+    required int daysInMonth1,
+    required int daysInMonth2,
   }) async {
-    // Kolom: Label | KUOTA | PAKAI | SISA | 1-31 (bulan1) | separator | 1-31 (bulan2)
-    // Total kolom: 4 + 31 + 1 + 31 = 67
+    // Kolom: Label | KUOTA | PAKAI | SISA | 1-daysInMonth1 (bulan1) | separator | 1-daysInMonth2 (bulan2)
+    // Total kolom: 4 + daysInMonth1 + 1 + daysInMonth2 (dynamic)
 
     // Style untuk header kuning
     final headerStyle = CellStyle(
@@ -3555,7 +3565,7 @@ class ExportService {
       CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: row),
     );
 
-    // Header bulan 1 (kolom 4-34)
+    // Header bulan 1 (kolom 4 ke 4+daysInMonth1-1)
     final month1Cell = sheet.cell(
       CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row),
     );
@@ -3563,24 +3573,34 @@ class ExportService {
     month1Cell.cellStyle = headerStyle;
     sheet.merge(
       CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row),
-      CellIndex.indexByColumnRow(columnIndex: 34, rowIndex: row),
+      CellIndex.indexByColumnRow(columnIndex: 3 + daysInMonth1, rowIndex: row),
     );
 
-    // Separator ungu (kolom 35)
+    // Separator ungu (kolom 4 + daysInMonth1)
+    final separatorColIndex = 4 + daysInMonth1;
     final sepCell = sheet.cell(
-      CellIndex.indexByColumnRow(columnIndex: 35, rowIndex: row),
+      CellIndex.indexByColumnRow(columnIndex: separatorColIndex, rowIndex: row),
     );
     sepCell.cellStyle = separatorStyle;
 
-    // Header bulan 2 (kolom 36-66)
+    // Header bulan 2 (kolom 4 + daysInMonth1 + 1 ke 4 + daysInMonth1 + daysInMonth2)
     final month2Cell = sheet.cell(
-      CellIndex.indexByColumnRow(columnIndex: 36, rowIndex: row),
+      CellIndex.indexByColumnRow(
+        columnIndex: separatorColIndex + 1,
+        rowIndex: row,
+      ),
     );
     month2Cell.value = TextCellValue('${monthNames[month2]} $year2');
     month2Cell.cellStyle = headerStyle;
     sheet.merge(
-      CellIndex.indexByColumnRow(columnIndex: 36, rowIndex: row),
-      CellIndex.indexByColumnRow(columnIndex: 66, rowIndex: row),
+      CellIndex.indexByColumnRow(
+        columnIndex: separatorColIndex + 1,
+        rowIndex: row,
+      ),
+      CellIndex.indexByColumnRow(
+        columnIndex: separatorColIndex + daysInMonth2,
+        rowIndex: row,
+      ),
     );
 
     row++;
@@ -3595,8 +3615,8 @@ class ExportService {
       cell.cellStyle = headerStyle;
     }
 
-    // Tanggal 1-31 untuk bulan 1
-    for (int d = 1; d <= 31; d++) {
+    // Tanggal 1-daysInMonth1 untuk bulan 1
+    for (int d = 1; d <= daysInMonth1; d++) {
       final cell = sheet.cell(
         CellIndex.indexByColumnRow(columnIndex: 3 + d, rowIndex: row),
       );
@@ -3606,14 +3626,22 @@ class ExportService {
 
     // Separator ungu
     sheet
-            .cell(CellIndex.indexByColumnRow(columnIndex: 35, rowIndex: row))
+            .cell(
+              CellIndex.indexByColumnRow(
+                columnIndex: 4 + daysInMonth1,
+                rowIndex: row,
+              ),
+            )
             .cellStyle =
         separatorStyle;
 
-    // Tanggal 1-31 untuk bulan 2
-    for (int d = 1; d <= 31; d++) {
+    // Tanggal 1-daysInMonth2 untuk bulan 2
+    for (int d = 1; d <= daysInMonth2; d++) {
       final cell = sheet.cell(
-        CellIndex.indexByColumnRow(columnIndex: 35 + d, rowIndex: row),
+        CellIndex.indexByColumnRow(
+          columnIndex: 4 + daysInMonth1 + d,
+          rowIndex: row,
+        ),
       );
       cell.value = IntCellValue(d);
       cell.cellStyle = headerStyle;
@@ -3633,6 +3661,8 @@ class ExportService {
       year1: year1,
       month2: month2,
       year2: year2,
+      daysInMonth1: daysInMonth1,
+      daysInMonth2: daysInMonth2,
     );
 
     // Hitung agregat untuk DUK
@@ -3643,6 +3673,8 @@ class ExportService {
       year1: year1,
       month2: month2,
       year2: year2,
+      daysInMonth1: daysInMonth1,
+      daysInMonth2: daysInMonth2,
     );
 
     // Baris RANJEN
@@ -3652,6 +3684,8 @@ class ExportService {
       label: 'RANJEN',
       data: ranjenData,
       isTotal: false,
+      daysInMonth1: daysInMonth1,
+      daysInMonth2: daysInMonth2,
     );
     row++;
 
@@ -3662,17 +3696,26 @@ class ExportService {
       label: 'DUK',
       data: dukData,
       isTotal: false,
+      daysInMonth1: daysInMonth1,
+      daysInMonth2: daysInMonth2,
     );
     row++;
 
     // Baris TOTAL (RANJEN + DUK)
-    final totalData = _sumRowData(ranjenData, dukData);
+    final totalData = _sumRowData(
+      ranjenData,
+      dukData,
+      daysInMonth1,
+      daysInMonth2,
+    );
     _writeDataRow(
       sheet: sheet,
       row: row,
       label: 'TOTAL',
       data: totalData,
       isTotal: true,
+      daysInMonth1: daysInMonth1,
+      daysInMonth2: daysInMonth2,
     );
     row++;
 
@@ -3687,14 +3730,18 @@ class ExportService {
     required int year1,
     required int month2,
     required int year2,
+    required int daysInMonth1,
+    required int daysInMonth2,
   }) {
     int totalKuota = 0;
     Map<int, int> dailyMonth1 = {};
     Map<int, int> dailyMonth2 = {};
 
     // Initialize daily maps
-    for (int d = 1; d <= 31; d++) {
+    for (int d = 1; d <= daysInMonth1; d++) {
       dailyMonth1[d] = 0;
+    }
+    for (int d = 1; d <= daysInMonth2; d++) {
       dailyMonth2[d] = 0;
     }
 
@@ -3703,13 +3750,16 @@ class ExportService {
       totalKuota += kupon.kuotaAwal.toInt();
 
       // Get transaksi per tanggal untuk kupon ini
-      for (int d = 1; d <= 31; d++) {
+      for (int d = 1; d <= daysInMonth1; d++) {
         final key1 = '${kupon.kuponId}_${month1}_${year1}_$d';
-        final key2 = '${kupon.kuponId}_${month2}_${year2}_$d';
 
         if (transaksiMap.containsKey(key1)) {
           dailyMonth1[d] = dailyMonth1[d]! + transaksiMap[key1]!;
         }
+      }
+      for (int d = 1; d <= daysInMonth2; d++) {
+        final key2 = '${kupon.kuponId}_${month2}_${year2}_$d';
+
         if (transaksiMap.containsKey(key2)) {
           dailyMonth2[d] = dailyMonth2[d]! + transaksiMap[key2]!;
         }
@@ -3718,8 +3768,10 @@ class ExportService {
 
     // Hitung total pakai
     int totalPakai = 0;
-    for (int d = 1; d <= 31; d++) {
+    for (int d = 1; d <= daysInMonth1; d++) {
       totalPakai += dailyMonth1[d]!;
+    }
+    for (int d = 1; d <= daysInMonth2; d++) {
       totalPakai += dailyMonth2[d]!;
     }
 
@@ -3736,13 +3788,17 @@ class ExportService {
   static Map<String, dynamic> _sumRowData(
     Map<String, dynamic> data1,
     Map<String, dynamic> data2,
+    int daysInMonth1,
+    int daysInMonth2,
   ) {
     Map<int, int> dailyMonth1 = {};
     Map<int, int> dailyMonth2 = {};
 
-    for (int d = 1; d <= 31; d++) {
+    for (int d = 1; d <= daysInMonth1; d++) {
       dailyMonth1[d] =
           (data1['dailyMonth1'][d] ?? 0) + (data2['dailyMonth1'][d] ?? 0);
+    }
+    for (int d = 1; d <= daysInMonth2; d++) {
       dailyMonth2[d] =
           (data1['dailyMonth2'][d] ?? 0) + (data2['dailyMonth2'][d] ?? 0);
     }
@@ -3763,6 +3819,8 @@ class ExportService {
     required String label,
     required Map<String, dynamic> data,
     required bool isTotal,
+    required int daysInMonth1,
+    required int daysInMonth2,
   }) {
     final dataStyle = CellStyle(
       bold: isTotal,
@@ -3826,9 +3884,9 @@ class ExportService {
     sisaCell.value = IntCellValue((data['sisa'] ?? 0).toInt());
     sisaCell.cellStyle = dataStyle;
 
-    // Tanggal 1-31 bulan 1
+    // Tanggal 1-daysInMonth1 bulan 1
     final dailyMonth1 = data['dailyMonth1'] as Map<int, int>;
-    for (int d = 1; d <= 31; d++) {
+    for (int d = 1; d <= daysInMonth1; d++) {
       final cell = sheet.cell(
         CellIndex.indexByColumnRow(columnIndex: 3 + d, rowIndex: row),
       );
@@ -3843,15 +3901,23 @@ class ExportService {
 
     // Separator ungu
     sheet
-            .cell(CellIndex.indexByColumnRow(columnIndex: 35, rowIndex: row))
+            .cell(
+              CellIndex.indexByColumnRow(
+                columnIndex: 4 + daysInMonth1,
+                rowIndex: row,
+              ),
+            )
             .cellStyle =
         separatorStyle;
 
-    // Tanggal 1-31 bulan 2
+    // Tanggal 1-daysInMonth2 bulan 2
     final dailyMonth2 = data['dailyMonth2'] as Map<int, int>;
-    for (int d = 1; d <= 31; d++) {
+    for (int d = 1; d <= daysInMonth2; d++) {
       final cell = sheet.cell(
-        CellIndex.indexByColumnRow(columnIndex: 35 + d, rowIndex: row),
+        CellIndex.indexByColumnRow(
+          columnIndex: 4 + daysInMonth1 + d,
+          rowIndex: row,
+        ),
       );
       final value = dailyMonth2[d] ?? 0;
       if (value > 0) {
@@ -3939,6 +4005,10 @@ class ExportService {
     final month2 = month1 == 12 ? 1 : month1 + 1;
     final year2 = month1 == 12 ? year1 + 1 : year1;
 
+    // Get hari dalam bulan
+    final daysInMonth1 = _getDaysInMonth(month1, year1);
+    final daysInMonth2 = _getDaysInMonth(month2, year2);
+
     // Get nama bulan
     final monthNames = [
       '',
@@ -3985,6 +4055,8 @@ class ExportService {
       month2: month2,
       year2: year2,
       monthNames: monthNames,
+      daysInMonth1: daysInMonth1,
+      daysInMonth2: daysInMonth2,
     );
 
     // Gap antara blok PX dan DX
@@ -4003,6 +4075,8 @@ class ExportService {
       month2: month2,
       year2: year2,
       monthNames: monthNames,
+      daysInMonth1: daysInMonth1,
+      daysInMonth2: daysInMonth2,
     );
   }
 
@@ -4025,6 +4099,9 @@ class ExportService {
       filterTahun: filterTahun,
       filterTanggalMulai: filterTanggalMulai,
     );
+
+    // Get hari dalam bulan
+    final daysInMonth1 = _getDaysInMonth(month1, year1);
 
     // Month names untuk header
     final monthNames = [
@@ -4102,7 +4179,10 @@ class ExportService {
     );
     sheet.merge(
       CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow),
-      CellIndex.indexByColumnRow(columnIndex: 36, rowIndex: currentRow),
+      CellIndex.indexByColumnRow(
+        columnIndex: 4 + daysInMonth1,
+        rowIndex: currentRow,
+      ),
     );
     currentRow++;
 
@@ -4151,12 +4231,15 @@ class ExportService {
     );
     sheet.merge(
       CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: currentRow),
-      CellIndex.indexByColumnRow(columnIndex: 36, rowIndex: currentRow),
+      CellIndex.indexByColumnRow(
+        columnIndex: 4 + daysInMonth1,
+        rowIndex: currentRow,
+      ),
     );
     currentRow++;
 
     // Tanggal header untuk PX
-    for (int day = 1; day <= 31; day++) {
+    for (int day = 1; day <= daysInMonth1; day++) {
       final cell = sheet.cell(
         CellIndex.indexByColumnRow(columnIndex: 4 + day, rowIndex: currentRow),
       );
@@ -4275,7 +4358,7 @@ class ExportService {
 
       // Isi detail tanggal untuk setiap hari
       final kuponIds = kuponListPX.map((k) => k.kuponId).toList();
-      for (int day = 1; day <= 31; day++) {
+      for (int day = 1; day <= daysInMonth1; day++) {
         int totalDay = 0;
         for (final kuponId in kuponIds) {
           if (transaksiByDate.containsKey(kuponId) &&
@@ -4408,7 +4491,10 @@ class ExportService {
     );
     sheet.merge(
       CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow),
-      CellIndex.indexByColumnRow(columnIndex: 36, rowIndex: currentRow),
+      CellIndex.indexByColumnRow(
+        columnIndex: 4 + daysInMonth1,
+        rowIndex: currentRow,
+      ),
     );
     currentRow++;
 
@@ -4456,12 +4542,15 @@ class ExportService {
     );
     sheet.merge(
       CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: currentRow),
-      CellIndex.indexByColumnRow(columnIndex: 36, rowIndex: currentRow),
+      CellIndex.indexByColumnRow(
+        columnIndex: 4 + daysInMonth1,
+        rowIndex: currentRow,
+      ),
     );
     currentRow++;
 
     // Tanggal header untuk DX
-    for (int day = 1; day <= 31; day++) {
+    for (int day = 1; day <= daysInMonth1; day++) {
       final cell = sheet.cell(
         CellIndex.indexByColumnRow(columnIndex: 4 + day, rowIndex: currentRow),
       );
@@ -4580,7 +4669,7 @@ class ExportService {
 
       // Isi detail tanggal untuk setiap hari
       final kuponIds = kuponListDX.map((k) => k.kuponId).toList();
-      for (int day = 1; day <= 31; day++) {
+      for (int day = 1; day <= daysInMonth1; day++) {
         int totalDay = 0;
         for (final kuponId in kuponIds) {
           if (transaksiByDate.containsKey(kuponId) &&
