@@ -256,7 +256,11 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> getKuponMinus({String? satker}) async {
+  Future<List<Map<String, dynamic>>> getKuponMinus({
+    String? satker,
+    int? bulan,
+    int? tahun,
+  }) async {
     try {
       final db = await dbHelper.database;
 
@@ -267,6 +271,14 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
       if (satker != null && satker.isNotEmpty) {
         where.add('ds.nama_satker = ?');
         args.add(satker);
+      }
+      if (bulan != null) {
+        where.add('dk.bulan_terbit = ?');
+        args.add(bulan);
+      }
+      if (tahun != null) {
+        where.add('dk.tahun_terbit = ?');
+        args.add(tahun);
       }
 
       final whereClause = 'WHERE ${where.join(' AND ')}';

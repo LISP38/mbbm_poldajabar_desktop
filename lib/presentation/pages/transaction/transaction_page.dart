@@ -35,6 +35,10 @@ class _TransactionPageState extends State<TransactionPage>
   int _currentPageKuponMinus = 1;
   final int _itemsPerPage = 20;
 
+  // Track filtered item counts for pagination
+  int _filteredTransaksiCount = 0;
+  int _filteredKuponMinusCount = 0;
+
   // Tab Controller
   late TabController _tabController;
 
@@ -291,7 +295,12 @@ class _TransactionPageState extends State<TransactionPage>
                   child: SizedBox(
                     height: 44,
                     child: ElevatedButton.icon(
-                      onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 1, jenisKuponId: 1, themeColor: Colors.blue,),
+                      onPressed: () => _showTambahTransaksiDialog(
+                        context,
+                        jenisBbm: 1,
+                        jenisKuponId: 1,
+                        themeColor: Colors.blue,
+                      ),
                       icon: const Icon(Icons.add, size: 16),
                       label: const Text('RAN-PX'),
                       style: ElevatedButton.styleFrom(
@@ -310,7 +319,12 @@ class _TransactionPageState extends State<TransactionPage>
                   child: SizedBox(
                     height: 44,
                     child: ElevatedButton.icon(
-                      onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 1, jenisKuponId: 2, themeColor: Colors.green,),
+                      onPressed: () => _showTambahTransaksiDialog(
+                        context,
+                        jenisBbm: 1,
+                        jenisKuponId: 2,
+                        themeColor: Colors.green,
+                      ),
                       icon: const Icon(Icons.add, size: 16),
                       label: const Text('DUK-PX'),
                       style: ElevatedButton.styleFrom(
@@ -329,7 +343,12 @@ class _TransactionPageState extends State<TransactionPage>
                   child: SizedBox(
                     height: 44,
                     child: ElevatedButton.icon(
-                      onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 2, jenisKuponId: 1, themeColor: Colors.orange,),
+                      onPressed: () => _showTambahTransaksiDialog(
+                        context,
+                        jenisBbm: 2,
+                        jenisKuponId: 1,
+                        themeColor: Colors.orange,
+                      ),
                       icon: const Icon(Icons.add, size: 16),
                       label: const Text('RAN-DX'),
                       style: ElevatedButton.styleFrom(
@@ -348,7 +367,12 @@ class _TransactionPageState extends State<TransactionPage>
                   child: SizedBox(
                     height: 44,
                     child: ElevatedButton.icon(
-                      onPressed: () => _showTambahTransaksiDialog(context, jenisBbm: 2, jenisKuponId: 2, themeColor: Colors.red,),
+                      onPressed: () => _showTambahTransaksiDialog(
+                        context,
+                        jenisBbm: 2,
+                        jenisKuponId: 2,
+                        themeColor: Colors.red,
+                      ),
                       icon: const Icon(Icons.add, size: 16),
                       label: const Text('DUK-DX'),
                       style: ElevatedButton.styleFrom(
@@ -710,187 +734,192 @@ class _TransactionPageState extends State<TransactionPage>
     await showDialog(
       context: context,
       builder: (ctx) {
-      return Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(
-            primary: themeColor,
-          ),
-          inputDecorationTheme: InputDecorationTheme(
-            labelStyle: TextStyle(color: themeColor),
-            focusedBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: themeColor, width: 2),
-              borderRadius: BorderRadius.circular(8),
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(
+              context,
+            ).colorScheme.copyWith(primary: themeColor),
+            inputDecorationTheme: InputDecorationTheme(
+              labelStyle: TextStyle(color: themeColor),
+              focusedBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: themeColor, width: 2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: themeColor),
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-            enabledBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: themeColor),
-              borderRadius: BorderRadius.circular(8),
-            ),
           ),
-        ),  
-        child: AlertDialog(
-          title: Text(
-            'Tambah Transaksi', 
-            style: TextStyle(color: themeColor)),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: tanggalController,
-                  decoration: const InputDecoration(
-                    labelText: 'Tanggal',
-                    suffixIcon: Icon(Icons.calendar_today),
+          child: AlertDialog(
+            title: Text(
+              'Tambah Transaksi',
+              style: TextStyle(color: themeColor),
+            ),
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: tanggalController,
+                    decoration: const InputDecoration(
+                      labelText: 'Tanggal',
+                      suffixIcon: Icon(Icons.calendar_today),
+                    ),
+                    validator: (value) => value == null || value.isEmpty
+                        ? 'Pilih tanggal transaksi'
+                        : null,
+                    readOnly: true,
+                    onTap: () async {
+                      final DateTime? pickedDate = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now(),
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2030),
+                      );
+                      if (pickedDate != null) {
+                        tanggalController.text = DateFormat(
+                          'yyyy-MM-dd',
+                        ).format(pickedDate);
+                      }
+                    },
                   ),
-                  validator: (value) => value == null || value.isEmpty
-                      ? 'Pilih tanggal transaksi'
-                      : null,
-                  readOnly: true,
-                  onTap: () async {
-                    final DateTime? pickedDate = await showDatePicker(
-                      context: context,
-                      initialDate: DateTime.now(),
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2030),
+                  Autocomplete<String>(
+                    optionsBuilder: (TextEditingValue textEditingValue) {
+                      if (textEditingValue.text.isEmpty) {
+                        return kuponOptions;
+                      }
+                      final filtered = kuponOptions.where((option) {
+                        final nomorKupon = option.split('/')[0];
+                        return nomorKupon.startsWith(textEditingValue.text);
+                      });
+                      return filtered;
+                    },
+                    onSelected: (value) {
+                      nomorKupon = value;
+                    },
+                    fieldViewBuilder:
+                        (context, controller, focusNode, onFieldSubmitted) {
+                          return TextFormField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            decoration: InputDecoration(
+                              labelText: 'Nomor Kupon',
+                            ),
+                            validator: (value) => value == null || value.isEmpty
+                                ? 'Pilih nomor kupon'
+                                : null,
+                          );
+                        },
+                  ),
+                  TextFormField(
+                    decoration: InputDecoration(labelText: 'Jumlah Liter'),
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) {
+                      jumlahLiter = double.tryParse(value);
+                    },
+                    validator: (value) => value == null || value.isEmpty
+                        ? 'Masukkan jumlah liter'
+                        : null,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (!formKey.currentState!.validate()) return;
+                  KuponEntity? kupon;
+                  for (final k in kuponList) {
+                    final jenisKuponNama =
+                        jenisKuponMap[k.jenisKuponId] ?? k.jenisKuponId;
+                    final formatLengkap =
+                        '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/${k.namaSatker}/$jenisKuponNama (${k.kuotaSisa.toInt()} L)';
+                    if (formatLengkap == nomorKupon) {
+                      kupon = k;
+                      break;
+                    }
+                  }
+                  if (kupon == null || kupon.kuponId <= 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Kupon tidak ditemukan!')),
                     );
-                    if (pickedDate != null) {
-                      tanggalController.text = DateFormat(
-                        'yyyy-MM-dd',
-                      ).format(pickedDate);
-                    }
-                  },
-                ),
-                Autocomplete<String>(
-                  optionsBuilder: (TextEditingValue textEditingValue) {
-                    if (textEditingValue.text.isEmpty) {
-                      return kuponOptions;
-                    }
-                    final filtered = kuponOptions.where((option) {
-                      final nomorKupon = option.split('/')[0];
-                      return nomorKupon.startsWith(textEditingValue.text);
-                    });
-                    return filtered;
-                  },
-                  onSelected: (value) {
-                    nomorKupon = value;
-                  },
-                  fieldViewBuilder:
-                      (context, controller, focusNode, onFieldSubmitted) {
-                        return TextFormField(
-                          controller: controller,
-                          focusNode: focusNode,
-                          decoration: InputDecoration(labelText: 'Nomor Kupon'),
-                          validator: (value) => value == null || value.isEmpty
-                              ? 'Pilih nomor kupon'
-                              : null,
+                    return;
+                  }
+                  if (kupon.kuotaSisa < (jumlahLiter ?? 0)) {
+                    final lanjut = await showDialog<bool>(
+                      context: context,
+                      builder: (context) {
+                        return AlertDialog(
+                          title: const Text('Konfirmasi'),
+                          content: Text(
+                            'Jumlah liter melebihi kuota sisa (${kupon?.kuotaSisa} L tersisa). Apakah tetap ingin melanjutkan?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('Batal'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text('Lanjutkan'),
+                            ),
+                          ],
                         );
                       },
-                ),
-                TextFormField(
-                  decoration: InputDecoration(labelText: 'Jumlah Liter'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    jumlahLiter = double.tryParse(value);
-                  },
-                  validator: (value) => value == null || value.isEmpty
-                      ? 'Masukkan jumlah liter'
-                      : null,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (!formKey.currentState!.validate()) return;
-                KuponEntity? kupon;
-                for (final k in kuponList) {
-                  final jenisKuponNama =
-                      jenisKuponMap[k.jenisKuponId] ?? k.jenisKuponId;
-                  final formatLengkap =
-                      '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/${k.namaSatker}/$jenisKuponNama (${k.kuotaSisa.toInt()} L)';
-                  if (formatLengkap == nomorKupon) {
-                    kupon = k;
-                    break;
+                    );
+
+                    if (lanjut != true) return;
                   }
-                }
-                if (kupon == null || kupon.kuponId <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Kupon tidak ditemukan!')),
+
+                  final transaksiBaru = TransaksiModel(
+                    transaksiId: 0,
+                    kuponId: kupon.kuponId,
+                    nomorKupon: kupon.nomorKupon,
+                    namaSatker: kupon.namaSatker,
+                    jenisBbmId: jenisBbm,
+                    jenisKuponId: jenisKuponId,
+                    tanggalTransaksi: tanggalController.text,
+                    jumlahLiter: jumlahLiter ?? 0,
+                    createdAt: DateTime.now().toIso8601String(),
+                    updatedAt: DateTime.now().toIso8601String(),
+                    isDeleted: 0,
+                    status: 'pending',
                   );
-                  return;
-                }
-                if (kupon.kuotaSisa < (jumlahLiter ?? 0)) {
-                  final lanjut = await showDialog<bool>(
-                    context: context,
-                    builder: (context) {
-                      return AlertDialog(
-                        title: const Text('Konfirmasi'),
-                        content: Text(
-                          'Jumlah liter melebihi kuota sisa (${kupon?.kuotaSisa} L tersisa). Apakah tetap ingin melanjutkan?',
+                  try {
+                    await transaksiProvider.addTransaksi(transaksiBaru);
+                    // Refresh dashboard to update coupon quotas
+                    await dashboardProvider.fetchKupons();
+                    await dashboardProvider.fetchAllKuponsUnfiltered();
+                    if (ctx.mounted) {
+                      Navigator.of(ctx).pop();
+                    }
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Transaksi berhasil disimpan'),
                         ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(false),
-                            child: const Text('Batal'),
-                          ),
-                          ElevatedButton(
-                            onPressed: () => Navigator.of(context).pop(true),
-                            child: const Text('Lanjutkan'),
-                          ),
-                        ],
                       );
-                    },
-                  );
-
-                  if (lanjut != true) return;
-                }
-
-                final transaksiBaru = TransaksiModel(
-                  transaksiId: 0,
-                  kuponId: kupon.kuponId,
-                  nomorKupon: kupon.nomorKupon,
-                  namaSatker: kupon.namaSatker,
-                  jenisBbmId: jenisBbm,
-                  jenisKuponId: jenisKuponId,
-                  tanggalTransaksi: tanggalController.text,
-                  jumlahLiter: jumlahLiter ?? 0,
-                  createdAt: DateTime.now().toIso8601String(),
-                  updatedAt: DateTime.now().toIso8601String(),
-                  isDeleted: 0,
-                  status: 'pending',
-                );
-                try {
-                  await transaksiProvider.addTransaksi(transaksiBaru);
-                  // Refresh dashboard to update coupon quotas
-                  await dashboardProvider.fetchKupons();
-                  await dashboardProvider.fetchAllKuponsUnfiltered();
-                  if (ctx.mounted) {
-                    Navigator.of(ctx).pop();
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Gagal menyimpan transaksi: $e'),
+                        ),
+                      );
+                    }
                   }
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Transaksi berhasil disimpan'),
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Gagal menyimpan transaksi: $e')),
-                    );
-                  }
-                }
-              },
-              child: const Text('Simpan'),
-            ),
-          ],
-        ),
+                },
+                child: const Text('Simpan'),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -943,6 +972,9 @@ class _TransactionPageState extends State<TransactionPage>
         if (filteredList.isEmpty) {
           return const Center(child: Text('Tidak ada data transaksi.'));
         }
+
+        // Update filtered count for pagination
+        _filteredTransaksiCount = filteredList.length;
 
         // Pagination logic
         final totalItems = filteredList.length;
@@ -1556,12 +1588,40 @@ class _TransactionPageState extends State<TransactionPage>
     return Consumer<TransaksiProvider>(
       builder: (context, provider, _) {
         final allMinus = provider.kuponMinusList;
-        if (allMinus.isEmpty) {
+
+        // Apply date range filter if set
+        List<Map<String, dynamic>> filteredMinus = allMinus;
+        if (_filterTanggalMulai != null && _filterTanggalSelesai != null) {
+          filteredMinus = allMinus.where((m) {
+            try {
+              final tanggalMulai = m['tanggal_mulai'] != null
+                  ? DateTime.parse(m['tanggal_mulai'] as String)
+                  : null;
+              final tanggalSampai = m['tanggal_sampai'] != null
+                  ? DateTime.parse(m['tanggal_sampai'] as String)
+                  : null;
+
+              // Check if kupon period overlaps with filter date range
+              if (tanggalMulai != null && tanggalSampai != null) {
+                return !(tanggalSampai.isBefore(_filterTanggalMulai!) ||
+                    tanggalMulai.isAfter(_filterTanggalSelesai!));
+              }
+              return true;
+            } catch (e) {
+              return true;
+            }
+          }).toList();
+        }
+
+        if (filteredMinus.isEmpty) {
           return const Center(child: Text('Tidak ada kupon minus.'));
         }
 
+        // Update filtered count for pagination
+        _filteredKuponMinusCount = filteredMinus.length;
+
         // Pagination logic
-        final totalItems = allMinus.length;
+        final totalItems = filteredMinus.length;
         final totalPages = (totalItems / _itemsPerPage).ceil();
         if (_currentPageKuponMinus > totalPages) {
           _currentPageKuponMinus = totalPages;
@@ -1570,7 +1630,7 @@ class _TransactionPageState extends State<TransactionPage>
 
         final startIndex = (_currentPageKuponMinus - 1) * _itemsPerPage;
         final endIndex = (startIndex + _itemsPerPage).clamp(0, totalItems);
-        final minus = allMinus.sublist(startIndex, endIndex);
+        final minus = filteredMinus.sublist(startIndex, endIndex);
 
         return Column(
           children: [
@@ -1686,9 +1746,10 @@ class _TransactionPageState extends State<TransactionPage>
   Widget _buildPaginationControls(BuildContext context, bool isTransaksi) {
     return Consumer<TransaksiProvider>(
       builder: (context, provider, _) {
+        // Use filtered counts from state, not raw provider counts
         final totalItems = isTransaksi
-            ? provider.transaksiList.length
-            : provider.kuponMinusList.length;
+            ? _filteredTransaksiCount
+            : _filteredKuponMinusCount;
         final currentPage = isTransaksi
             ? _currentPageTransaksi
             : _currentPageKuponMinus;

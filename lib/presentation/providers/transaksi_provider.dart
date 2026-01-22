@@ -80,6 +80,8 @@ class TransaksiProvider extends ChangeNotifier {
   Future<void> fetchKuponMinus() async {
     _kuponMinusList = await _transaksiRepository.getKuponMinus(
       satker: filterSatker,
+      bulan: filterBulan,
+      tahun: filterTahun,
     );
     notifyListeners();
   }

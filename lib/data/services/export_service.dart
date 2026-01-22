@@ -30,6 +30,23 @@ class ExportService {
     }
   }
 
+  /// Get number of days in a month
+  /// Returns: 28, 29, 30, or 31 depending on month and year
+  static int _getDaysInMonth(int month, int year) {
+    if (month == 2) {
+      // Februari: check leap year
+      final isLeapYear =
+          (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+      return isLeapYear ? 29 : 28;
+    } else if ([4, 6, 9, 11].contains(month)) {
+      // April, June, September, November: 30 days
+      return 30;
+    } else {
+      // Other months: 31 days
+      return 31;
+    }
+  }
+
   // Helper function to get transaksi data grouped by date
   // Returns Map<kuponId, Map<dayOfMonth, totalLiter>>
   static Future<Map<int, Map<int, int>>> _getTransaksiByDate(
@@ -972,6 +989,10 @@ class ExportService {
     final nextDisplayMonth = displayMonth == 12 ? 1 : displayMonth + 1;
     final nextDisplayYear = displayMonth == 12 ? displayYear + 1 : displayYear;
 
+    // Calculate days in month for each month
+    final daysInMonth1 = _getDaysInMonth(displayMonth, displayYear);
+    final daysInMonth2 = _getDaysInMonth(nextDisplayMonth, nextDisplayYear);
+
     // Get transaksi data untuk semua kupons di sheet ini
     Map<int, Map<int, int>> transaksiByDate = {};
     if (kupons.isNotEmpty) {
@@ -1034,7 +1055,7 @@ class ExportService {
       );
     }
 
-    // Header bulan 1 - merge dari kolom 5 sampai 36
+    // Header bulan 1 - merge dari kolom 5 sampai (4 + daysInMonth1)
     sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: 1)).value =
         TextCellValue('${monthNames[displayMonth]} $displayYear');
     sheet
@@ -1053,14 +1074,22 @@ class ExportService {
     );
     sheet.merge(
       CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: 1),
-      CellIndex.indexByColumnRow(columnIndex: 36, rowIndex: 1),
+      CellIndex.indexByColumnRow(columnIndex: 4 + daysInMonth1, rowIndex: 1),
     );
 
-    // Header bulan 2 - merge dari kolom 37 sampai 68
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 37, rowIndex: 1)).value =
-        TextCellValue('${monthNames[nextDisplayMonth]} $nextDisplayYear');
+    // Header bulan 2 - merge dimulai dari kolom (5 + daysInMonth1) sampai (4 + daysInMonth1 + daysInMonth2)
+    final month2StartCol = 5 + daysInMonth1;
     sheet
-        .cell(CellIndex.indexByColumnRow(columnIndex: 37, rowIndex: 1))
+        .cell(
+          CellIndex.indexByColumnRow(columnIndex: month2StartCol, rowIndex: 1),
+        )
+        .value = TextCellValue(
+      '${monthNames[nextDisplayMonth]} $nextDisplayYear',
+    );
+    sheet
+        .cell(
+          CellIndex.indexByColumnRow(columnIndex: month2StartCol, rowIndex: 1),
+        )
         .cellStyle = CellStyle(
       bold: true,
       fontSize: 11,
@@ -1074,13 +1103,17 @@ class ExportService {
       rightBorder: Border(borderStyle: BorderStyle.Thin),
     );
     sheet.merge(
-      CellIndex.indexByColumnRow(columnIndex: 37, rowIndex: 1),
-      CellIndex.indexByColumnRow(columnIndex: 68, rowIndex: 1),
+      CellIndex.indexByColumnRow(columnIndex: month2StartCol, rowIndex: 1),
+      CellIndex.indexByColumnRow(
+        columnIndex: month2StartCol + daysInMonth2 - 1,
+        rowIndex: 1,
+      ),
     );
 
-    // BARIS 3: Tanggal 1-31 untuk kedua bulan
-    // Bulan 1: kolom 5-36 (E-AJ)
-    for (int i = 1; i <= 31; i++) {
+    // BARIS 3: Tanggal untuk kedua bulan (sesuai jumlah hari di masing-masing bulan)
+
+    // Bulan 1: tampilkan hanya tanggal yang valid untuk bulan tersebut
+    for (int i = 1; i <= daysInMonth1; i++) {
       final cell = sheet.cell(
         CellIndex.indexByColumnRow(columnIndex: 4 + i, rowIndex: 2),
       );
@@ -1098,10 +1131,14 @@ class ExportService {
       );
     }
 
-    // Bulan 2: kolom 37-68 (AK-BQ)
-    for (int i = 1; i <= 31; i++) {
+    // Bulan 2: tampilkan hanya tanggal yang valid untuk bulan tersebut
+    // Mulai dari kolom month2StartCol (dynamic berdasarkan jumlah hari bulan 1)
+    for (int i = 1; i <= daysInMonth2; i++) {
       final cell = sheet.cell(
-        CellIndex.indexByColumnRow(columnIndex: 36 + i, rowIndex: 2),
+        CellIndex.indexByColumnRow(
+          columnIndex: month2StartCol + i - 1,
+          rowIndex: 2,
+        ),
       );
       cell.value = IntCellValue(i);
       cell.cellStyle = CellStyle(
@@ -1243,8 +1280,9 @@ class ExportService {
       // Isi kolom tanggal (bulan 1 dan bulan 2)
       // Untuk setiap satker, hitung total transaksi per tanggal dari kupons di satker tersebut
       final kuponIds = kuponList.map((k) => k.kuponId).toList();
-      for (int day = 1; day <= 31; day++) {
-        // Bulan 1
+
+      // Bulan 1 - loop hanya untuk hari yang valid di bulan tersebut
+      for (int day = 1; day <= daysInMonth1; day++) {
         final colIndex1 = 4 + day; // Column E onwards
         int totalDay1 = 0;
         for (final kuponId in kuponIds) {
@@ -1284,14 +1322,17 @@ class ExportService {
             rightBorder: Border(borderStyle: BorderStyle.Thin),
           );
         }
+      }
 
-        // Bulan 2
-        final colIndex2 = 36 + day; // Column AK onwards
+      // Bulan 2 - loop hanya untuk hari yang valid di bulan tersebut
+      for (int day = 1; day <= daysInMonth2; day++) {
+        final colIndex2 = month2StartCol + day - 1; // Dynamic column start
         int totalDay2 = 0;
         for (final kuponId in kuponIds) {
+          // Untuk bulan 2, gunakan offset daysInMonth1 + day
           if (transaksiByDate.containsKey(kuponId) &&
-              transaksiByDate[kuponId]!.containsKey(31 + day)) {
-            totalDay2 += transaksiByDate[kuponId]![31 + day] ?? 0;
+              transaksiByDate[kuponId]!.containsKey(daysInMonth1 + day)) {
+            totalDay2 += transaksiByDate[kuponId]![daysInMonth1 + day] ?? 0;
           }
         }
         final cell2 = sheet.cell(
@@ -1414,31 +1455,77 @@ class ExportService {
 
     // Grand Total untuk kolom tanggal (pemakaian per hari)
     Map<int, double> grandTotalPerTanggal = {};
-    for (int day = 1; day <= 31; day++) {
+
+    // Bulan 1
+    for (int day = 1; day <= daysInMonth1; day++) {
       for (final kuponId in kupons.map((k) => k.kuponId)) {
-        // Bulan 1
         if (transaksiByDate.containsKey(kuponId) &&
             transaksiByDate[kuponId]!.containsKey(day)) {
           grandTotalPerTanggal[day] =
               (grandTotalPerTanggal[day] ?? 0) +
               (transaksiByDate[kuponId]![day] ?? 0);
         }
-        // Bulan 2
+      }
+    }
+
+    // Bulan 2
+    for (int day = 1; day <= daysInMonth2; day++) {
+      for (final kuponId in kupons.map((k) => k.kuponId)) {
+        final dayOffset = daysInMonth1 + day;
         if (transaksiByDate.containsKey(kuponId) &&
-            transaksiByDate[kuponId]!.containsKey(31 + day)) {
-          grandTotalPerTanggal[31 + day] =
-              (grandTotalPerTanggal[31 + day] ?? 0) +
-              (transaksiByDate[kuponId]![31 + day] ?? 0);
+            transaksiByDate[kuponId]!.containsKey(dayOffset)) {
+          grandTotalPerTanggal[dayOffset] =
+              (grandTotalPerTanggal[dayOffset] ?? 0) +
+              (transaksiByDate[kuponId]![dayOffset] ?? 0);
         }
       }
     }
 
     // Isi kolom tanggal grand total
-    for (int col = 5; col <= 69; col++) {
+    // Bulan 1
+    for (int day = 1; day <= daysInMonth1; day++) {
+      final col = 4 + day;
       final grandTotalDateCell = sheet.cell(
         CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex),
       );
-      final dayOffset = col - 4;
+      final totalForDay = grandTotalPerTanggal[day] ?? 0;
+
+      if (totalForDay > 0) {
+        grandTotalDateCell.value = IntCellValue(totalForDay.toInt());
+        grandTotalDateCell.cellStyle = CellStyle(
+          bold: true,
+          fontSize: 10,
+          fontColorHex: ExcelColor.black,
+          backgroundColorHex: ExcelColor.yellow200,
+          horizontalAlign: HorizontalAlign.Right,
+          verticalAlign: VerticalAlign.Center,
+          bottomBorder: Border(borderStyle: BorderStyle.Medium),
+          topBorder: Border(borderStyle: BorderStyle.Medium),
+          leftBorder: Border(borderStyle: BorderStyle.Thin),
+          rightBorder: Border(borderStyle: BorderStyle.Thin),
+        );
+      } else {
+        grandTotalDateCell.cellStyle = CellStyle(
+          bold: true,
+          backgroundColorHex: ExcelColor.blue800,
+          fontColorHex: ExcelColor.white,
+          horizontalAlign: HorizontalAlign.Right,
+          verticalAlign: VerticalAlign.Center,
+          bottomBorder: Border(borderStyle: BorderStyle.Medium),
+          topBorder: Border(borderStyle: BorderStyle.Medium),
+          leftBorder: Border(borderStyle: BorderStyle.Thin),
+          rightBorder: Border(borderStyle: BorderStyle.Thin),
+        );
+      }
+    }
+
+    // Bulan 2
+    for (int day = 1; day <= daysInMonth2; day++) {
+      final col = month2StartCol + day - 1;
+      final grandTotalDateCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex),
+      );
+      final dayOffset = daysInMonth1 + day;
       final totalForDay = grandTotalPerTanggal[dayOffset] ?? 0;
 
       if (totalForDay > 0) {
@@ -1519,6 +1606,10 @@ class ExportService {
     final nextDisplayMonth = displayMonth == 12 ? 1 : displayMonth + 1;
     final nextDisplayYear = displayMonth == 12 ? displayYear + 1 : displayYear;
 
+    // Calculate days in month for each month
+    final daysInMonth1 = _getDaysInMonth(displayMonth, displayYear);
+    final daysInMonth2 = _getDaysInMonth(nextDisplayMonth, nextDisplayYear);
+
     // Get transaksi data untuk semua kupons di sheet ini (jika diperlukan)
     // Map<kuponId, Map<columnOffset, totalLiter>>
     Map<int, Map<int, int>> transaksiByDate = {};
@@ -1592,7 +1683,7 @@ class ExportService {
       );
     }
 
-    // Header bulan 1 - merge dari kolom 8 sampai 39 (karena ada tambahan kolom NOMOR KUPON)
+    // Header bulan 1 - merge dari kolom 8 sampai (7 + daysInMonth1)
     sheet.cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: 1)).value =
         TextCellValue('${monthNames[displayMonth]} $displayYear');
     sheet
@@ -1611,14 +1702,28 @@ class ExportService {
     );
     sheet.merge(
       CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: 1),
-      CellIndex.indexByColumnRow(columnIndex: 39, rowIndex: 1),
+      CellIndex.indexByColumnRow(columnIndex: 7 + daysInMonth1, rowIndex: 1),
     );
 
-    // Header bulan 2 - merge dari kolom 40 sampai 71
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 40, rowIndex: 1)).value =
-        TextCellValue('${monthNames[nextDisplayMonth]} $nextDisplayYear');
+    // Header bulan 2 - merge dimulai dari kolom (8 + daysInMonth1) sampai (7 + daysInMonth1 + daysInMonth2)
+    final month2StartColRanjen = 8 + daysInMonth1;
     sheet
-        .cell(CellIndex.indexByColumnRow(columnIndex: 40, rowIndex: 1))
+        .cell(
+          CellIndex.indexByColumnRow(
+            columnIndex: month2StartColRanjen,
+            rowIndex: 1,
+          ),
+        )
+        .value = TextCellValue(
+      '${monthNames[nextDisplayMonth]} $nextDisplayYear',
+    );
+    sheet
+        .cell(
+          CellIndex.indexByColumnRow(
+            columnIndex: month2StartColRanjen,
+            rowIndex: 1,
+          ),
+        )
         .cellStyle = CellStyle(
       bold: true,
       fontSize: 11,
@@ -1632,13 +1737,19 @@ class ExportService {
       rightBorder: Border(borderStyle: BorderStyle.Thin),
     );
     sheet.merge(
-      CellIndex.indexByColumnRow(columnIndex: 40, rowIndex: 1),
-      CellIndex.indexByColumnRow(columnIndex: 71, rowIndex: 1),
+      CellIndex.indexByColumnRow(
+        columnIndex: month2StartColRanjen,
+        rowIndex: 1,
+      ),
+      CellIndex.indexByColumnRow(
+        columnIndex: month2StartColRanjen + daysInMonth2 - 1,
+        rowIndex: 1,
+      ),
     );
 
-    // BARIS 3: Tanggal 1-31 untuk kedua bulan
-    // Bulan 1: kolom 8-39 (I-AN)
-    for (int i = 1; i <= 31; i++) {
+    // BARIS 3: Tanggal untuk kedua bulan (sesuai jumlah hari)
+    // Bulan 1: kolom 8-39 (I-AN) - tampilkan hanya tanggal yang valid
+    for (int i = 1; i <= daysInMonth1; i++) {
       final cell = sheet.cell(
         CellIndex.indexByColumnRow(columnIndex: 7 + i, rowIndex: 2),
       );
@@ -1656,10 +1767,13 @@ class ExportService {
       );
     }
 
-    // Bulan 2: kolom 40-71 (AO-BT)
-    for (int i = 1; i <= 31; i++) {
+    // Bulan 2: kolom dimulai dari (8 + daysInMonth1) - tampilkan hanya tanggal yang valid
+    for (int i = 1; i <= daysInMonth2; i++) {
       final cell = sheet.cell(
-        CellIndex.indexByColumnRow(columnIndex: 39 + i, rowIndex: 2),
+        CellIndex.indexByColumnRow(
+          columnIndex: month2StartColRanjen + i - 1,
+          rowIndex: 2,
+        ),
       );
       cell.value = IntCellValue(i);
       cell.cellStyle = CellStyle(
@@ -1808,21 +1922,16 @@ class ExportService {
       // Get transaksi data untuk kupon ini
       final kuponTransaksi = transaksiByDate[kupon.kuponId] ?? {};
 
-      for (int col = 8; col <= 71; col++) {
+      // Kolom bulan 1: dari 8 sampai (7 + daysInMonth1)
+      for (int i = 1; i <= daysInMonth1; i++) {
+        final col = 7 + i;
         final dateCell = sheet.cell(
           CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row),
         );
 
-        // Map column index to columnOffset
-        // Col 8-39: current month (columnOffset 1-32)
-        // Col 40-71: next month (columnOffset 33-64)
-        final columnOffset = col - 7;
-
-        // Check if there's transaction data for this column
-        final literAmount = kuponTransaksi[columnOffset];
+        final literAmount = kuponTransaksi[i]; // i = tanggal (1-31)
 
         if (literAmount != null && literAmount > 0) {
-          // Ada transaksi di tanggal ini
           dateCell.value = IntCellValue(literAmount.toInt());
           dateCell.cellStyle = CellStyle(
             backgroundColorHex: ExcelColor.yellow100,
@@ -1942,12 +2051,43 @@ class ExportService {
     sumSaldoCell.cellStyle = totalStyle;
 
     // Kolom tanggal - sum per tanggal
-    for (int col = 8; col <= 71; col++) {
+    // Bulan 1
+    for (int i = 1; i <= daysInMonth1; i++) {
+      final col = 7 + i;
       final sumDateCell = sheet.cell(
         CellIndex.indexByColumnRow(columnIndex: col, rowIndex: sumRow),
       );
-      final columnOffset = col - 7;
-      final totalTanggal = totalPerTanggal[columnOffset] ?? 0;
+      final totalTanggal = totalPerTanggal[i] ?? 0;
+
+      if (totalTanggal > 0) {
+        sumDateCell.value = IntCellValue(totalTanggal.toInt());
+        sumDateCell.cellStyle = CellStyle(
+          bold: true,
+          fontSize: 10,
+          fontColorHex: ExcelColor.black,
+          backgroundColorHex: ExcelColor.yellow200,
+          horizontalAlign: HorizontalAlign.Right,
+          verticalAlign: VerticalAlign.Center,
+          bottomBorder: Border(borderStyle: BorderStyle.Medium),
+          topBorder: Border(borderStyle: BorderStyle.Medium),
+          leftBorder: Border(borderStyle: BorderStyle.Thin),
+          rightBorder: Border(borderStyle: BorderStyle.Thin),
+        );
+      } else {
+        sumDateCell.value = TextCellValue('');
+        sumDateCell.cellStyle = totalStyle;
+      }
+    }
+
+    // Bulan 2
+    for (int i = 1; i <= daysInMonth2; i++) {
+      final col = month2StartColRanjen + i - 1;
+      final sumDateCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: col, rowIndex: sumRow),
+      );
+      // Untuk bulan 2, columnOffset dimulai dari daysInMonth1 + 1
+      final columnOffsetMonth2 = daysInMonth1 + i;
+      final totalTanggal = totalPerTanggal[columnOffsetMonth2] ?? 0;
 
       if (totalTanggal > 0) {
         sumDateCell.value = IntCellValue(totalTanggal.toInt());
@@ -2015,6 +2155,10 @@ class ExportService {
     );
     final nextDisplayMonth = displayMonth == 12 ? 1 : displayMonth + 1;
     final nextDisplayYear = displayMonth == 12 ? displayYear + 1 : displayYear;
+
+    // Calculate days in month for each month
+    final daysInMonth1Duk = _getDaysInMonth(displayMonth, displayYear);
+    final daysInMonth2Duk = _getDaysInMonth(nextDisplayMonth, nextDisplayYear);
 
     // Get transaksi data untuk semua kupons di sheet ini (jika diperlukan)
     // Map<kuponId, Map<columnOffset, totalLiter>>
@@ -2099,14 +2243,28 @@ class ExportService {
     );
     sheet.merge(
       CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: 1),
-      CellIndex.indexByColumnRow(columnIndex: 36, rowIndex: 1),
+      CellIndex.indexByColumnRow(columnIndex: 4 + daysInMonth1Duk, rowIndex: 1),
     );
 
-    // Header bulan 2 - merge dari kolom AL sampai BP (37-69)
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 37, rowIndex: 1)).value =
-        TextCellValue('${monthNames[nextDisplayMonth]} $nextDisplayYear');
+    // Header bulan 2 - merge dimulai dari kolom (5 + daysInMonth1Duk)
+    final month2StartColDuk = 5 + daysInMonth1Duk;
     sheet
-        .cell(CellIndex.indexByColumnRow(columnIndex: 37, rowIndex: 1))
+        .cell(
+          CellIndex.indexByColumnRow(
+            columnIndex: month2StartColDuk,
+            rowIndex: 1,
+          ),
+        )
+        .value = TextCellValue(
+      '${monthNames[nextDisplayMonth]} $nextDisplayYear',
+    );
+    sheet
+        .cell(
+          CellIndex.indexByColumnRow(
+            columnIndex: month2StartColDuk,
+            rowIndex: 1,
+          ),
+        )
         .cellStyle = CellStyle(
       bold: true,
       fontSize: 11,
@@ -2120,13 +2278,16 @@ class ExportService {
       rightBorder: Border(borderStyle: BorderStyle.Thin),
     );
     sheet.merge(
-      CellIndex.indexByColumnRow(columnIndex: 37, rowIndex: 1),
-      CellIndex.indexByColumnRow(columnIndex: 69, rowIndex: 1),
+      CellIndex.indexByColumnRow(columnIndex: month2StartColDuk, rowIndex: 1),
+      CellIndex.indexByColumnRow(
+        columnIndex: month2StartColDuk + daysInMonth2Duk - 1,
+        rowIndex: 1,
+      ),
     );
 
-    // BARIS 3: Tanggal 1-31 untuk kedua bulan
-    // Bulan 1: kolom 5-36 (F-AK)
-    for (int i = 1; i <= 31; i++) {
+    // BARIS 3: Tanggal untuk kedua bulan (sesuai jumlah hari)
+    // Bulan 1: kolom 5-36 (F-AK) - tampilkan hanya tanggal yang valid
+    for (int i = 1; i <= daysInMonth1Duk; i++) {
       final cell = sheet.cell(
         CellIndex.indexByColumnRow(columnIndex: 4 + i, rowIndex: 2),
       );
@@ -2144,10 +2305,13 @@ class ExportService {
       );
     }
 
-    // Bulan 2: kolom 37-69 (AL-BP)
-    for (int i = 1; i <= 31; i++) {
+    // Bulan 2: kolom dimulai dari (5 + daysInMonth1Duk) - tampilkan hanya tanggal yang valid
+    for (int i = 1; i <= daysInMonth2Duk; i++) {
       final cell = sheet.cell(
-        CellIndex.indexByColumnRow(columnIndex: 36 + i, rowIndex: 2),
+        CellIndex.indexByColumnRow(
+          columnIndex: month2StartColDuk + i - 1,
+          rowIndex: 2,
+        ),
       );
       cell.value = IntCellValue(i);
       cell.cellStyle = CellStyle(
@@ -2249,21 +2413,16 @@ class ExportService {
       // Get transaksi data untuk kupon ini
       final kuponTransaksi = transaksiByDate[kupon.kuponId] ?? {};
 
-      for (int col = 5; col <= 69; col++) {
+      // Kolom bulan 1: dari 5 sampai (4 + daysInMonth1Duk)
+      for (int i = 1; i <= daysInMonth1Duk; i++) {
+        final col = 4 + i;
         final dateCell = sheet.cell(
           CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row),
         );
 
-        // Map column index to columnOffset
-        // Col 5-36: current month (columnOffset 1-32)
-        // Col 37-69: next month (columnOffset 33-65)
-        final columnOffset = col - 4;
-
-        // Check if there's transaction data for this column
-        final literAmount = kuponTransaksi[columnOffset];
+        final literAmount = kuponTransaksi[i]; // i = tanggal (1-31)
 
         if (literAmount != null && literAmount > 0) {
-          // Ada transaksi di tanggal ini
           dateCell.value = IntCellValue(literAmount.toInt());
           dateCell.cellStyle = CellStyle(
             backgroundColorHex: ExcelColor.yellow100,
@@ -2275,7 +2434,42 @@ class ExportService {
             rightBorder: Border(borderStyle: BorderStyle.Thin),
           );
         } else {
-          // Tidak ada transaksi
+          dateCell.value = TextCellValue('');
+          dateCell.cellStyle = CellStyle(
+            backgroundColorHex: ExcelColor.white,
+            horizontalAlign: HorizontalAlign.Center,
+            verticalAlign: VerticalAlign.Center,
+            bottomBorder: Border(borderStyle: BorderStyle.Thin),
+            topBorder: Border(borderStyle: BorderStyle.Thin),
+            leftBorder: Border(borderStyle: BorderStyle.Thin),
+            rightBorder: Border(borderStyle: BorderStyle.Thin),
+          );
+        }
+      }
+
+      // Kolom bulan 2: dari month2StartColDuk sampai (month2StartColDuk + daysInMonth2Duk - 1)
+      for (int i = 1; i <= daysInMonth2Duk; i++) {
+        final col = month2StartColDuk + i - 1;
+        final dateCell = sheet.cell(
+          CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row),
+        );
+
+        // Untuk bulan 2, columnOffset dimulai dari daysInMonth1Duk + 1
+        final columnOffsetMonth2 = daysInMonth1Duk + i;
+        final literAmount = kuponTransaksi[columnOffsetMonth2];
+
+        if (literAmount != null && literAmount > 0) {
+          dateCell.value = IntCellValue(literAmount.toInt());
+          dateCell.cellStyle = CellStyle(
+            backgroundColorHex: ExcelColor.yellow100,
+            horizontalAlign: HorizontalAlign.Right,
+            verticalAlign: VerticalAlign.Center,
+            bottomBorder: Border(borderStyle: BorderStyle.Thin),
+            topBorder: Border(borderStyle: BorderStyle.Thin),
+            leftBorder: Border(borderStyle: BorderStyle.Thin),
+            rightBorder: Border(borderStyle: BorderStyle.Thin),
+          );
+        } else {
           dateCell.value = TextCellValue('');
           dateCell.cellStyle = CellStyle(
             backgroundColorHex: ExcelColor.white,
@@ -2383,12 +2577,42 @@ class ExportService {
     sumSaldoCell.cellStyle = totalStyle;
 
     // Kolom tanggal - sum per tanggal
-    for (int col = 5; col <= 69; col++) {
+    // Bulan 1
+    for (int i = 1; i <= daysInMonth1Duk; i++) {
+      final col = 4 + i;
       final sumDateCell = sheet.cell(
         CellIndex.indexByColumnRow(columnIndex: col, rowIndex: sumRow),
       );
-      final columnOffset = col - 4;
-      final totalTanggal = totalPerTanggal[columnOffset] ?? 0;
+      final totalTanggal = totalPerTanggal[i] ?? 0;
+
+      if (totalTanggal > 0) {
+        sumDateCell.value = IntCellValue(totalTanggal.toInt());
+        sumDateCell.cellStyle = CellStyle(
+          bold: true,
+          fontSize: 10,
+          fontColorHex: ExcelColor.black,
+          backgroundColorHex: ExcelColor.yellow200,
+          horizontalAlign: HorizontalAlign.Right,
+          verticalAlign: VerticalAlign.Center,
+          bottomBorder: Border(borderStyle: BorderStyle.Medium),
+          topBorder: Border(borderStyle: BorderStyle.Medium),
+          leftBorder: Border(borderStyle: BorderStyle.Thin),
+          rightBorder: Border(borderStyle: BorderStyle.Thin),
+        );
+      } else {
+        sumDateCell.value = TextCellValue('');
+        sumDateCell.cellStyle = totalStyle;
+      }
+    }
+
+    // Bulan 2
+    for (int i = 1; i <= daysInMonth2Duk; i++) {
+      final col = month2StartColDuk + i - 1;
+      final sumDateCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: col, rowIndex: sumRow),
+      );
+      final columnOffsetMonth2 = daysInMonth1Duk + i;
+      final totalTanggal = totalPerTanggal[columnOffsetMonth2] ?? 0;
 
       if (totalTanggal > 0) {
         sumDateCell.value = IntCellValue(totalTanggal.toInt());
