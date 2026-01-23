@@ -49,7 +49,13 @@ class FakeTransaksiRepository extends TransaksiRepositoryImpl {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> getKuponMinus({String? satker}) async => [];
+  Future<List<Map<String, dynamic>>> getKuponMinus({
+    String? satker,
+    int? bulan,
+    int? tahun,
+    DateTime? filterTanggalMulai,
+    DateTime? filterTanggalSelesai,
+  }) async => [];
 }
 
 void main() {

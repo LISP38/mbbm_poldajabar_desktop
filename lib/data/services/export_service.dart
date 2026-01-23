@@ -157,6 +157,26 @@ class ExportService {
     return transaksiByDate;
   }
 
+  // Helper function to extract list of (month, year) tuples from date range
+  // Returns list of consecutive months in the date range
+  static String _getMonthNameAbbr(int month) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return months[month - 1];
+  }
+
   // Export Master Data Kupon untuk Dashboard (tanpa kolom tanggal)
   // 4 sheets: RAN.PX, DUK.PX, RAN.DX, DUK.DX dengan 9 kolom saja
   static Future<bool> exportMasterDataKupon({
@@ -388,7 +408,8 @@ class ExportService {
     }
   }
 
-  // Export Data Kupon (4 sheets: RAN.PX, DUK.PX, RAN.DX, DUK.DX)
+  // Export Data Kupon (5 sheets: RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Harian)
+  // Max 2 bulan range - jika > 2 bulan, restrict ke 2 bulan pertama
   static Future<bool> exportDataKupon({
     required List<KuponEntity> allKupons,
     required Map<int, String> jenisBBMMap,
@@ -404,20 +425,59 @@ class ExportService {
     try {
       final excel = Excel.createExcel();
 
-      // Buat sheets terlebih dahulu (5 sheets: 4 kupon + 1 rekap harian)
+      // Buat 5 sheets
       excel['RAN.PX'];
       excel['DUK.PX'];
       excel['RAN.DX'];
       excel['DUK.DX'];
       excel['Rekap Harian'];
 
-      // Hapus sheet default setelah membuat sheet baru
+      // Hapus sheet default setelah membuat sheets baru
       if (excel.sheets.containsKey('Sheet1')) {
         excel.delete('Sheet1');
       }
 
+      // Handle date range restriction: max 2 bulan
+      DateTime? effectiveStartDate = filterTanggalMulai;
+      DateTime? effectiveEndDate = filterTanggalSelesai;
+
+      if (filterTanggalMulai != null && filterTanggalSelesai != null) {
+        // Check if range > 2 bulan, if yes restrict ke 2 bulan pertama
+        final daysDifference = filterTanggalSelesai
+            .difference(filterTanggalMulai)
+            .inDays;
+        if (daysDifference > 60) {
+          // Restrict ke 2 bulan dari start date
+          effectiveEndDate = filterTanggalMulai.add(const Duration(days: 59));
+          // Show warning (opsional, bisa log)
+          print(
+            'WARNING: Range > 2 bulan. Restricting to 2 months dari ${filterTanggalMulai.toIso8601String().split('T')[0]}',
+          );
+        }
+      }
+
+      // Filter kupon berdasarkan masa berlaku yang overlap dengan range
+      List<KuponEntity> filteredKupons = allKupons;
+      if (effectiveStartDate != null && effectiveEndDate != null) {
+        final startDate = effectiveStartDate;
+        final endDate = effectiveEndDate;
+        filteredKupons = allKupons.where((kupon) {
+          try {
+            final kuponStart =
+                DateTime.tryParse(kupon.tanggalMulai) ?? DateTime.now();
+            final kuponEnd =
+                DateTime.tryParse(kupon.tanggalSampai) ?? DateTime.now();
+            // Check if kupon periode overlap dengan filter range
+            return !(kuponEnd.isBefore(startDate) ||
+                kuponStart.isAfter(endDate));
+          } catch (e) {
+            return true; // Include jika parsing error
+          }
+        }).toList();
+      }
+
       // Filter data berdasarkan jenis kupon dan BBM - hanya yang ada transaksi
-      final ranPertamax = allKupons
+      final ranPertamax = filteredKupons
           .where(
             (k) =>
                 k.jenisKuponId == 1 &&
@@ -425,7 +485,7 @@ class ExportService {
                 k.kuotaSisa < k.kuotaAwal,
           )
           .toList();
-      final dukPertamax = allKupons
+      final dukPertamax = filteredKupons
           .where(
             (k) =>
                 k.jenisKuponId == 2 &&
@@ -433,7 +493,7 @@ class ExportService {
                 k.kuotaSisa < k.kuotaAwal,
           )
           .toList();
-      final ranDex = allKupons
+      final ranDex = filteredKupons
           .where(
             (k) =>
                 k.jenisKuponId == 1 &&
@@ -441,7 +501,7 @@ class ExportService {
                 k.kuotaSisa < k.kuotaAwal,
           )
           .toList();
-      final dukDex = allKupons
+      final dukDex = filteredKupons
           .where(
             (k) =>
                 k.jenisKuponId == 2 &&
@@ -450,7 +510,7 @@ class ExportService {
           )
           .toList();
 
-      // Buat sheets dalam urutan yang benar
+      // Buat sheets
       await _createRanjenSheet(
         excel,
         'RAN.PX',
@@ -461,8 +521,8 @@ class ExportService {
         fillTransaksiData,
         filterBulan,
         filterTahun,
-        filterTanggalMulai,
-        filterTanggalSelesai,
+        effectiveStartDate,
+        effectiveEndDate,
       );
       await _createDukunganSheet(
         excel,
@@ -472,8 +532,8 @@ class ExportService {
         fillTransaksiData,
         filterBulan,
         filterTahun,
-        filterTanggalMulai,
-        filterTanggalSelesai,
+        effectiveStartDate,
+        effectiveEndDate,
       );
       await _createRanjenSheet(
         excel,
@@ -485,8 +545,8 @@ class ExportService {
         fillTransaksiData,
         filterBulan,
         filterTahun,
-        filterTanggalMulai,
-        filterTanggalSelesai,
+        effectiveStartDate,
+        effectiveEndDate,
       );
       await _createDukunganSheet(
         excel,
@@ -496,20 +556,20 @@ class ExportService {
         fillTransaksiData,
         filterBulan,
         filterTahun,
-        filterTanggalMulai,
-        filterTanggalSelesai,
+        effectiveStartDate,
+        effectiveEndDate,
       );
 
-      // Buat sheet Rekap Harian
+      // Buat sheet Rekap
       await _createRekapHarianSheet(
         excel: excel,
         sheetName: 'Rekap Harian',
-        allKupons: allKupons,
+        allKupons: filteredKupons,
         dbDatasource: dbDatasource,
         filterBulan: filterBulan,
         filterTahun: filterTahun,
-        filterTanggalMulai: filterTanggalMulai,
-        filterTanggalSelesai: filterTanggalSelesai,
+        filterTanggalMulai: effectiveStartDate,
+        filterTanggalSelesai: effectiveEndDate,
       );
 
       // Save file
@@ -716,20 +776,59 @@ class ExportService {
     try {
       final excel = Excel.createExcel();
 
-      // Buat 5 sheets: 4 rekap satker per jenis kupon + 1 rekap bulanan
+      // Buat 5 sheets
       excel['RAN.PX'];
       excel['DUK.PX'];
       excel['RAN.DX'];
       excel['DUK.DX'];
       excel['Rekapitulasi Bulanan'];
 
-      // Hapus sheet default setelah membuat sheet baru
+      // Hapus sheet default setelah membuat sheets baru
       if (excel.sheets.containsKey('Sheet1')) {
         excel.delete('Sheet1');
       }
 
+      // Handle date range restriction: max 2 bulan
+      DateTime? effectiveStartDate = filterTanggalMulai;
+      DateTime? effectiveEndDate = filterTanggalSelesai;
+
+      if (filterTanggalMulai != null && filterTanggalSelesai != null) {
+        // Check if range > 2 bulan, if yes restrict ke 2 bulan pertama
+        final daysDifference = filterTanggalSelesai
+            .difference(filterTanggalMulai)
+            .inDays;
+        if (daysDifference > 60) {
+          // Restrict ke 2 bulan dari start date
+          effectiveEndDate = filterTanggalMulai.add(const Duration(days: 59));
+          // Show warning (opsional, bisa log)
+          print(
+            'WARNING: Range > 2 bulan. Restricting to 2 months dari ${filterTanggalMulai.toIso8601String().split('T')[0]}',
+          );
+        }
+      }
+
+      // Filter kupon berdasarkan masa berlaku yang overlap dengan range
+      List<KuponEntity> filteredKupons = allKupons;
+      if (effectiveStartDate != null && effectiveEndDate != null) {
+        final startDate = effectiveStartDate;
+        final endDate = effectiveEndDate;
+        filteredKupons = allKupons.where((kupon) {
+          try {
+            final kuponStart =
+                DateTime.tryParse(kupon.tanggalMulai) ?? DateTime.now();
+            final kuponEnd =
+                DateTime.tryParse(kupon.tanggalSampai) ?? DateTime.now();
+            // Check if kupon periode overlap dengan filter range
+            return !(kuponEnd.isBefore(startDate) ||
+                kuponStart.isAfter(endDate));
+          } catch (e) {
+            return true; // Include jika parsing error
+          }
+        }).toList();
+      }
+
       // Filter hanya kupon yang ada transaksi
-      final kuponsWithTransaction = allKupons
+      final kuponsWithTransaction = filteredKupons
           .where((k) => k.kuotaSisa < k.kuotaAwal)
           .toList();
 
@@ -747,7 +846,7 @@ class ExportService {
           .where((k) => k.jenisKuponId == 2 && k.jenisBbmId == 2)
           .toList();
 
-      // Buat 4 sheets rekap satker dengan detail tanggal
+      // Buat 4 sheets rekap satker
       await _createTransaksiRekapSheet(
         excel,
         'RAN.PX',
@@ -756,8 +855,8 @@ class ExportService {
         dbDatasource,
         filterBulan,
         filterTahun,
-        filterTanggalMulai,
-        filterTanggalSelesai,
+        effectiveStartDate,
+        effectiveEndDate,
       );
       await _createTransaksiRekapSheet(
         excel,
@@ -767,8 +866,8 @@ class ExportService {
         dbDatasource,
         filterBulan,
         filterTahun,
-        filterTanggalMulai,
-        filterTanggalSelesai,
+        effectiveStartDate,
+        effectiveEndDate,
       );
       await _createTransaksiRekapSheet(
         excel,
@@ -778,8 +877,8 @@ class ExportService {
         dbDatasource,
         filterBulan,
         filterTahun,
-        filterTanggalMulai,
-        filterTanggalSelesai,
+        effectiveStartDate,
+        effectiveEndDate,
       );
       await _createTransaksiRekapSheet(
         excel,
@@ -789,11 +888,11 @@ class ExportService {
         dbDatasource,
         filterBulan,
         filterTahun,
-        filterTanggalMulai,
-        filterTanggalSelesai,
+        effectiveStartDate,
+        effectiveEndDate,
       );
 
-      // Buat sheet Rekapitulasi Bulanan dengan 2 tabel (PX dan DX)
+      // Buat sheet Rekapitulasi Bulanan
       await _createRekapBulananSheet(
         excel: excel,
         sheetName: 'Rekapitulasi Bulanan',
@@ -801,8 +900,8 @@ class ExportService {
         dbDatasource: dbDatasource,
         filterBulan: filterBulan,
         filterTahun: filterTahun,
-        filterTanggalMulai: filterTanggalMulai,
-        filterTanggalSelesai: filterTanggalSelesai,
+        filterTanggalMulai: effectiveStartDate,
+        filterTanggalSelesai: effectiveEndDate,
       );
 
       // Save file

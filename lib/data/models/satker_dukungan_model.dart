@@ -33,8 +33,8 @@ class EligibleSatker {
     {'satker_id': 4, 'nama_satker': 'CADANGAN', 'is_eligible': true},
   ];
 
+  /// Semua satker berhak mendapatkan kupon DUKUNGAN
   static bool isEligibleForDukungan(String namaSatker) {
-    final eligibleNames = ['KAPOLDA', 'WAKAPOLDA', 'PROPAM', 'CADANGAN'];
-    return eligibleNames.any((name) => namaSatker.toUpperCase().contains(name));
+    return true;
   }
 }
