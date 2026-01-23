@@ -61,8 +61,9 @@ class _TransactionPageState extends State<TransactionPage>
   }
 
   String _getExpiredDate(int bulanTerbit, int tahunTerbit) {
-    // Kupon berlaku sampai akhir bulan ke-2 setelah terbit
-    var expMonth = bulanTerbit + 2;
+    // Kupon berlaku SELAMA 2 bulan dari bulan terbit
+    // Contoh: terbit Februari = berlaku Feb-Maret (berakhir akhir Maret)
+    var expMonth = bulanTerbit + 1;
     var expYear = tahunTerbit;
 
     // Jika bulan > 12, sesuaikan bulan dan tahun
@@ -74,6 +75,51 @@ class _TransactionPageState extends State<TransactionPage>
     // Dapatkan tanggal terakhir dari bulan tersebut
     final lastDay = DateTime(expYear, expMonth + 1, 0).day;
     return '$lastDay ${_getBulanName(expMonth)} $expYear';
+  }
+
+  /// Hitung selisih bulan antara dua tanggal (bulan dan tahun)
+  /// Menghitung dari bulan A ke bulan B dengan mempertimbangkan tahun
+  int _getMonthDifference(int monthA, int yearA, int monthB, int yearB) {
+    return (yearB - yearA) * 12 + (monthB - monthA);
+  }
+
+  /// Validasi apakah kupon dapat digunakan untuk transaksi berdasarkan bulan
+  /// Kupon dengan selisih EXACTLY 2 bulan tidak boleh digunakan
+  bool _isKuponValidForTransaction(
+    int transactionMonth,
+    int transactionYear,
+    int kuponMonth,
+    int kuponYear,
+  ) {
+    final monthDiff = _getMonthDifference(
+      transactionMonth,
+      transactionYear,
+      kuponMonth,
+      kuponYear,
+    ).abs();
+    // Kupon tidak valid jika selisih exactly 2 bulan
+    return monthDiff != 2;
+  }
+
+  /// Validasi apakah tanggal transaksi berada dalam masa berlaku kupon
+  bool _isDateWithinKuponValidity(
+    String transactionDate,
+    String kuponStartDate,
+    String kuponEndDate,
+  ) {
+    try {
+      final txnDate = DateTime.tryParse(transactionDate);
+      final startDate = DateTime.tryParse(kuponStartDate);
+      final endDate = DateTime.tryParse(kuponEndDate);
+
+      if (txnDate == null || startDate == null || endDate == null) return false;
+
+      return txnDate.isAtSameMomentAs(startDate) ||
+          txnDate.isAfter(startDate) && txnDate.isBefore(endDate) ||
+          txnDate.isAtSameMomentAs(endDate);
+    } catch (e) {
+      return false;
+    }
   }
 
   // Helper functions for preview page
@@ -698,19 +744,7 @@ class _TransactionPageState extends State<TransactionPage>
       context,
       listen: false,
     );
-    // Filter allKuponsForDropdown sesuai jenisBbm dan jenisKuponId
-    final List<KuponEntity> kuponList = dashboardProvider.allKuponsForDropdown
-        .where(
-          (k) => k.jenisBbmId == jenisBbm && k.jenisKuponId == jenisKuponId,
-        )
-        .toList();
-    final Map<int, String> jenisKuponMap = {1: 'RANJEN', 2: 'DUKUNGAN'};
-    final List<String> kuponOptions = kuponList
-        .map(
-          (k) =>
-              '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/${k.namaSatker}/${jenisKuponMap[k.jenisKuponId] ?? k.jenisKuponId} (${k.kuotaSisa.toInt()} L)',
-        )
-        .toList();
+
     final formKey = GlobalKey<FormState>();
     final tanggalController = TextEditingController();
     // Prefill tanggal dengan tanggal transaksi terakhir secara global (date-only)
@@ -726,6 +760,43 @@ class _TransactionPageState extends State<TransactionPage>
     } catch (e) {
       tanggalController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
     }
+
+    // Parse tanggal transaksi untuk mendapatkan bulan dan tahun
+    DateTime selectedDate = DateTime.now();
+    try {
+      final dateParts = tanggalController.text.split('-');
+      if (dateParts.length == 3) {
+        selectedDate = DateTime(
+          int.parse(dateParts[0]),
+          int.parse(dateParts[1]),
+          int.parse(dateParts[2]),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error parsing date: $e');
+    }
+
+    // Filter allKuponsForDropdown sesuai jenisBbm, jenisKuponId, dan validasi selisih bulan
+    final List<KuponEntity> kuponList = dashboardProvider.allKuponsForDropdown
+        .where(
+          (k) =>
+              k.jenisBbmId == jenisBbm &&
+              k.jenisKuponId == jenisKuponId &&
+              _isKuponValidForTransaction(
+                selectedDate.month,
+                selectedDate.year,
+                k.bulanTerbit,
+                k.tahunTerbit,
+              ),
+        )
+        .toList();
+    final Map<int, String> jenisKuponMap = {1: 'RANJEN', 2: 'DUKUNGAN'};
+    final List<String> kuponOptions = kuponList
+        .map(
+          (k) =>
+              '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/${k.namaSatker}/${jenisKuponMap[k.jenisKuponId] ?? k.jenisKuponId} (${k.kuotaSisa.toInt()} L)',
+        )
+        .toList();
     String? nomorKupon;
     double? jumlahLiter;
 
@@ -851,6 +922,23 @@ class _TransactionPageState extends State<TransactionPage>
                     );
                     return;
                   }
+
+                  // Validasi tanggal transaksi harus dalam masa berlaku kupon
+                  if (!_isDateWithinKuponValidity(
+                    tanggalController.text,
+                    kupon.tanggalMulai,
+                    kupon.tanggalSampai,
+                  )) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Tanggal transaksi harus dalam masa berlaku kupon (${kupon.tanggalMulai} s/d ${kupon.tanggalSampai})',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
                   if (kupon.kuotaSisa < (jumlahLiter ?? 0)) {
                     final lanjut = await showDialog<bool>(
                       context: context,
@@ -1313,13 +1401,31 @@ class _TransactionPageState extends State<TransactionPage>
                       v == null || v.isEmpty ? 'Wajib diisi' : null,
                   readOnly: true,
                   onTap: () async {
+                    // Cari kupon terkait untuk mendapatkan range tanggal yang valid
+                    final kuponList = dashboardProvider.allKuponsForDropdown
+                        .where((k) => k.kuponId == t.kuponId)
+                        .toList();
+
+                    DateTime firstDate = DateTime(2000);
+                    DateTime lastDate = DateTime(2100);
+
+                    if (kuponList.isNotEmpty) {
+                      final kupon = kuponList.first;
+                      firstDate =
+                          DateTime.tryParse(kupon.tanggalMulai) ??
+                          DateTime(2000);
+                      lastDate =
+                          DateTime.tryParse(kupon.tanggalSampai) ??
+                          DateTime(2100);
+                    }
+
                     DateTime? pickedDate = await showDatePicker(
                       context: context,
                       initialDate:
                           DateTime.tryParse(tanggalController.text) ??
                           DateTime.now(),
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime(2100),
+                      firstDate: firstDate,
+                      lastDate: lastDate,
                     );
                     if (pickedDate != null) {
                       tanggalController.text = DateFormat(
@@ -1349,13 +1455,33 @@ class _TransactionPageState extends State<TransactionPage>
                   final newJumlahLiter =
                       double.tryParse(jumlahController.text) ?? t.jumlahLiter;
 
-                  // Cari kupon terkait untuk validasi kuota
+                  // Cari kupon terkait untuk validasi kuota dan tanggal
                   final kuponList = dashboardProvider.allKuponsForDropdown
                       .where((k) => k.kuponId == t.kuponId)
                       .toList();
 
                   if (kuponList.isNotEmpty) {
                     final kupon = kuponList.first;
+                    // Validasi tanggal transaksi harus dalam masa berlaku kupon
+                    if (!_isDateWithinKuponValidity(
+                      tanggalController.text,
+                      kupon.tanggalMulai,
+                      kupon.tanggalSampai,
+                    )) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Tanggal transaksi harus dalam masa berlaku kupon (${kupon.tanggalMulai} s/d ${kupon.tanggalSampai})',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                  }
+
+                  if (kuponList.isNotEmpty) {
+                    final kupon = kuponList.first;
+
                     // Hitung kuota yang tersedia: kuotaSisa saat ini + jumlah liter transaksi lama
                     final availableKuota = kupon.kuotaSisa + t.jumlahLiter;
 
