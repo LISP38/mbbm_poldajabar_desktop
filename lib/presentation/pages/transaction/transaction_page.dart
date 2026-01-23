@@ -221,7 +221,7 @@ class _TransactionPageState extends State<TransactionPage>
                         value: current.isEmpty ? '' : current,
                         isExpanded: true,
                         decoration: const InputDecoration(
-                          labelText: 'Satuang Kerja',
+                          labelText: 'Satuan Kerja',
                           border: OutlineInputBorder(),
                           contentPadding: EdgeInsets.symmetric(
                             horizontal: 8,
