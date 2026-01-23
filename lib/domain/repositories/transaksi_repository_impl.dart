@@ -260,12 +260,15 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
     String? satker,
     int? bulan,
     int? tahun,
+    DateTime? filterTanggalMulai,
+    DateTime? filterTanggalSelesai,
   }) async {
     try {
       final db = await dbHelper.database;
 
       final where = <String>[];
       final args = <dynamic>[];
+      // Only kupon with actual minus (kuota_sisa < 0)
       where.add('(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) < 0');
       where.add('dk.is_current = 1');
       if (satker != null && satker.isNotEmpty) {
@@ -279,6 +282,15 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
       if (tahun != null) {
         where.add('dk.tahun_terbit = ?');
         args.add(tahun);
+      }
+
+      // Filter berdasarkan range tanggal transaksi
+      String transaksiFilter = '';
+      if (filterTanggalMulai != null && filterTanggalSelesai != null) {
+        final startDate = filterTanggalMulai.toIso8601String().split('T')[0];
+        final endDate = filterTanggalSelesai.toIso8601String().split('T')[0];
+        transaksiFilter =
+            'AND date(ft.tanggal_transaksi) BETWEEN date(\'$startDate\') AND date(\'$endDate\')';
       }
 
       final whereClause = 'WHERE ${where.join(' AND ')}';
@@ -299,18 +311,23 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           COALESCE(ft_sum.total_used, 0) as total_liter,
           (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
           ABS(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as minus,
-          dk.status
+          dk.status,
+          COALESCE(ft_sum.tanggal_transaksi_terakhir, dk.tanggal_mulai) as tanggal_transaksi,
+          dk.tanggal_mulai,
+          dk.tanggal_sampai
         FROM dim_kupon dk
         LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
         LEFT JOIN dim_jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
         LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
         LEFT JOIN (
-          SELECT kupon_key, SUM(jumlah_liter) as total_used
-          FROM fact_transaksi
-          WHERE is_deleted = 0
+          SELECT kupon_key, SUM(jumlah_liter) as total_used, MAX(tanggal_transaksi) as tanggal_transaksi_terakhir, COUNT(*) as transaksi_count
+          FROM fact_transaksi ft
+          WHERE ft.is_deleted = 0
+          $transaksiFilter
           GROUP BY kupon_key
         ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
         $whereClause
+        AND ft_sum.transaksi_count > 0
       ''';
 
       final result = await db.rawQuery(sql, args);

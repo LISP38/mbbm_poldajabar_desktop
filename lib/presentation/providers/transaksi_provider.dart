@@ -77,11 +77,16 @@ class TransaksiProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> fetchKuponMinus() async {
+  Future<void> fetchKuponMinus({
+    DateTime? filterTanggalMulai,
+    DateTime? filterTanggalSelesai,
+  }) async {
     _kuponMinusList = await _transaksiRepository.getKuponMinus(
       satker: filterSatker,
       bulan: filterBulan,
       tahun: filterTahun,
+      filterTanggalMulai: filterTanggalMulai,
+      filterTanggalSelesai: filterTanggalSelesai,
     );
     notifyListeners();
   }

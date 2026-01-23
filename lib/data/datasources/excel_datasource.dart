@@ -633,7 +633,10 @@ class ExcelDatasource {
     }
 
     final tanggalMulai = DateTime(tahun, bulan, 1);
-    final tanggalSampai = DateTime(tahun, bulan + 1, 0);
+    // Masa berlaku: bulan terbit + 1 bulan penuh
+    // Contoh: Terbit Januari -> berlaku Januari-Februari -> sampai akhir Februari
+    // Caranya: DateTime(tahun, bulan + 2, 0) = hari terakhir bulan berikutnya
+    final tanggalSampai = DateTime(tahun, bulan + 2, 0);
 
     // Gunakan kode yang ada di Excel atau default
     final finalKodeNopol = kodeNopol.isNotEmpty ? kodeNopol : _defaultKodeNopol;

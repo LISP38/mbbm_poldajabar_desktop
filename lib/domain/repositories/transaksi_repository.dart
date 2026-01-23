@@ -15,6 +15,8 @@ abstract class TransaksiRepository {
     String? satker,
     int? bulan,
     int? tahun,
+    DateTime? filterTanggalMulai,
+    DateTime? filterTanggalSelesai,
   });
   Future<void> restoreTransaksi(int transaksiId);
   Future<String?> getLastTransaksiDate();

@@ -165,7 +165,10 @@ class _TransactionPageState extends State<TransactionPage>
         context,
         listen: false,
       ).fetchTransaksiFiltered();
-      Provider.of<TransaksiProvider>(context, listen: false).fetchKuponMinus();
+      Provider.of<TransaksiProvider>(context, listen: false).fetchKuponMinus(
+        filterTanggalMulai: _filterTanggalMulai,
+        filterTanggalSelesai: _filterTanggalSelesai,
+      );
       // Fetch kupon list untuk dropdown (tanpa filter dari dashboard)
       final dash = Provider.of<DashboardProvider>(context, listen: false);
       dash.fetchAllKuponsUnfiltered();
@@ -208,6 +211,13 @@ class _TransactionPageState extends State<TransactionPage>
         _filterTanggalMulai = picked.start;
         _filterTanggalSelesai = picked.end;
       });
+      // Refresh kupon minus dengan range tanggal baru
+      if (mounted) {
+        Provider.of<TransaksiProvider>(context, listen: false).fetchKuponMinus(
+          filterTanggalMulai: _filterTanggalMulai,
+          filterTanggalSelesai: _filterTanggalSelesai,
+        );
+      }
     }
   }
 
@@ -216,6 +226,28 @@ class _TransactionPageState extends State<TransactionPage>
       _filterTanggalMulai = null;
       _filterTanggalSelesai = null;
     });
+    // Refresh kupon minus tanpa filter tanggal
+    if (mounted) {
+      Provider.of<TransaksiProvider>(context, listen: false).fetchKuponMinus();
+    }
+  }
+
+  String _formatDate(dynamic dateInput) {
+    if (dateInput == null) return '';
+    try {
+      DateTime date;
+      if (dateInput is String) {
+        date = DateTime.parse(dateInput);
+      } else if (dateInput is DateTime) {
+        date = dateInput;
+      } else {
+        return '';
+      }
+      // Format: YYYY-MM-DD
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return dateInput.toString();
+    }
   }
 
   @override
@@ -1775,6 +1807,12 @@ class _TransactionPageState extends State<TransactionPage>
                       columns: const [
                         DataColumn(
                           label: Text(
+                            'Tanggal',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
                             'Nomor Kupon',
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
@@ -1842,6 +1880,7 @@ class _TransactionPageState extends State<TransactionPage>
 
                         return DataRow(
                           cells: [
+                            DataCell(Text(_formatDate(m['tanggal_transaksi']))),
                             DataCell(Text(m['nomor_kupon']?.toString() ?? '')),
                             DataCell(
                               Text(_jenisKuponMap[jenisKuponId] ?? 'Unknown'),
