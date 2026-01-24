@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../domain/entities/transaksi_entity.dart';
+import '../../providers/master_data_provider.dart';
 import 'package:intl/intl.dart';
 
 String formatDateToIndonesian(String? dateStr) {
@@ -19,6 +21,11 @@ Future<void> showDetailTransaksiDialog({
   return showDialog(
     context: context,
     builder: (BuildContext context) {
+      final masterDataProvider = context.read<MasterDataProvider>();
+      final jenisBbmName = _getJenisBbmName(
+        transaksi.jenisBbmId,
+        masterDataProvider.jenisBBMList,
+      );
       return AlertDialog(
         title: const Text('Detail Transaksi'),
         content: SingleChildScrollView(
@@ -31,10 +38,7 @@ Future<void> showDetailTransaksiDialog({
                 formatDateToIndonesian(transaksi.tanggalTransaksi),
               ),
               _buildDetailRow('Nomor Kupon', transaksi.nomorKupon),
-              _buildDetailRow(
-                'Jenis BBM',
-                transaksi.jenisBbmId == 1 ? 'Pertamax' : 'Pertamina Dex',
-              ),
+              _buildDetailRow('Jenis BBM', jenisBbmName),
               _buildDetailRow('Satker', transaksi.namaSatker),
               _buildDetailRow('Jumlah Liter', '${transaksi.jumlahLiter} L'),
               _buildDetailRow(
@@ -66,6 +70,21 @@ Future<void> showDetailTransaksiDialog({
       );
     },
   );
+}
+
+String _getJenisBbmName(
+  int jenisBbmId,
+  List<Map<String, dynamic>> jenisBbmList,
+) {
+  try {
+    final bbm = jenisBbmList.firstWhere(
+      (item) => item['jenis_bbm_id'] == jenisBbmId,
+      orElse: () => {'nama_jenis_bbm': 'Unknown'},
+    );
+    return bbm['nama_jenis_bbm'] as String? ?? 'Unknown';
+  } catch (e) {
+    return 'Unknown';
+  }
 }
 
 Widget _buildDetailRow(String label, String value) {
