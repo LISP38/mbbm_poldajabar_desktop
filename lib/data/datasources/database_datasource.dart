@@ -429,8 +429,7 @@ class DatabaseDatasource {
     batch.execute('''
       CREATE TABLE dim_satker (
         satker_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nama_satker TEXT NOT NULL UNIQUE,
-        kode_satker TEXT
+        nama_satker TEXT NOT NULL UNIQUE
       )
     ''');
 
@@ -470,15 +469,6 @@ class DatabaseDatasource {
         quarter INTEGER,
         bulan_terbit INTEGER,
         tahun_terbit INTEGER
-      )
-    ''');
-
-    batch.execute('''
-      CREATE TABLE dim_tahun_terbit (
-        tahun_terbit_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        bulan_terbit INTEGER NOT NULL,
-        tahun_terbit INTEGER NOT NULL,
-        UNIQUE(bulan_terbit, tahun_terbit)
       )
     ''');
 
@@ -619,45 +609,6 @@ class DatabaseDatasource {
     return insertedId;
   }
 
-  /// Get or create a tahun_terbit row (composite of bulan+tahun)
-  Future<int> getOrCreateTahunTerbit(int bulan, int tahun) async {
-    final db = await database;
-    try {
-      // ensure table exists
-      final exists = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
-        ['dim_tahun_terbit'],
-      );
-      if (exists.isEmpty) {
-        // create the table if missing
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS dim_tahun_terbit (
-            tahun_terbit_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            bulan_terbit INTEGER NOT NULL,
-            tahun_terbit INTEGER NOT NULL,
-            UNIQUE(bulan_terbit, tahun_terbit)
-          )
-        ''');
-      }
-
-      final rows = await db.query(
-        'dim_tahun_terbit',
-        where: 'bulan_terbit = ? AND tahun_terbit = ?',
-        whereArgs: [bulan, tahun],
-        limit: 1,
-      );
-      if (rows.isNotEmpty) return rows.first['tahun_terbit_id'] as int;
-
-      final id = await db.insert('dim_tahun_terbit', {
-        'bulan_terbit': bulan,
-        'tahun_terbit': tahun,
-      });
-      return id;
-    } catch (e) {
-      rethrow;
-    }
-  }
-
   /// Get or create kendaraan. This function is schema-aware and will try to
   /// handle both older dim_kendaraan schema (no nopol_id) and new schema with
   /// references to dim_nopol and dim_jenis_ranmor.
@@ -790,18 +741,6 @@ class DatabaseDatasource {
           }
         }
 
-        // PERBAIKAN: Cek duplikat berdasarkan unique index / tahun_terbit_id if available
-        // Resolve tahun_terbit_id first (will create dim_tahun_terbit entry if missing)
-        int? tahunTerbitId;
-        try {
-          tahunTerbitId = await getOrCreateTahunTerbit(
-            k.bulanTerbit,
-            k.tahunTerbit,
-          );
-        } catch (_) {
-          tahunTerbitId = null;
-        }
-
         // Determine whether dim_kupon has tahun_terbit_id column
         final kuponPragma = await db.rawQuery("PRAGMA table_info('dim_kupon')");
         final kuponCols = kuponPragma.map((c) => c['name'] as String).toSet();
@@ -809,50 +748,28 @@ class DatabaseDatasource {
         // (prepared args handled inline below)
 
         List<Map<String, Object?>> duplicateResults = [];
-        if (kuponCols.contains('tahun_terbit_id') && tahunTerbitId != null) {
-          // prefer to match by tahun_terbit_id when available
-          duplicateResults = await db.query(
-            'dim_kupon',
-            where: '''
-              nomor_kupon = ? AND
-              jenis_kupon_id = ? AND
-              jenis_bbm_id = ? AND
-              satker_id = ? AND
-              tahun_terbit_id = ? AND
-              is_current = 1
-            ''',
-            whereArgs: [
-              k.nomorKupon,
-              k.jenisKuponId,
-              k.jenisBbmId,
-              satkerId,
-              tahunTerbitId,
-            ],
-            limit: 1,
-          );
-        } else {
-          duplicateResults = await db.query(
-            'dim_kupon',
-            where: '''
-              nomor_kupon = ? AND
-              jenis_kupon_id = ? AND
-              jenis_bbm_id = ? AND
-              satker_id = ? AND
-              bulan_terbit = ? AND
-              tahun_terbit = ? AND
-              is_current = 1
-            ''',
-            whereArgs: [
-              k.nomorKupon,
-              k.jenisKuponId,
-              k.jenisBbmId,
-              satkerId,
-              k.bulanTerbit,
-              k.tahunTerbit,
-            ],
-            limit: 1,
-          );
-        }
+        // Check by bulan_terbit and tahun_terbit (dim_tahun_terbit was removed)
+        duplicateResults = await db.query(
+          'dim_kupon',
+          where: '''
+            nomor_kupon = ? AND
+            jenis_kupon_id = ? AND
+            jenis_bbm_id = ? AND
+            satker_id = ? AND
+            bulan_terbit = ? AND
+            tahun_terbit = ? AND
+            is_current = 1
+          ''',
+          whereArgs: [
+            k.nomorKupon,
+            k.jenisKuponId,
+            k.jenisBbmId,
+            satkerId,
+            k.bulanTerbit,
+            k.tahunTerbit,
+          ],
+          limit: 1,
+        );
 
         final duplicateCheck = duplicateResults;
 
@@ -898,10 +815,6 @@ class DatabaseDatasource {
           'valid_from': DateTime.now().toIso8601String(),
           'is_current': 1,
         };
-
-        if (tahunTerbitId != null && kuponCols.contains('tahun_terbit_id')) {
-          insertMap['tahun_terbit_id'] = tahunTerbitId;
-        }
 
         final insertedId = await db.insert('dim_kupon', insertMap);
         // kuota_sisa is now calculated real-time from fact_transaksi

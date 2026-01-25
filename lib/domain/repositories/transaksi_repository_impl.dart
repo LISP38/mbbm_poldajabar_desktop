@@ -342,7 +342,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
     try {
       final db = await dbHelper.database;
       final rows = await db.rawQuery('''
-        SELECT DISTINCT tahun_terbit AS tahun_terbit FROM dim_tahun_terbit
+        SELECT DISTINCT tahun_terbit AS tahun_terbit FROM dim_kupon
         WHERE tahun_terbit IS NOT NULL
         ORDER BY CAST(tahun_terbit AS INTEGER) ASC
       ''');
@@ -361,7 +361,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
     try {
       final db = await dbHelper.database;
       final rows = await db.rawQuery('''
-        SELECT DISTINCT bulan_terbit AS bulan_terbit FROM dim_tahun_terbit
+        SELECT DISTINCT bulan_terbit AS bulan_terbit FROM dim_kupon
         WHERE bulan_terbit IS NOT NULL
         ORDER BY CAST(bulan_terbit AS INTEGER) ASC
       ''');

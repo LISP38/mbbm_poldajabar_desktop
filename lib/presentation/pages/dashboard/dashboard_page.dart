@@ -1633,8 +1633,20 @@ class _DashboardPageState extends State<DashboardPage>
     BuildContext context,
     KuponEntity kupon,
   ) async {
+    // Tanggal kadaluarsa: akhir bulan kedua dari bulan terbit
+    // Contoh: terbit Januari (1) -> kadaluarsa akhir Februari (28 atau 29)
+    int expMonth = kupon.bulanTerbit + 1;
+    int expYear = kupon.tahunTerbit;
+
+    if (expMonth > 12) {
+      expMonth -= 12;
+      expYear += 1;
+    }
+
+    // Dapatkan hari terakhir dari bulan kadaluarsa
+    final lastDay = DateTime(expYear, expMonth + 1, 0).day;
     final tanggalTerbit = DateTime(kupon.tahunTerbit, kupon.bulanTerbit, 1);
-    final tanggalKadaluarsa = tanggalTerbit.add(const Duration(days: 60));
+    final tanggalKadaluarsa = DateTime(expYear, expMonth, lastDay);
 
     if (!mounted) return;
 

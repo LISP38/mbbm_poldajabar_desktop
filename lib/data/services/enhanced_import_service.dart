@@ -435,7 +435,6 @@ class EnhancedImportService {
         await db.insert('dim_satker', {
           'satker_id': satkerId,
           'nama_satker': satkerName,
-          'kode_satker': 'SAT-${satkerId.toString().padLeft(3, '0')}',
         });
       }
     }

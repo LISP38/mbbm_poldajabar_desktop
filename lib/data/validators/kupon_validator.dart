@@ -1,5 +1,4 @@
 import 'package:kupon_bbm_app/data/models/kupon_model.dart';
-import 'package:kupon_bbm_app/data/models/satker_dukungan_model.dart';
 
 class KuponValidationResult {
   final bool isValid;
@@ -117,18 +116,19 @@ class KuponValidator {
     ];
 
     // Cek apakah ADA baris yang identik di semua kolom (full field comparison)
-    final duplicate = allKupons.any((k) =>
-      k.jenisKuponId == newKupon.jenisKuponId &&
-      k.nomorKupon == newKupon.nomorKupon &&
-      k.satkerId == newKupon.satkerId &&
-      k.bulanTerbit == newKupon.bulanTerbit &&
-      k.tahunTerbit == newKupon.tahunTerbit &&
-      k.kuotaAwal == newKupon.kuotaAwal &&
-      k.jenisBbmId == newKupon.jenisBbmId &&
-      k.namaSatker == newKupon.namaSatker &&
-      k.kendaraanId == newKupon.kendaraanId &&
-      k.tanggalMulai == newKupon.tanggalMulai &&
-      k.tanggalSampai == newKupon.tanggalSampai
+    final duplicate = allKupons.any(
+      (k) =>
+          k.jenisKuponId == newKupon.jenisKuponId &&
+          k.nomorKupon == newKupon.nomorKupon &&
+          k.satkerId == newKupon.satkerId &&
+          k.bulanTerbit == newKupon.bulanTerbit &&
+          k.tahunTerbit == newKupon.tahunTerbit &&
+          k.kuotaAwal == newKupon.kuotaAwal &&
+          k.jenisBbmId == newKupon.jenisBbmId &&
+          k.namaSatker == newKupon.namaSatker &&
+          k.kendaraanId == newKupon.kendaraanId &&
+          k.tanggalMulai == newKupon.tanggalMulai &&
+          k.tanggalSampai == newKupon.tanggalSampai,
     );
 
     if (duplicate) {
@@ -140,25 +140,6 @@ class KuponValidator {
       );
     }
 
-    return KuponValidationResult(isValid: true);
-  }
-
-
-  // Validasi eligibilitas satker untuk dukungan
-  KuponValidationResult validateSatkerEligibilityForDukungan(
-    KuponModel newKupon,
-  ) {
-    if (newKupon.jenisKuponId == 2) {
-      // 2 = DUKUNGAN
-      if (!EligibleSatker.isEligibleForDukungan(newKupon.namaSatker)) {
-        return KuponValidationResult(
-          isValid: false,
-          messages: [
-            'Satker ${newKupon.namaSatker} tidak memiliki hak untuk mendapatkan kupon DUKUNGAN',
-          ],
-        );
-      }
-    }
     return KuponValidationResult(isValid: true);
   }
 
@@ -247,12 +228,7 @@ class KuponValidator {
       }
     } else if (newKupon.jenisKuponId == 2) {
       // VALIDASI DUKUNGAN (berbasis satker)
-
-      // Validasi eligibilitas satker
-      final eligibilityResult = validateSatkerEligibilityForDukungan(newKupon);
-      if (!eligibilityResult.isValid) {
-        allMessages.addAll(eligibilityResult.messages);
-      }
+      // Kupon dukungan tersedia untuk SEMUA satker, tidak ada pembatasan eligibilitas
 
       // Validasi ketergantungan pada RANJEN
       final ranjenDependencyResult = validateDukunganRequiresRanjen(

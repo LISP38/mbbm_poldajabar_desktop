@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 // import 'package:get_it/get_it.dart';
 import '../../providers/transaksi_provider.dart';
 import '../../providers/dashboard_provider.dart';
+import '../../providers/master_data_provider.dart';
 import '../../../data/models/transaksi_model.dart';
 import '../../../domain/entities/kupon_entity.dart';
 import '../../../domain/repositories/kendaraan_repository.dart';
@@ -20,9 +21,6 @@ class TransactionPage extends StatefulWidget {
 
 class _TransactionPageState extends State<TransactionPage>
     with SingleTickerProviderStateMixin {
-  // Map jenis BBM untuk tampilan
-  final Map<int, String> _jenisBBMMap = {1: 'Pertamax', 2: 'Pertamina Dex'};
-
   // Map jenis kupon untuk tampilan
   final Map<int, String> _jenisKuponMap = {1: 'RANJEN', 2: 'DUKUNGAN'};
 
@@ -41,6 +39,34 @@ class _TransactionPageState extends State<TransactionPage>
 
   // Tab Controller
   late TabController _tabController;
+
+  // Helper method untuk mendapatkan nama BBM dari provider
+  String _getJenisBbmName(int jenisBbmId) {
+    final masterDataProvider = context.read<MasterDataProvider>();
+    try {
+      final bbm = masterDataProvider.jenisBBMList.firstWhere(
+        (item) => item['jenis_bbm_id'] == jenisBbmId,
+        orElse: () => {'nama_jenis_bbm': 'Unknown'},
+      );
+      return bbm['nama_jenis_bbm'] as String? ?? 'Unknown';
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+
+  // Helper method untuk mendapatkan Map BBM dari provider (untuk export)
+  Map<int, String> _getJenisBbmMap() {
+    final masterDataProvider = context.read<MasterDataProvider>();
+    final map = <int, String>{};
+    for (final item in masterDataProvider.jenisBBMList) {
+      final id = item['jenis_bbm_id'] as int?;
+      final name = item['nama_jenis_bbm'] as String?;
+      if (id != null && name != null) {
+        map[id] = name;
+      }
+    }
+    return map;
+  }
 
   String _getBulanName(int bulan) {
     final namaBulan = [
@@ -742,7 +768,7 @@ class _TransactionPageState extends State<TransactionPage>
       MaterialPageRoute(
         builder: (context) => ExportPreviewPage(
           allKupons: dashboardProvider.allKuponsForDropdown,
-          jenisBBMMap: _jenisBBMMap,
+          jenisBBMMap: _getJenisBbmMap(),
           exportType: choice,
           getNopolByKendaraanId:
               (choice == 'kupon' || choice == 'minus' || choice == 'combined')
@@ -1178,9 +1204,7 @@ class _TransactionPageState extends State<TransactionPage>
                             DataCell(Text(t.tanggalTransaksi)),
                             DataCell(Text(t.nomorKupon)),
                             DataCell(Text(t.namaSatker)),
-                            DataCell(
-                              Text(_jenisBBMMap[t.jenisBbmId] ?? 'Unknown'),
-                            ),
+                            DataCell(Text(_getJenisBbmName(t.jenisBbmId))),
                             DataCell(Text(jenisKuponNama)),
                             DataCell(Text('${t.jumlahLiter.toInt()} L')),
                             DataCell(
@@ -1219,7 +1243,7 @@ class _TransactionPageState extends State<TransactionPage>
                                                   'Jenis: ${_jenisKuponMap[kupon.jenisKuponId] ?? "Unknown"}',
                                                 ),
                                                 Text(
-                                                  'BBM: ${_jenisBBMMap[kupon.jenisBbmId] ?? "Unknown"}',
+                                                  'BBM: ${_getJenisBbmName(kupon.jenisBbmId)}',
                                                 ),
                                                 Text(
                                                   'Kuota Awal: ${kupon.kuotaAwal.toInt()} L',
@@ -1638,9 +1662,7 @@ class _TransactionPageState extends State<TransactionPage>
                             DataCell(Text(t.tanggalTransaksi)),
                             DataCell(Text(t.nomorKupon)),
                             DataCell(Text(t.namaSatker)),
-                            DataCell(
-                              Text(_jenisBBMMap[jenisBbmId] ?? 'Unknown'),
-                            ),
+                            DataCell(Text(_getJenisBbmName(jenisBbmId))),
                             DataCell(Text('${jumlahLiter.toInt()} L')),
                             DataCell(
                               IconButton(
@@ -1885,9 +1907,7 @@ class _TransactionPageState extends State<TransactionPage>
                             DataCell(
                               Text(_jenisKuponMap[jenisKuponId] ?? 'Unknown'),
                             ),
-                            DataCell(
-                              Text(_jenisBBMMap[jenisBbmId] ?? 'Unknown'),
-                            ),
+                            DataCell(Text(_getJenisBbmName(jenisBbmId))),
                             DataCell(Text(m['nama_satker']?.toString() ?? '')),
                             DataCell(Text('${m['kuota_satker'] ?? 0} L')),
                             DataCell(Text('${m['kuota_sisa'] ?? 0} L')),

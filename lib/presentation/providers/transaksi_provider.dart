@@ -16,14 +16,14 @@ class TransaksiProvider extends ChangeNotifier {
 
   TransaksiProvider(this._transaksiRepository);
 
-  // --- Filter dropdown options (from dim_tahun_terbit)
+  // --- Filter dropdown options (from dim_kupon and dim_date)
   List<String> daftarTahun = [];
   List<String> daftarBulan = [];
 
   List<String> get availableTahun => daftarTahun;
   List<String> get availableBulan => daftarBulan;
 
-  /// Load distinct bulan & tahun values from `dim_tahun_terbit` table.
+  /// Load distinct bulan & tahun values from database tables.
   Future<void> loadFilterOptions() async {
     try {
       final bulan = await _transaksiRepository.getDistinctBulanTerbit();
