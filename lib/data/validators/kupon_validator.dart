@@ -10,23 +10,30 @@ class KuponValidationResult {
 class KuponValidator {
   KuponValidator();
 
-  // Validasi satu kendaraan hanya boleh memiliki satu jenis BBM
+  // Validasi satu kendaraan hanya boleh memiliki satu jenis BBM per periode bulan terbit
   KuponValidationResult validateBBMPerKendaraan(
     List<KuponModel> existingKupons,
     KuponModel newKupon,
     String noPol,
   ) {
-    // Cek kupon yang sudah ada untuk kendaraan yang sama
-    final kendaraanKupons = existingKupons
-        .where((k) => k.kendaraanId == newKupon.kendaraanId)
+    // Cek kupon yang sudah ada untuk kendaraan yang sama DI BULAN TERBIT YANG SAMA
+    final kendaraanKuponsInSamePeriod = existingKupons
+        .where(
+          (k) =>
+              k.kendaraanId == newKupon.kendaraanId &&
+              k.bulanTerbit == newKupon.bulanTerbit &&
+              k.tahunTerbit == newKupon.tahunTerbit,
+        )
         .toList();
 
-    if (kendaraanKupons.isNotEmpty &&
-        kendaraanKupons.any((k) => k.jenisBbmId != newKupon.jenisBbmId)) {
+    if (kendaraanKuponsInSamePeriod.isNotEmpty &&
+        kendaraanKuponsInSamePeriod.any(
+          (k) => k.jenisBbmId != newKupon.jenisBbmId,
+        )) {
       return KuponValidationResult(
         isValid: false,
         messages: [
-          'Kendaraan dengan No Pol $noPol sudah memiliki kupon dengan jenis BBM berbeda',
+          'Kendaraan dengan No Pol $noPol sudah memiliki kupon dengan jenis BBM berbeda di periode ${newKupon.bulanTerbit}/${newKupon.tahunTerbit}',
         ],
       );
     }

@@ -5,8 +5,7 @@ import '../../../data/datasources/database_datasource.dart';
 import '../../../core/di/dependency_injection.dart';
 
 class ExportPreviewPage extends StatefulWidget {
-  final String
-  exportType; // 'kupon', 'satker', 'minus'
+  final String exportType; // 'kupon', 'satker', 'minus'
   final List<KuponEntity> allKupons;
   final Map<int, String> jenisBBMMap;
   final Future<String?> Function(int?)? getNopolByKendaraanId;
@@ -59,10 +58,10 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
     _prepareData();
     _tabController = TabController(
       length: widget.exportType == 'satker'
-          ? 5  // 5 sheet: RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Bulanan
+          ? 5 // 5 sheet: RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Bulanan
           : (widget.exportType == 'kupon'
-                ? 5  // 5 sheet: RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Harian
-                : 4),  // 4 sheet untuk minus: RAN.PX, DUK.PX, RAN.DX, DUK.DX
+                ? 5 // 5 sheet: RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Harian
+                : 4), // 4 sheet untuk minus: RAN.PX, DUK.PX, RAN.DX, DUK.DX
       vsync: this,
     );
     // Preload vehicle data untuk kupon dan minus
@@ -76,8 +75,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
     pertamaxKupons = [];
     dexKupons = [];
 
-    if (widget.exportType == 'satker' ||
-        widget.exportType == 'kupon') {
+    if (widget.exportType == 'satker' || widget.exportType == 'kupon') {
       // Filter untuk 4-5 sheet - hanya kupon yang ada transaksi (kuotaSisa < kuotaAwal)
       ranPertamax = widget.allKupons
           .where(
@@ -140,6 +138,58 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
       ranDex = [];
       dukDex = [];
     }
+  }
+
+  /// Validasi apakah date range kurang dari atau sama dengan 2 bulan
+  /// Returns (isValid, monthDifference)
+  (bool, int) _validateDateRange() {
+    if (widget.filterTanggalMulai == null ||
+        widget.filterTanggalSelesai == null) {
+      // Jika tidak ada filter tanggal, dianggap valid
+      return (true, 0);
+    }
+
+    final startDate = widget.filterTanggalMulai!;
+    final endDate = widget.filterTanggalSelesai!;
+
+    // Hitung selisih bulan antara start dan end date
+    final monthDiff =
+        (endDate.year - startDate.year) * 12 +
+        (endDate.month - startDate.month);
+
+    // Jika selisih lebih dari 2 bulan, tidak valid
+    // Contoh: 1 Jan - 31 Mar = 2 bulan (valid), 1 Jan - 1 Apr = 3 bulan (invalid)
+    final isValid = monthDiff <= 1; // 0 = same month, 1 = 2 consecutive months
+
+    return (isValid, monthDiff);
+  }
+
+  /// Show error dialog when date range exceeds 2 months
+  void _showDateRangeErrorDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.red, size: 28),
+            SizedBox(width: 12),
+            Text('Range Tanggal Terlalu Lama'),
+          ],
+        ),
+        content: const Text(
+          'Tidak bisa range 3 bulan, hanya bisa 2 bulan.\n\n'
+          'Silakan pilih range tanggal maksimal 2 bulan dan coba lagi.',
+          style: TextStyle(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _preloadVehicleData() async {
@@ -386,9 +436,17 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
       // 5 tab views untuk satker: 4 preview satker + 1 rekap bulanan
       return [
         _buildTransaksiRekapPreview('RAN.PX', ranPertamax, 'RANJEN - PERTAMAX'),
-        _buildTransaksiRekapPreview('DUK.PX', dukPertamax, 'DUKUNGAN - PERTAMAX'),
+        _buildTransaksiRekapPreview(
+          'DUK.PX',
+          dukPertamax,
+          'DUKUNGAN - PERTAMAX',
+        ),
         _buildTransaksiRekapPreview('RAN.DX', ranDex, 'RANJEN - PERTAMINA DEX'),
-        _buildTransaksiRekapPreview('DUK.DX', dukDex, 'DUKUNGAN - PERTAMINA DEX'),
+        _buildTransaksiRekapPreview(
+          'DUK.DX',
+          dukDex,
+          'DUKUNGAN - PERTAMINA DEX',
+        ),
         _buildRekapHarianPreview(), // Rekap Bulanan menggunakan preview yang sama
       ];
     } else if (widget.exportType == 'kupon') {
@@ -585,7 +643,17 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
             ),
             const SizedBox(width: 8),
             ElevatedButton.icon(
-              onPressed: _isExporting ? null : _performExport,
+              onPressed: _isExporting
+                  ? null
+                  : () {
+                      // Validate date range before export
+                      final (isValid, monthDiff) = _validateDateRange();
+                      if (!isValid) {
+                        _showDateRangeErrorDialog();
+                        return;
+                      }
+                      _performExport();
+                    },
               icon: _isExporting
                   ? const SizedBox(
                       width: 16,

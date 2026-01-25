@@ -583,15 +583,13 @@ class ExcelDatasource {
     final kuantumStr = _getCellString(row, 9);
     final kuantum = double.tryParse(kuantumStr) ?? 0.0;
 
-    // Validasi jenis BBM dengan lebih fleksibel (nullable)
+    // Validasi jenis BBM - hanya Pertamax dan Pertamina Dex yang diizinkan
     if (jenisBBM.isNotEmpty) {
       final jenisBBMLower = jenisBBM.toLowerCase();
       if (!jenisBBMLower.contains('pertamax') &&
-          !jenisBBMLower.contains('dex') &&
-          !jenisBBMLower.contains('dexlite') &&
-          !jenisBBMLower.contains('solar')) {
+          !jenisBBMLower.contains('dex')) {
         throw Exception(
-          'Jenis BBM harus mengandung kata Pertamax, Dex, Dexlite, atau Solar. Ditemukan: "$jenisBBM"',
+          'Jenis BBM hanya boleh Pertamax atau Pertamina Dex. Ditemukan: "$jenisBBM"',
         );
       }
     }

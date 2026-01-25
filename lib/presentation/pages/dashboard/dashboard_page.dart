@@ -175,6 +175,8 @@ class _DashboardPageState extends State<DashboardPage>
         // Use await to ensure both are fetched sequentially
         await provider.fetchRanjenKupons();
         await provider.fetchDukunganKupons();
+        await provider
+            .fetchAllKuponsUnfiltered(); // Populate dropdown kupon list
         provider.fetchSatkers();
         masterDataProvider.fetchSatkers();
       });
@@ -378,6 +380,40 @@ class _DashboardPageState extends State<DashboardPage>
       jenisRanmor: null,
       bulanTerbit: null,
       tahunTerbit: null,
+    );
+  }
+
+  /// Apply filter with current selection (called when dropdown changes)
+  void _applyFilterWithCurrentSelection() {
+    final provider = Provider.of<DashboardProvider>(context, listen: false);
+
+    // Convert selected jenisBBM name to ID using provider map (case-insensitive)
+    String? jenisBbmParam;
+    if (_selectedJenisBBM != null && _selectedJenisBBM!.isNotEmpty) {
+      final selectedLower = _selectedJenisBBM!.toLowerCase();
+      final matches = provider.jenisBbmMap.entries
+          .where((e) => e.value.toLowerCase() == selectedLower)
+          .toList();
+      if (matches.isNotEmpty) jenisBbmParam = matches.first.key.toString();
+    }
+
+    final defaultJenisKupon = _tabController.index == 0 ? '1' : '2';
+
+    provider.setFilter(
+      jenisKupon: defaultJenisKupon,
+      jenisBBM: jenisBbmParam,
+      satker: _selectedSatker,
+      nopol: _nopolController.text.isNotEmpty ? _nopolController.text : null,
+      jenisRanmor: _selectedJenisRanmor,
+      bulanTerbit: _selectedBulan != null
+          ? int.tryParse(_selectedBulan!)
+          : null,
+      tahunTerbit: _selectedTahun != null
+          ? int.tryParse(_selectedTahun!)
+          : null,
+      nomorKupon: _nomorKuponController.text.isNotEmpty
+          ? _nomorKuponController.text
+          : null,
     );
   }
 
@@ -736,8 +772,11 @@ class _DashboardPageState extends State<DashboardPage>
                             ),
                           ),
                         ],
-                        onChanged: (value) =>
-                            setState(() => _selectedBulan = value),
+                        onChanged: (value) {
+                          setState(() => _selectedBulan = value);
+                          // Auto-apply filter when bulan changes
+                          _applyFilterWithCurrentSelection();
+                        },
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -757,8 +796,11 @@ class _DashboardPageState extends State<DashboardPage>
                             (t) => DropdownMenuItem(value: t, child: Text(t)),
                           ),
                         ],
-                        onChanged: (value) =>
-                            setState(() => _selectedTahun = value),
+                        onChanged: (value) {
+                          setState(() => _selectedTahun = value);
+                          // Auto-apply filter when tahun changes
+                          _applyFilterWithCurrentSelection();
+                        },
                       ),
                     ),
                   ],
@@ -1011,8 +1053,11 @@ class _DashboardPageState extends State<DashboardPage>
                             ),
                           ),
                         ],
-                        onChanged: (value) =>
-                            setState(() => _selectedBulan = value),
+                        onChanged: (value) {
+                          setState(() => _selectedBulan = value);
+                          // Auto-apply filter when bulan changes
+                          _applyFilterWithCurrentSelection();
+                        },
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -1032,8 +1077,11 @@ class _DashboardPageState extends State<DashboardPage>
                             (t) => DropdownMenuItem(value: t, child: Text(t)),
                           ),
                         ],
-                        onChanged: (value) =>
-                            setState(() => _selectedTahun = value),
+                        onChanged: (value) {
+                          setState(() => _selectedTahun = value);
+                          // Auto-apply filter when tahun changes
+                          _applyFilterWithCurrentSelection();
+                        },
                       ),
                     ),
                   ],

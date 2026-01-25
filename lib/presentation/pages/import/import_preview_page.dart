@@ -208,21 +208,35 @@ class ImportPreviewPage extends StatelessWidget {
                   if (parseResult.validationMessages.isNotEmpty)
                     Container(
                       width: double.infinity,
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.red.shade50,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: Colors.red.shade200),
                       ),
                       child: Theme(
-                        data: Theme.of(context).copyWith(
-                          dividerColor: Colors.transparent,
-                        ),
+                        data: Theme.of(
+                          context,
+                        ).copyWith(dividerColor: Colors.transparent),
                         child: ExpansionTile(
                           initiallyExpanded: false,
-                          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                          childrenPadding: const EdgeInsets.only(left: 12, right: 12, bottom: 12),
-                          leading: Icon(Icons.warning_amber, color: Colors.red.shade700, size: 20),
+                          tilePadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 0,
+                          ),
+                          childrenPadding: const EdgeInsets.only(
+                            left: 12,
+                            right: 12,
+                            bottom: 12,
+                          ),
+                          leading: Icon(
+                            Icons.warning_amber,
+                            color: Colors.red.shade700,
+                            size: 20,
+                          ),
                           title: Text(
                             'Pesan Validasi (${parseResult.validationMessages.length})',
                             style: TextStyle(
@@ -245,19 +259,21 @@ class ImportPreviewPage extends StatelessWidget {
                               alignment: Alignment.centerLeft,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                children: parseResult.validationMessages.map(
-                                  (msg) => Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: Text(
-                                      '• $msg',
-                                      style: TextStyle(
-                                        color: Colors.red.shade700,
-                                        fontSize: 12,
+                                children: parseResult.validationMessages
+                                    .map(
+                                      (msg) => Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          '• $msg',
+                                          style: TextStyle(
+                                            color: Colors.red.shade700,
+                                            fontSize: 12,
+                                          ),
+                                          textAlign: TextAlign.left,
+                                        ),
                                       ),
-                                      textAlign: TextAlign.left,
-                                    ),
-                                  ),
-                                ).toList(),
+                                    )
+                                    .toList(),
                               ),
                             ),
                           ],
@@ -269,8 +285,10 @@ class ImportPreviewPage extends StatelessWidget {
 
                   // Column Headers
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     color: Colors.grey.shade200,
                     child: const Row(
                       children: [
@@ -389,21 +407,18 @@ class ImportPreviewPage extends StatelessWidget {
 
   // Helper: Get unique Jenis BBM names
   List<String> _getUniqueJenisBbm(List<KuponModel> kupons) {
-    final Map<int, String> bbmNames = {
-      1: 'Pertamax',
-      2: 'Pertamax Turbo',
-      3: 'Pertalite',
-      4: 'Pertamina Dex',
-      5: 'Solar',
-      6: 'Bio Solar',
-    };
+    final Map<int, String> bbmNames = {1: 'Pertamax', 2: 'Pertamina Dex'};
     final uniqueIds = kupons.map((k) => k.jenisBbmId).toSet();
     return uniqueIds.map((id) => bbmNames[id] ?? 'BBM ID: $id').toList();
   }
 
   // Helper: Get unique Satker names
   List<String> _getUniqueSatker(List<KuponModel> kupons) {
-    return kupons.map((k) => k.namaSatker).where((s) => s.isNotEmpty).toSet().toList();
+    return kupons
+        .map((k) => k.namaSatker)
+        .where((s) => s.isNotEmpty)
+        .toSet()
+        .toList();
   }
 
   // Helper: Get unique Jenis Kupon names

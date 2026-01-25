@@ -311,31 +311,45 @@ class EnhancedImportService {
         }
 
         // Check if kupon with same nomor exists but different attributes (version change)
-        // IMPORTANT: Must include jenis_kupon_id and jenis_bbm_id to identify the correct kupon
-        // because same nomor_kupon can exist for different jenis (RANJEN vs DUKUNGAN) and BBM types
+        // IMPORTANT: Must include jenis_kupon_id, jenis_bbm_id, bulan_terbit, dan tahun_terbit
+        // to identify the correct kupon because:
+        // - same nomor_kupon can exist for different jenis (RANJEN vs DUKUNGAN) and BBM types
+        // - same nomor_kupon can exist for different periods (Januari vs Februari)
         final existingVersion = await db.query(
           'dim_kupon',
           where: '''
             nomor_kupon = ? AND 
             jenis_kupon_id = ? AND 
             jenis_bbm_id = ? AND 
+            bulan_terbit = ? AND
+            tahun_terbit = ? AND
             is_current = 1
           ''',
           whereArgs: [
             updatedKupon.nomorKupon,
             updatedKupon.jenisKuponId,
             updatedKupon.jenisBbmId,
+            updatedKupon.bulanTerbit,
+            updatedKupon.tahunTerbit,
           ],
         );
 
         if (existingVersion.isNotEmpty) {
           // VERSION CHANGE - Expire old record (SCD Type 2)
+          // Only expire kupon with the same period (bulan_terbit & tahun_terbit)
           versionedCount++;
           await db.update(
             'dim_kupon',
             {'is_current': 0, 'valid_to': DateTime.now().toIso8601String()},
-            where: 'nomor_kupon = ? AND is_current = 1',
-            whereArgs: [updatedKupon.nomorKupon],
+            where:
+                'nomor_kupon = ? AND jenis_kupon_id = ? AND jenis_bbm_id = ? AND bulan_terbit = ? AND tahun_terbit = ? AND is_current = 1',
+            whereArgs: [
+              updatedKupon.nomorKupon,
+              updatedKupon.jenisKuponId,
+              updatedKupon.jenisBbmId,
+              updatedKupon.bulanTerbit,
+              updatedKupon.tahunTerbit,
+            ],
           );
         }
 
