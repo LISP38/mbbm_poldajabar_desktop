@@ -40,18 +40,13 @@ class _TransactionPageState extends State<TransactionPage>
   // Tab Controller
   late TabController _tabController;
 
-  // Helper method untuk mendapatkan nama BBM dari provider
+  // Helper method untuk mendapatkan nama BBM
   String _getJenisBbmName(int jenisBbmId) {
-    final masterDataProvider = context.read<MasterDataProvider>();
-    try {
-      final bbm = masterDataProvider.jenisBBMList.firstWhere(
-        (item) => item['jenis_bbm_id'] == jenisBbmId,
-        orElse: () => {'nama_jenis_bbm': 'Unknown'},
-      );
-      return bbm['nama_jenis_bbm'] as String? ?? 'Unknown';
-    } catch (e) {
-      return 'Unknown';
-    }
+    final Map<int, String> jenisBBMMap = {
+      1: 'PERTAMAX',
+      2: 'PERTAMINA DEX',
+    };
+    return jenisBBMMap[jenisBbmId] ?? 'Unknown';
   }
 
   // Helper method untuk mendapatkan Map BBM dari provider (untuk export)
