@@ -310,12 +310,12 @@ class DashboardProvider extends ChangeNotifier {
     final db =
         await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
     try {
-      // Primary source: dim_date
+      // Primary source: dim_kupon (more reliable than dim_date since we populate dim_kupon directly)
       final bulanRows = await db.rawQuery(
-        '''SELECT DISTINCT bulan_terbit AS bulan_terbit FROM dim_date WHERE bulan_terbit IS NOT NULL ORDER BY CAST(bulan_terbit AS INTEGER) ASC''',
+        '''SELECT DISTINCT bulan_terbit FROM dim_kupon WHERE is_current = 1 AND bulan_terbit IS NOT NULL ORDER BY CAST(bulan_terbit AS INTEGER) ASC''',
       );
       final tahunRows = await db.rawQuery(
-        '''SELECT DISTINCT tahun_terbit AS tahun_terbit FROM dim_date WHERE tahun_terbit IS NOT NULL ORDER BY CAST(tahun_terbit AS INTEGER) ASC''',
+        '''SELECT DISTINCT tahun_terbit FROM dim_kupon WHERE is_current = 1 AND tahun_terbit IS NOT NULL ORDER BY CAST(tahun_terbit AS INTEGER) ASC''',
       );
 
       _daftarBulan = bulanRows
@@ -327,24 +327,31 @@ class DashboardProvider extends ChangeNotifier {
           .where((s) => s.isNotEmpty)
           .toList();
 
-      // Fallback: try dim_kupon if dim_date returned no rows
+      // Fallback: try dim_date if dim_kupon returned no rows
       if (_daftarBulan.isEmpty || _daftarTahun.isEmpty) {
-        final kB = await db.rawQuery(
-          '''SELECT DISTINCT bulan_terbit AS bulan_terbit FROM dim_kupon WHERE bulan_terbit IS NOT NULL ORDER BY bulan_terbit ASC''',
+        final dateExists = await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name = 'dim_date'",
         );
-        final kT = await db.rawQuery(
-          '''SELECT DISTINCT tahun_terbit AS tahun_terbit FROM dim_kupon WHERE tahun_terbit IS NOT NULL ORDER BY tahun_terbit ASC''',
-        );
-        final bK = kB
-            .map<String>((r) => (r['bulan_terbit']?.toString() ?? ''))
-            .where((s) => s.isNotEmpty)
-            .toList();
-        final tK = kT
-            .map<String>((r) => (r['tahun_terbit']?.toString() ?? ''))
-            .where((s) => s.isNotEmpty)
-            .toList();
-        if (_daftarBulan.isEmpty) _daftarBulan = bK;
-        if (_daftarTahun.isEmpty) _daftarTahun = tK;
+        if (dateExists.isNotEmpty) {
+          final dB = await db.rawQuery(
+            '''SELECT DISTINCT bulan_terbit FROM dim_date WHERE bulan_terbit IS NOT NULL ORDER BY CAST(bulan_terbit AS INTEGER) ASC''',
+          );
+          final dT = await db.rawQuery(
+            '''SELECT DISTINCT tahun_terbit FROM dim_date WHERE tahun_terbit IS NOT NULL ORDER BY CAST(tahun_terbit AS INTEGER) ASC''',
+          );
+          if (_daftarBulan.isEmpty) {
+            _daftarBulan = dB
+                .map<String>((r) => (r['bulan_terbit']?.toString() ?? ''))
+                .where((s) => s.isNotEmpty)
+                .toList();
+          }
+          if (_daftarTahun.isEmpty) {
+            _daftarTahun = dT
+                .map<String>((r) => (r['tahun_terbit']?.toString() ?? ''))
+                .where((s) => s.isNotEmpty)
+                .toList();
+          }
+        }
       }
       notifyListeners();
     } catch (e) {
@@ -379,36 +386,17 @@ class DashboardProvider extends ChangeNotifier {
         whereArgs.add(int.tryParse(jenisBBM!) ?? jenisBBM);
       }
 
-      // Filter berdasarkan bulan dan tahun berlaku (bukan hanya bulan terbit)
+      // Filter berdasarkan bulan_terbit dan tahun_terbit LANGSUNG
+      // (bukan berdasarkan tanggal berlaku)
       if (bulanTerbit != null && tahunTerbit != null) {
-        // Hitung tanggal awal dan akhir bulan yang dipilih
-        final awalBulan = DateTime(tahunTerbit!, bulanTerbit!, 1);
-        final akhirBulan = DateTime(tahunTerbit!, bulanTerbit! + 1, 0);
-        final awalBulanStr = awalBulan.toIso8601String().split('T')[0];
-        final akhirBulanStr = akhirBulan.toIso8601String().split('T')[0];
-
-        // Kupon berlaku jika: tanggal_mulai <= akhir_bulan AND tanggal_sampai >= awal_bulan
-        whereConditions.add('dk.tanggal_mulai <= ? AND dk.tanggal_sampai >= ?');
-        whereArgs.addAll([akhirBulanStr, awalBulanStr]);
-      } else if (tahunTerbit != null) {
-        // Jika hanya tahun yang dipilih, filter kupon yang berlaku di tahun tersebut
-        final awalTahun = DateTime(tahunTerbit!, 1, 1);
-        final akhirTahun = DateTime(tahunTerbit! + 1, 1, 0);
-        final awalTahunStr = awalTahun.toIso8601String().split('T')[0];
-        final akhirTahunStr = akhirTahun.toIso8601String().split('T')[0];
-
-        whereConditions.add('dk.tanggal_mulai <= ? AND dk.tanggal_sampai >= ?');
-        whereArgs.addAll([akhirTahunStr, awalTahunStr]);
-      } else if (bulanTerbit != null) {
-        // Jika hanya bulan dipilih tanpa tahun, gunakan tahun sekarang
-        final tahun = DateTime.now().year;
-        final awalBulan = DateTime(tahun, bulanTerbit!, 1);
-        final akhirBulan = DateTime(tahun, bulanTerbit! + 1, 0);
-        final awalBulanStr = awalBulan.toIso8601String().split('T')[0];
-        final akhirBulanStr = akhirBulan.toIso8601String().split('T')[0];
-
-        whereConditions.add('dk.tanggal_mulai <= ? AND dk.tanggal_sampai >= ?');
-        whereArgs.addAll([akhirBulanStr, awalBulanStr]);
+        whereConditions.add('dk.bulan_terbit = ? AND dk.tahun_terbit = ?');
+        whereArgs.addAll([bulanTerbit, tahunTerbit]);
+      } else if (tahunTerbit != null && bulanTerbit == null) {
+        whereConditions.add('dk.tahun_terbit = ?');
+        whereArgs.add(tahunTerbit);
+      } else if (bulanTerbit != null && tahunTerbit == null) {
+        whereConditions.add('dk.bulan_terbit = ?');
+        whereArgs.add(bulanTerbit);
       }
 
       String query =
@@ -506,32 +494,17 @@ class DashboardProvider extends ChangeNotifier {
         whereArgs.add(int.tryParse(jenisBBM!) ?? jenisBBM);
       }
 
-      // Filter berdasarkan bulan dan tahun berlaku (bukan hanya bulan terbit)
+      // Filter berdasarkan bulan_terbit dan tahun_terbit LANGSUNG
+      // (bukan berdasarkan tanggal berlaku)
       if (bulanTerbit != null && tahunTerbit != null) {
-        final awalBulan = DateTime(tahunTerbit!, bulanTerbit!, 1);
-        final akhirBulan = DateTime(tahunTerbit!, bulanTerbit! + 1, 0);
-        final awalBulanStr = awalBulan.toIso8601String().split('T')[0];
-        final akhirBulanStr = akhirBulan.toIso8601String().split('T')[0];
-
-        whereConditions.add('dk.tanggal_mulai <= ? AND dk.tanggal_sampai >= ?');
-        whereArgs.addAll([akhirBulanStr, awalBulanStr]);
-      } else if (tahunTerbit != null) {
-        final awalTahun = DateTime(tahunTerbit!, 1, 1);
-        final akhirTahun = DateTime(tahunTerbit! + 1, 1, 0);
-        final awalTahunStr = awalTahun.toIso8601String().split('T')[0];
-        final akhirTahunStr = akhirTahun.toIso8601String().split('T')[0];
-
-        whereConditions.add('dk.tanggal_mulai <= ? AND dk.tanggal_sampai >= ?');
-        whereArgs.addAll([akhirTahunStr, awalTahunStr]);
-      } else if (bulanTerbit != null) {
-        final tahun = DateTime.now().year;
-        final awalBulan = DateTime(tahun, bulanTerbit!, 1);
-        final akhirBulan = DateTime(tahun, bulanTerbit! + 1, 0);
-        final awalBulanStr = awalBulan.toIso8601String().split('T')[0];
-        final akhirBulanStr = akhirBulan.toIso8601String().split('T')[0];
-
-        whereConditions.add('dk.tanggal_mulai <= ? AND dk.tanggal_sampai >= ?');
-        whereArgs.addAll([akhirBulanStr, awalBulanStr]);
+        whereConditions.add('dk.bulan_terbit = ? AND dk.tahun_terbit = ?');
+        whereArgs.addAll([bulanTerbit, tahunTerbit]);
+      } else if (tahunTerbit != null && bulanTerbit == null) {
+        whereConditions.add('dk.tahun_terbit = ?');
+        whereArgs.add(tahunTerbit);
+      } else if (bulanTerbit != null && tahunTerbit == null) {
+        whereConditions.add('dk.bulan_terbit = ?');
+        whereArgs.add(bulanTerbit);
       }
 
       String query =
