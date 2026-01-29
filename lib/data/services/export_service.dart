@@ -127,7 +127,22 @@ class ExportService {
 
     // Convert hasil query ke nested map
     // Key format: <kuponId>_<columnOffset>
-    // columnOffset: 0-31 untuk bulan current, 32-63 untuk bulan next
+    // columnOffset: 1-31 untuk bulan pertama, 32+ untuk bulan kedua
+    // Determine the display month/year yang seharusnya digunakan
+    int displayMonth = currentMonth;
+    int displayYear = currentYear;
+    if (filterBulan != null && filterTahun != null) {
+      displayMonth = filterBulan;
+      displayYear = filterTahun;
+    } else if (filterTanggalMulai != null) {
+      displayMonth = filterTanggalMulai.month;
+      displayYear = filterTanggalMulai.year;
+    }
+
+    final displayNextMonth = displayMonth == 12 ? 1 : displayMonth + 1;
+    final displayNextYear = displayMonth == 12 ? displayYear + 1 : displayYear;
+    final daysInDisplayMonth = _getDaysInMonth(displayMonth, displayYear);
+
     final Map<int, Map<int, int>> transaksiByDate = {};
     for (final row in result) {
       final kuponId = row['kupon_key'] as int;
@@ -137,13 +152,13 @@ class ExportService {
       final totalLiter = ((row['total_liter'] as num?)?.toInt() ?? 0);
 
       // Tentukan column offset berdasarkan bulan
-      // Bulan current: col 8-39 (offset 1-31 dari base 7)
-      // Bulan next: col 40-71 (offset 33-63 dari base 7)
+      // Bulan pertama: offset 1-31
+      // Bulan kedua: offset 32+ (daysInDisplayMonth + dayOfMonth)
       int columnOffset;
-      if (year == currentYear && month == currentMonth) {
+      if (year == displayYear && month == displayMonth) {
         columnOffset = dayOfMonth; // 1-31
-      } else if (year == nextYear && month == nextMonth) {
-        columnOffset = 32 + dayOfMonth; // 33-63
+      } else if (year == displayNextYear && month == displayNextMonth) {
+        columnOffset = daysInDisplayMonth + dayOfMonth; // 32+ untuk bulan 2
       } else {
         continue; // Skip transaksi di luar 2 bulan yang ditampilkan
       }
@@ -402,8 +417,6 @@ class ExportService {
       }
       return false;
     } catch (e, stackTrace) {
-      print('ERROR in exportDataKuponWithDaily: $e');
-      print('StackTrace: $stackTrace');
       return false;
     }
   }
@@ -449,10 +462,6 @@ class ExportService {
         if (daysDifference > 60) {
           // Restrict ke 2 bulan dari start date
           effectiveEndDate = filterTanggalMulai.add(const Duration(days: 59));
-          // Show warning (opsional, bisa log)
-          print(
-            'WARNING: Range > 2 bulan. Restricting to 2 months dari ${filterTanggalMulai.toIso8601String().split('T')[0]}',
-          );
         }
       }
 
@@ -800,10 +809,6 @@ class ExportService {
         if (daysDifference > 60) {
           // Restrict ke 2 bulan dari start date
           effectiveEndDate = filterTanggalMulai.add(const Duration(days: 59));
-          // Show warning (opsional, bisa log)
-          print(
-            'WARNING: Range > 2 bulan. Restricting to 2 months dari ${filterTanggalMulai.toIso8601String().split('T')[0]}',
-          );
         }
       }
 
@@ -923,7 +928,6 @@ class ExportService {
       }
       return false;
     } catch (e) {
-      print('ERROR in exportDataSatker: $e');
       return false;
     }
   }
@@ -1037,7 +1041,6 @@ class ExportService {
       }
       return false;
     } catch (e) {
-      print('ERROR in exportTransaksiRekap: $e');
       return false;
     }
   }
@@ -1278,6 +1281,13 @@ class ExportService {
     double grandTotalPemakaian = 0;
     double grandTotalSaldo = 0;
 
+    // Initialize grand total per tanggal SEBELUM satker loop
+    // Jadi bisa di-aggregate DALAM satker loop
+    Map<int, int> grandTotalPerTanggal = {};
+    for (int i = 1; i <= (daysInMonth1 + daysInMonth2); i++) {
+      grandTotalPerTanggal[i] = 0;
+    }
+
     // DATA SATKER (sorted, CADANGAN paling bawah)
     for (final satker in sortedSatkerKeys) {
       final kuponList = satkerMap[satker]!;
@@ -1390,6 +1400,11 @@ class ExportService {
             totalDay1 += transaksiByDate[kuponId]![day] ?? 0;
           }
         }
+
+        // PENTING: Aggregate ke grand total per tanggal
+        grandTotalPerTanggal[day] =
+            (grandTotalPerTanggal[day] ?? 0) + totalDay1;
+
         final cell1 = sheet.cell(
           CellIndex.indexByColumnRow(
             columnIndex: colIndex1,
@@ -1434,6 +1449,12 @@ class ExportService {
             totalDay2 += transaksiByDate[kuponId]![daysInMonth1 + day] ?? 0;
           }
         }
+
+        // PENTING: Aggregate ke grand total per tanggal dengan offset yang benar
+        final dayOffset = daysInMonth1 + day;
+        grandTotalPerTanggal[dayOffset] =
+            (grandTotalPerTanggal[dayOffset] ?? 0) + totalDay2;
+
         final cell2 = sheet.cell(
           CellIndex.indexByColumnRow(
             columnIndex: colIndex2,
@@ -1553,32 +1574,8 @@ class ExportService {
     );
 
     // Grand Total untuk kolom tanggal (pemakaian per hari)
-    Map<int, double> grandTotalPerTanggal = {};
-
-    // Bulan 1
-    for (int day = 1; day <= daysInMonth1; day++) {
-      for (final kuponId in kupons.map((k) => k.kuponId)) {
-        if (transaksiByDate.containsKey(kuponId) &&
-            transaksiByDate[kuponId]!.containsKey(day)) {
-          grandTotalPerTanggal[day] =
-              (grandTotalPerTanggal[day] ?? 0) +
-              (transaksiByDate[kuponId]![day] ?? 0);
-        }
-      }
-    }
-
-    // Bulan 2
-    for (int day = 1; day <= daysInMonth2; day++) {
-      for (final kuponId in kupons.map((k) => k.kuponId)) {
-        final dayOffset = daysInMonth1 + day;
-        if (transaksiByDate.containsKey(kuponId) &&
-            transaksiByDate[kuponId]!.containsKey(dayOffset)) {
-          grandTotalPerTanggal[dayOffset] =
-              (grandTotalPerTanggal[dayOffset] ?? 0) +
-              (transaksiByDate[kuponId]![dayOffset] ?? 0);
-        }
-      }
-    }
+    // grandTotalPerTanggal sudah ter-aggregate dari satker loop di atas
+    // Aggregation dilakukan saat satker loop, per hari untuk setiap satker
 
     // Isi kolom tanggal grand total
     // Bulan 1
@@ -4199,8 +4196,13 @@ class ExportService {
       filterTanggalMulai: filterTanggalMulai,
     );
 
-    // Get hari dalam bulan
+    // Get bulan kedua dan tahunnya
+    final month2 = month1 == 12 ? 1 : month1 + 1;
+    final year2 = month1 == 12 ? year1 + 1 : year1;
+
+    // Get hari dalam bulan untuk kedua bulan
     final daysInMonth1 = _getDaysInMonth(month1, year1);
+    final daysInMonth2 = _getDaysInMonth(month2, year2);
 
     // Month names untuk header
     final monthNames = [
@@ -4260,6 +4262,9 @@ class ExportService {
     // TABEL 1: PERTAMAX (jenisBbmId = 1)
     int currentRow = 0;
 
+    // Calculate month2 start column
+    final month2StartCol = 5 + daysInMonth1;
+
     // Title PX
     sheet
         .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow))
@@ -4279,7 +4284,7 @@ class ExportService {
     sheet.merge(
       CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow),
       CellIndex.indexByColumnRow(
-        columnIndex: 4 + daysInMonth1,
+        columnIndex: month2StartCol + daysInMonth2 - 1,
         rowIndex: currentRow,
       ),
     );
@@ -4312,7 +4317,7 @@ class ExportService {
       }
     }
 
-    // Header bulan PX
+    // Header bulan PX - Bulan 1
     sheet
         .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: currentRow))
         .value = TextCellValue(
@@ -4335,12 +4340,71 @@ class ExportService {
         rowIndex: currentRow,
       ),
     );
+
+    // Header bulan PX - Bulan 2
+    sheet
+        .cell(
+          CellIndex.indexByColumnRow(
+            columnIndex: month2StartCol,
+            rowIndex: currentRow,
+          ),
+        )
+        .value = TextCellValue(
+      '${monthNames[month2]} $year2',
+    );
+    sheet
+        .cell(
+          CellIndex.indexByColumnRow(
+            columnIndex: month2StartCol,
+            rowIndex: currentRow,
+          ),
+        )
+        .cellStyle = CellStyle(
+      bold: true,
+      fontSize: 11,
+      fontColorHex: ExcelColor.white,
+      backgroundColorHex: ExcelColor.green600,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+    );
+    sheet.merge(
+      CellIndex.indexByColumnRow(
+        columnIndex: month2StartCol,
+        rowIndex: currentRow,
+      ),
+      CellIndex.indexByColumnRow(
+        columnIndex: month2StartCol + daysInMonth2 - 1,
+        rowIndex: currentRow,
+      ),
+    );
     currentRow++;
 
-    // Tanggal header untuk PX
+    // Tanggal header untuk PX - Bulan 1
     for (int day = 1; day <= daysInMonth1; day++) {
       final cell = sheet.cell(
         CellIndex.indexByColumnRow(columnIndex: 4 + day, rowIndex: currentRow),
+      );
+      cell.value = IntCellValue(day);
+      cell.cellStyle = CellStyle(
+        bold: true,
+        fontSize: 10,
+        backgroundColorHex: ExcelColor.green100,
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+    }
+
+    // Tanggal header untuk PX - Bulan 2
+    for (int day = 1; day <= daysInMonth2; day++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(
+          columnIndex: month2StartCol + day - 1,
+          rowIndex: currentRow,
+        ),
       );
       cell.value = IntCellValue(day);
       cell.cellStyle = CellStyle(
@@ -4360,6 +4424,7 @@ class ExportService {
     // Data PX
     int noPX = 1;
     double gtKuotaPX = 0, gtPemakaiPX = 0, gtSaldoPX = 0;
+    final grandTotalPerTanggalPX = <int, int>{};
     for (final satker in sortedSatkerKeys) {
       final kuponListPX = satkerMap[satker]?[1] ?? [];
       if (kuponListPX.isEmpty) continue;
@@ -4377,6 +4442,36 @@ class ExportService {
       gtKuotaPX += totalKuota;
       gtPemakaiPX += totalPemakaian;
       gtSaldoPX += totalSisa;
+
+      // Get kupon IDs for this satker
+      final kuponIds = kuponListPX.map((k) => k.kuponId).toList();
+
+      // Aggregate daily totals for GRAND TOTAL row - Bulan 1
+      for (int day = 1; day <= daysInMonth1; day++) {
+        int totalDay = 0;
+        for (final kuponId in kuponIds) {
+          if (transaksiByDate.containsKey(kuponId) &&
+              transaksiByDate[kuponId]!.containsKey(day)) {
+            totalDay += transaksiByDate[kuponId]![day] ?? 0;
+          }
+        }
+        grandTotalPerTanggalPX[day] =
+            (grandTotalPerTanggalPX[day] ?? 0) + totalDay;
+      }
+
+      // Aggregate daily totals for GRAND TOTAL row - Bulan 2
+      for (int day = 1; day <= daysInMonth2; day++) {
+        final dayOffset = daysInMonth1 + day;
+        int totalDay = 0;
+        for (final kuponId in kuponIds) {
+          if (transaksiByDate.containsKey(kuponId) &&
+              transaksiByDate[kuponId]!.containsKey(dayOffset)) {
+            totalDay += transaksiByDate[kuponId]![dayOffset] ?? 0;
+          }
+        }
+        grandTotalPerTanggalPX[dayOffset] =
+            (grandTotalPerTanggalPX[dayOffset] ?? 0) + totalDay;
+      }
 
       final isEvenRow = (currentRow % 2) == 0;
 
@@ -4455,8 +4550,7 @@ class ExportService {
         rightBorder: Border(borderStyle: BorderStyle.Thin),
       );
 
-      // Isi detail tanggal untuk setiap hari
-      final kuponIds = kuponListPX.map((k) => k.kuponId).toList();
+      // Isi detail tanggal untuk setiap hari - Bulan 1
       for (int day = 1; day <= daysInMonth1; day++) {
         int totalDay = 0;
         for (final kuponId in kuponIds) {
@@ -4468,6 +4562,36 @@ class ExportService {
         final cell = sheet.cell(
           CellIndex.indexByColumnRow(
             columnIndex: 4 + day,
+            rowIndex: currentRow,
+          ),
+        );
+        if (totalDay > 0) {
+          cell.value = IntCellValue(totalDay);
+        }
+        cell.cellStyle = CellStyle(
+          backgroundColorHex: isEvenRow ? ExcelColor.blue50 : ExcelColor.white,
+          horizontalAlign: HorizontalAlign.Right,
+          verticalAlign: VerticalAlign.Center,
+          bottomBorder: Border(borderStyle: BorderStyle.Thin),
+          topBorder: Border(borderStyle: BorderStyle.Thin),
+          leftBorder: Border(borderStyle: BorderStyle.Thin),
+          rightBorder: Border(borderStyle: BorderStyle.Thin),
+        );
+      }
+
+      // Isi detail tanggal untuk setiap hari - Bulan 2
+      for (int day = 1; day <= daysInMonth2; day++) {
+        final dayOffset = daysInMonth1 + day;
+        int totalDay = 0;
+        for (final kuponId in kuponIds) {
+          if (transaksiByDate.containsKey(kuponId) &&
+              transaksiByDate[kuponId]!.containsKey(dayOffset)) {
+            totalDay += transaksiByDate[kuponId]![dayOffset] ?? 0;
+          }
+        }
+        final cell = sheet.cell(
+          CellIndex.indexByColumnRow(
+            columnIndex: month2StartCol + day - 1,
             rowIndex: currentRow,
           ),
         );
@@ -4569,6 +4693,58 @@ class ExportService {
       rightBorder: Border(borderStyle: BorderStyle.Medium),
     );
 
+    // Grand Total daily values PX - Bulan 1
+    for (int day = 1; day <= daysInMonth1; day++) {
+      final gtDayCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 4 + day, rowIndex: currentRow),
+      );
+      final dayTotal = grandTotalPerTanggalPX[day] ?? 0;
+      if (dayTotal > 0) {
+        gtDayCell.value = IntCellValue(dayTotal);
+      }
+      gtDayCell.cellStyle = CellStyle(
+        bold: true,
+        backgroundColorHex: dayTotal > 0
+            ? ExcelColor.yellow600
+            : ExcelColor.blue700,
+        fontColorHex: dayTotal > 0 ? ExcelColor.black : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Right,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Medium),
+        topBorder: Border(borderStyle: BorderStyle.Medium),
+        leftBorder: Border(borderStyle: BorderStyle.Medium),
+        rightBorder: Border(borderStyle: BorderStyle.Medium),
+      );
+    }
+
+    // Grand Total daily values PX - Bulan 2
+    for (int day = 1; day <= daysInMonth2; day++) {
+      final dayOffset = daysInMonth1 + day;
+      final gtDayCell = sheet.cell(
+        CellIndex.indexByColumnRow(
+          columnIndex: month2StartCol + day - 1,
+          rowIndex: currentRow,
+        ),
+      );
+      final dayTotal = grandTotalPerTanggalPX[dayOffset] ?? 0;
+      if (dayTotal > 0) {
+        gtDayCell.value = IntCellValue(dayTotal);
+      }
+      gtDayCell.cellStyle = CellStyle(
+        bold: true,
+        backgroundColorHex: dayTotal > 0
+            ? ExcelColor.yellow600
+            : ExcelColor.blue700,
+        fontColorHex: dayTotal > 0 ? ExcelColor.black : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Right,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Medium),
+        topBorder: Border(borderStyle: BorderStyle.Medium),
+        leftBorder: Border(borderStyle: BorderStyle.Medium),
+        rightBorder: Border(borderStyle: BorderStyle.Medium),
+      );
+    }
+
     currentRow += 3; // Space between tables
 
     // TABEL 2: PERTAMINA DEX (jenisBbmId = 2)
@@ -4591,7 +4767,7 @@ class ExportService {
     sheet.merge(
       CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow),
       CellIndex.indexByColumnRow(
-        columnIndex: 4 + daysInMonth1,
+        columnIndex: month2StartCol + daysInMonth2 - 1,
         rowIndex: currentRow,
       ),
     );
@@ -4623,7 +4799,7 @@ class ExportService {
       }
     }
 
-    // Header bulan DX
+    // Header bulan DX - Bulan 1
     sheet
         .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: currentRow))
         .value = TextCellValue(
@@ -4646,12 +4822,71 @@ class ExportService {
         rowIndex: currentRow,
       ),
     );
+
+    // Header bulan DX - Bulan 2
+    sheet
+        .cell(
+          CellIndex.indexByColumnRow(
+            columnIndex: month2StartCol,
+            rowIndex: currentRow,
+          ),
+        )
+        .value = TextCellValue(
+      '${monthNames[month2]} $year2',
+    );
+    sheet
+        .cell(
+          CellIndex.indexByColumnRow(
+            columnIndex: month2StartCol,
+            rowIndex: currentRow,
+          ),
+        )
+        .cellStyle = CellStyle(
+      bold: true,
+      fontSize: 11,
+      fontColorHex: ExcelColor.white,
+      backgroundColorHex: ExcelColor.orange600,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+    );
+    sheet.merge(
+      CellIndex.indexByColumnRow(
+        columnIndex: month2StartCol,
+        rowIndex: currentRow,
+      ),
+      CellIndex.indexByColumnRow(
+        columnIndex: month2StartCol + daysInMonth2 - 1,
+        rowIndex: currentRow,
+      ),
+    );
     currentRow++;
 
-    // Tanggal header untuk DX
+    // Tanggal header untuk DX - Bulan 1
     for (int day = 1; day <= daysInMonth1; day++) {
       final cell = sheet.cell(
         CellIndex.indexByColumnRow(columnIndex: 4 + day, rowIndex: currentRow),
+      );
+      cell.value = IntCellValue(day);
+      cell.cellStyle = CellStyle(
+        bold: true,
+        fontSize: 10,
+        backgroundColorHex: ExcelColor.orange100,
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Thin),
+        rightBorder: Border(borderStyle: BorderStyle.Thin),
+      );
+    }
+
+    // Tanggal header untuk DX - Bulan 2
+    for (int day = 1; day <= daysInMonth2; day++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(
+          columnIndex: month2StartCol + day - 1,
+          rowIndex: currentRow,
+        ),
       );
       cell.value = IntCellValue(day);
       cell.cellStyle = CellStyle(
@@ -4671,6 +4906,7 @@ class ExportService {
     // Data DX
     int noDX = 1;
     double gtKuotaDX = 0, gtPemakaiDX = 0, gtSaldoDX = 0;
+    final grandTotalPerTanggalDX = <int, int>{};
     for (final satker in sortedSatkerKeys) {
       final kuponListDX = satkerMap[satker]?[2] ?? [];
       if (kuponListDX.isEmpty) continue;
@@ -4688,6 +4924,36 @@ class ExportService {
       gtKuotaDX += totalKuota;
       gtPemakaiDX += totalPemakaian;
       gtSaldoDX += totalSisa;
+
+      // Get kupon IDs for this satker
+      final kuponIds = kuponListDX.map((k) => k.kuponId).toList();
+
+      // Aggregate daily totals for GRAND TOTAL row - Bulan 1
+      for (int day = 1; day <= daysInMonth1; day++) {
+        int totalDay = 0;
+        for (final kuponId in kuponIds) {
+          if (transaksiByDate.containsKey(kuponId) &&
+              transaksiByDate[kuponId]!.containsKey(day)) {
+            totalDay += transaksiByDate[kuponId]![day] ?? 0;
+          }
+        }
+        grandTotalPerTanggalDX[day] =
+            (grandTotalPerTanggalDX[day] ?? 0) + totalDay;
+      }
+
+      // Aggregate daily totals for GRAND TOTAL row - Bulan 2
+      for (int day = 1; day <= daysInMonth2; day++) {
+        final dayOffset = daysInMonth1 + day;
+        int totalDay = 0;
+        for (final kuponId in kuponIds) {
+          if (transaksiByDate.containsKey(kuponId) &&
+              transaksiByDate[kuponId]!.containsKey(dayOffset)) {
+            totalDay += transaksiByDate[kuponId]![dayOffset] ?? 0;
+          }
+        }
+        grandTotalPerTanggalDX[dayOffset] =
+            (grandTotalPerTanggalDX[dayOffset] ?? 0) + totalDay;
+      }
 
       final isEvenRow = (currentRow % 2) == 0;
 
@@ -4766,8 +5032,7 @@ class ExportService {
         rightBorder: Border(borderStyle: BorderStyle.Thin),
       );
 
-      // Isi detail tanggal untuk setiap hari
-      final kuponIds = kuponListDX.map((k) => k.kuponId).toList();
+      // Isi detail tanggal untuk setiap hari - Bulan 1
       for (int day = 1; day <= daysInMonth1; day++) {
         int totalDay = 0;
         for (final kuponId in kuponIds) {
@@ -4779,6 +5044,36 @@ class ExportService {
         final cell = sheet.cell(
           CellIndex.indexByColumnRow(
             columnIndex: 4 + day,
+            rowIndex: currentRow,
+          ),
+        );
+        if (totalDay > 0) {
+          cell.value = IntCellValue(totalDay);
+        }
+        cell.cellStyle = CellStyle(
+          backgroundColorHex: isEvenRow ? ExcelColor.red50 : ExcelColor.white,
+          horizontalAlign: HorizontalAlign.Right,
+          verticalAlign: VerticalAlign.Center,
+          bottomBorder: Border(borderStyle: BorderStyle.Thin),
+          topBorder: Border(borderStyle: BorderStyle.Thin),
+          leftBorder: Border(borderStyle: BorderStyle.Thin),
+          rightBorder: Border(borderStyle: BorderStyle.Thin),
+        );
+      }
+
+      // Isi detail tanggal untuk setiap hari - Bulan 2
+      for (int day = 1; day <= daysInMonth2; day++) {
+        final dayOffset = daysInMonth1 + day;
+        int totalDay = 0;
+        for (final kuponId in kuponIds) {
+          if (transaksiByDate.containsKey(kuponId) &&
+              transaksiByDate[kuponId]!.containsKey(dayOffset)) {
+            totalDay += transaksiByDate[kuponId]![dayOffset] ?? 0;
+          }
+        }
+        final cell = sheet.cell(
+          CellIndex.indexByColumnRow(
+            columnIndex: month2StartCol + day - 1,
             rowIndex: currentRow,
           ),
         );
@@ -4879,5 +5174,57 @@ class ExportService {
       leftBorder: Border(borderStyle: BorderStyle.Medium),
       rightBorder: Border(borderStyle: BorderStyle.Medium),
     );
+
+    // Grand Total daily values DX - Bulan 1
+    for (int day = 1; day <= daysInMonth1; day++) {
+      final gtDayCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 4 + day, rowIndex: currentRow),
+      );
+      final dayTotal = grandTotalPerTanggalDX[day] ?? 0;
+      if (dayTotal > 0) {
+        gtDayCell.value = IntCellValue(dayTotal);
+      }
+      gtDayCell.cellStyle = CellStyle(
+        bold: true,
+        backgroundColorHex: dayTotal > 0
+            ? ExcelColor.yellow600
+            : ExcelColor.red700,
+        fontColorHex: dayTotal > 0 ? ExcelColor.black : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Right,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Medium),
+        topBorder: Border(borderStyle: BorderStyle.Medium),
+        leftBorder: Border(borderStyle: BorderStyle.Medium),
+        rightBorder: Border(borderStyle: BorderStyle.Medium),
+      );
+    }
+
+    // Grand Total daily values DX - Bulan 2
+    for (int day = 1; day <= daysInMonth2; day++) {
+      final dayOffset = daysInMonth1 + day;
+      final gtDayCell = sheet.cell(
+        CellIndex.indexByColumnRow(
+          columnIndex: month2StartCol + day - 1,
+          rowIndex: currentRow,
+        ),
+      );
+      final dayTotal = grandTotalPerTanggalDX[dayOffset] ?? 0;
+      if (dayTotal > 0) {
+        gtDayCell.value = IntCellValue(dayTotal);
+      }
+      gtDayCell.cellStyle = CellStyle(
+        bold: true,
+        backgroundColorHex: dayTotal > 0
+            ? ExcelColor.yellow600
+            : ExcelColor.red700,
+        fontColorHex: dayTotal > 0 ? ExcelColor.black : ExcelColor.white,
+        horizontalAlign: HorizontalAlign.Right,
+        verticalAlign: VerticalAlign.Center,
+        bottomBorder: Border(borderStyle: BorderStyle.Medium),
+        topBorder: Border(borderStyle: BorderStyle.Medium),
+        leftBorder: Border(borderStyle: BorderStyle.Medium),
+        rightBorder: Border(borderStyle: BorderStyle.Medium),
+      );
+    }
   }
 }

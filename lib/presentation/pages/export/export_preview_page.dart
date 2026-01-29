@@ -55,7 +55,16 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
   @override
   void initState() {
     super.initState();
-    _prepareData();
+
+    // Initialize dengan empty lists DULU sebelum async operation
+    // Jadi build() tidak akan error jika async belum selesai
+    ranPertamax = [];
+    dukPertamax = [];
+    ranDex = [];
+    dukDex = [];
+    pertamaxKupons = [];
+    dexKupons = [];
+
     _tabController = TabController(
       length: widget.exportType == 'satker'
           ? 5 // 5 sheet: RAN.PX, DUK.PX, RAN.DX, DUK.DX, Rekap Bulanan
@@ -68,16 +77,36 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
     if (widget.exportType == 'kupon' || widget.exportType == 'minus') {
       _preloadVehicleData();
     }
+
+    // Prepare data async dengan date range filtering
+    _prepareDataAsync();
   }
 
-  void _prepareData() {
+  /// Prepare data dengan async support untuk date range filtering
+  Future<void> _prepareDataAsync() async {
+    await _prepareData();
+    if (mounted) {
+      setState(() {}); // Rebuild UI setelah data siap
+    }
+  }
+
+  Future<void> _prepareData() async {
     // Inisialisasi pertamaxKupons dan dexKupons untuk semua mode
     pertamaxKupons = [];
     dexKupons = [];
 
+    // Jika ada date range filter, filter kupon berdasarkan transaksi di range tersebut
+    List<KuponEntity> kuponsTerfilter = widget.allKupons;
+    if (widget.filterTanggalMulai != null &&
+        widget.filterTanggalSelesai != null) {
+      kuponsTerfilter = await _filterKuponByDateRangeTransaksi(
+        widget.allKupons,
+      );
+    }
+
     if (widget.exportType == 'satker' || widget.exportType == 'kupon') {
       // Filter untuk 4-5 sheet - hanya kupon yang ada transaksi (kuotaSisa < kuotaAwal)
-      ranPertamax = widget.allKupons
+      ranPertamax = kuponsTerfilter
           .where(
             (k) =>
                 k.jenisKuponId == 1 &&
@@ -85,7 +114,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                 k.kuotaSisa < k.kuotaAwal,
           )
           .toList();
-      dukPertamax = widget.allKupons
+      dukPertamax = kuponsTerfilter
           .where(
             (k) =>
                 k.jenisKuponId == 2 &&
@@ -93,7 +122,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                 k.kuotaSisa < k.kuotaAwal,
           )
           .toList();
-      ranDex = widget.allKupons
+      ranDex = kuponsTerfilter
           .where(
             (k) =>
                 k.jenisKuponId == 1 &&
@@ -101,7 +130,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                 k.kuotaSisa < k.kuotaAwal,
           )
           .toList();
-      dukDex = widget.allKupons
+      dukDex = kuponsTerfilter
           .where(
             (k) =>
                 k.jenisKuponId == 2 &&
@@ -109,24 +138,29 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
                 k.kuotaSisa < k.kuotaAwal,
           )
           .toList();
+
+      // PENTING: Populate pertamaxKupons dan dexKupons untuk satker mode
+      // Jadi _getTotalKupon() bisa hitung dengan benar
+      pertamaxKupons = [...ranPertamax, ...dukPertamax];
+      dexKupons = [...ranDex, ...dukDex];
     } else if (widget.exportType == 'minus') {
       // Filter untuk 4 sheet - hanya kupon minus (kuotaSisa < 0 = negatif)
-      ranPertamax = widget.allKupons
+      ranPertamax = kuponsTerfilter
           .where(
             (k) => k.jenisKuponId == 1 && k.jenisBbmId == 1 && k.kuotaSisa < 0,
           )
           .toList();
-      dukPertamax = widget.allKupons
+      dukPertamax = kuponsTerfilter
           .where(
             (k) => k.jenisKuponId == 2 && k.jenisBbmId == 1 && k.kuotaSisa < 0,
           )
           .toList();
-      ranDex = widget.allKupons
+      ranDex = kuponsTerfilter
           .where(
             (k) => k.jenisKuponId == 1 && k.jenisBbmId == 2 && k.kuotaSisa < 0,
           )
           .toList();
-      dukDex = widget.allKupons
+      dukDex = kuponsTerfilter
           .where(
             (k) => k.jenisKuponId == 2 && k.jenisBbmId == 2 && k.kuotaSisa < 0,
           )
@@ -137,6 +171,49 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
       dukPertamax = [];
       ranDex = [];
       dukDex = [];
+    }
+  }
+
+  /// Filter kupon berdasarkan apakah punya transaksi di date range
+  /// Query database untuk check, bukan hanya kuotaSisa < kuotaAwal
+  Future<List<KuponEntity>> _filterKuponByDateRangeTransaksi(
+    List<KuponEntity> allKupons,
+  ) async {
+    try {
+      final dbDatasource = getIt<DatabaseDatasource>();
+      final db = await dbDatasource.database;
+
+      if (allKupons.isEmpty) return [];
+
+      final kuponIds = allKupons.map((k) => k.kuponId).toList();
+      final startDate = widget.filterTanggalMulai!.toIso8601String().split(
+        'T',
+      )[0];
+      final endDate = widget.filterTanggalSelesai!.toIso8601String().split(
+        'T',
+      )[0];
+
+      // Query untuk cek kupon yang punya transaksi di date range
+      final result = await db.rawQuery('''
+        SELECT DISTINCT t.kupon_key
+        FROM fact_transaksi t
+        WHERE t.kupon_key IN (${kuponIds.join(',')})
+          AND t.is_deleted = 0
+          AND date(t.tanggal_transaksi) BETWEEN date('$startDate') AND date('$endDate')
+      ''');
+
+      // Convert ke set of kupon_key yang punya transaksi
+      final kuponKeysWithTransaksi = result.map((row) {
+        return (row['kupon_key'] as int?);
+      }).toSet();
+
+      // Filter hanya kupon yang punya transaksi di range
+      return allKupons
+          .where((k) => kuponKeysWithTransaksi.contains(k.kuponId))
+          .toList();
+    } catch (e) {
+      // Fallback: return all kupon jika query error
+      return allKupons;
     }
   }
 
@@ -214,7 +291,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
         if (nopol != null) _nopolCache[id!] = nopol;
         if (jenisRanmor != null) _jenisRanmorCache[id!] = jenisRanmor;
       } catch (e) {
-        debugPrint('Error preloading vehicle data for ID $id: $e');
+        // Vehicle preload failed, skip
       }
     }
 

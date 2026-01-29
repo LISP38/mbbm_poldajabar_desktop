@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:kupon_bbm_app/domain/entities/transaksi_entity.dart';
 import 'package:kupon_bbm_app/domain/repositories/transaksi_repository_impl.dart';
+import 'package:kupon_bbm_app/data/services/database_change_listener.dart';
+import 'dart:async';
 
 class TransaksiProvider extends ChangeNotifier {
   final TransaksiRepositoryImpl _transaksiRepository;
@@ -14,7 +16,39 @@ class TransaksiProvider extends ChangeNotifier {
   int? filterTahun;
   String? filterSatker;
 
-  TransaksiProvider(this._transaksiRepository);
+  // --- Real-time listener subscription ---
+  StreamSubscription<DatabaseChange>? _databaseChangeSubscription;
+
+  TransaksiProvider(this._transaksiRepository) {
+    // Initialize real-time listener untuk transaksi
+    _initializeRealtimeListener();
+  }
+
+  // --- Real-time Database Change Listener ---
+  void _initializeRealtimeListener() {
+    final listener = DatabaseChangeListener();
+    _databaseChangeSubscription = listener.transaksiChangeStream.listen((
+      change,
+    ) {
+      print('[TransaksiProvider] Received database change: ${change.type}');
+
+      // Auto-refresh filter options ketika ada transaksi change
+      if (change.type == DatabaseChangeType.transaksiAdded ||
+          change.type == DatabaseChangeType.transaksiUpdated ||
+          change.type == DatabaseChangeType.transaksiDeleted) {
+        print(
+          '[TransaksiProvider] Transaksi changed, refreshing filter options...',
+        );
+        loadFilterOptions();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _databaseChangeSubscription?.cancel();
+    super.dispose();
+  }
 
   // --- Filter dropdown options (from dim_kupon and dim_date)
   List<String> daftarTahun = [];

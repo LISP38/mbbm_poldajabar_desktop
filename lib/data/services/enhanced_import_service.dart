@@ -5,6 +5,7 @@ import '../datasources/database_datasource.dart';
 import '../validators/enhanced_import_validator.dart';
 import '../../domain/repositories/kupon_repository.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'database_change_listener.dart';
 
 enum ImportType { validateOnly, dryRun, validateAndSave }
 
@@ -167,7 +168,7 @@ class EnhancedImportService {
       // Total duplicates = dari Excel parsing + dari database insert
       final totalDuplicates = duplicateCount + (result['skipped'] ?? 0);
 
-      return ImportResult(
+      final importResult = ImportResult(
         success: result['error'] == 0,
         successCount: result['success'] ?? 0,
         errorCount: result['error'] ?? 0,
@@ -177,6 +178,17 @@ class EnhancedImportService {
             importErrors, // Only include import errors, not validation warnings
         metadata: allMetadata,
       );
+
+      // Notify listeners about import completion for real-time update
+      if (importResult.successCount > 0) {
+        final listener = DatabaseChangeListener();
+        listener.notifyBulkImport(importResult);
+        print(
+          '[EnhancedImportService] Notified listeners: ${importResult.successCount} kupons imported',
+        );
+      }
+
+      return importResult;
     } catch (e) {
       return ImportResult(
         success: false,
