@@ -587,9 +587,11 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
         );
       } else {
         // Export Kupon Minus: 4 sheet
-        success = await ExportService.exportTransaksiRekap(
+        success = await ExportService.exportKuponMinus(
           allKupons: widget.allKupons,
           jenisBBMMap: widget.jenisBBMMap,
+          getNopolByKendaraanId: widget.getNopolByKendaraanId!,
+          getJenisRanmorByKendaraanId: widget.getJenisRanmorByKendaraanId!,
           dbDatasource: dbDatasource,
           filterBulan: widget.filterBulan,
           filterTahun: widget.filterTahun,

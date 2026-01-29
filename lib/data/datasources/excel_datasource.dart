@@ -49,9 +49,6 @@ class ExcelDatasource {
     return romanValues[roman.trim().toUpperCase()];
   }
 
-  // ========================================
-  // PERBAIKAN: Unique Key dengan BBM ID
-  // ========================================
   String _generateUniqueKey(KuponModel kupon) {
     // CRITICAL: Tambahkan jenisBbmId untuk membedakan Pertamax vs Dex
     // Format: nomorKupon_jenisKuponId_jenisBbmId_satkerId_bulan_tahun

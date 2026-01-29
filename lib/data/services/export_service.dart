@@ -1045,6 +1045,193 @@ class ExportService {
     }
   }
 
+  /// Filter kupon berdasarkan apakah punya transaksi di date range
+  /// Ini untuk memastikan export hanya menampilkan kupon yang punya transaksi di range
+  static Future<List<KuponEntity>> _filterKuponByDateRangeTransaksiForExport(
+    DatabaseDatasource dbDatasource,
+    List<KuponEntity> allKupons,
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    try {
+      final db = await dbDatasource.database;
+
+      if (allKupons.isEmpty) return [];
+
+      final kuponIds = allKupons.map((k) => k.kuponId).toList();
+      final start = startDate.toIso8601String().split('T')[0];
+      final end = endDate.toIso8601String().split('T')[0];
+
+      // Query untuk cek kupon yang punya transaksi di date range
+      final result = await db.rawQuery('''
+        SELECT DISTINCT t.kupon_key
+        FROM fact_transaksi t
+        WHERE t.kupon_key IN (${kuponIds.join(',')})
+          AND t.is_deleted = 0
+          AND date(t.tanggal_transaksi) BETWEEN date('$start') AND date('$end')
+      ''');
+
+      // Convert ke set of kupon_key yang punya transaksi
+      final kuponKeysWithTransaksi = result.map((row) {
+        return (row['kupon_key'] as int?);
+      }).toSet();
+
+      // Filter hanya kupon yang punya transaksi di range
+      return allKupons
+          .where((k) => kuponKeysWithTransaksi.contains(k.kuponId))
+          .toList();
+    } catch (e) {
+      // Fallback: return all kupons jika query error
+      return allKupons;
+    }
+  }
+
+  // Export Kupon Minus (4 sheets: RAN.PX, DUK.PX, RAN.DX, DUK.DX)
+  // Khusus untuk export kupon yang memiliki saldo negatif (minus)
+  // Menampilkan per KUPON individual dengan detail tanggal transaksi
+  static Future<bool> exportKuponMinus({
+    required List<KuponEntity> allKupons,
+    required Map<int, String> jenisBBMMap,
+    required Future<String?> Function(int?) getNopolByKendaraanId,
+    required Future<String?> Function(int?) getJenisRanmorByKendaraanId,
+    required DatabaseDatasource dbDatasource,
+    int? filterBulan,
+    int? filterTahun,
+    DateTime? filterTanggalMulai,
+    DateTime? filterTanggalSelesai,
+  }) async {
+    try {
+      final excel = Excel.createExcel();
+
+      // Buat sheets terlebih dahulu
+      excel['RAN.PX'];
+      excel['DUK.PX'];
+      excel['RAN.DX'];
+      excel['DUK.DX'];
+
+      // Hapus sheet default setelah membuat sheet baru
+      if (excel.sheets.containsKey('Sheet1')) {
+        excel.delete('Sheet1');
+      }
+
+      // Handle date range restriction: max 2 bulan
+      DateTime? effectiveStartDate = filterTanggalMulai;
+      DateTime? effectiveEndDate = filterTanggalSelesai;
+
+      if (filterTanggalMulai != null && filterTanggalSelesai != null) {
+        // Check if range > 2 bulan, if yes restrict ke 2 bulan pertama
+        final daysDifference = filterTanggalSelesai
+            .difference(filterTanggalMulai)
+            .inDays;
+        if (daysDifference > 60) {
+          // Restrict ke 2 bulan dari start date
+          effectiveEndDate = filterTanggalMulai.add(const Duration(days: 59));
+        }
+      }
+
+      // Filter kupon berdasarkan transaksi di date range (jika ada date filter)
+      List<KuponEntity> filteredKupons = allKupons;
+      if (effectiveStartDate != null && effectiveEndDate != null) {
+        filteredKupons = await _filterKuponByDateRangeTransaksiForExport(
+          dbDatasource,
+          allKupons,
+          effectiveStartDate,
+          effectiveEndDate,
+        );
+      }
+
+      // Filter HANYA kupon yang MINUS (kuotaSisa < 0)
+      final kuponMinus = filteredKupons
+          .where((k) => k.kuotaSisa < 0)
+          .toList();
+
+      // Filter berdasarkan jenis kupon dan BBM
+      final ranPertamax = kuponMinus
+          .where((k) => k.jenisKuponId == 1 && k.jenisBbmId == 1)
+          .toList();
+      final dukPertamax = kuponMinus
+          .where((k) => k.jenisKuponId == 2 && k.jenisBbmId == 1)
+          .toList();
+      final ranDex = kuponMinus
+          .where((k) => k.jenisKuponId == 1 && k.jenisBbmId == 2)
+          .toList();
+      final dukDex = kuponMinus
+          .where((k) => k.jenisKuponId == 2 && k.jenisBbmId == 2)
+          .toList();
+
+      // Buat sheets dengan detail tanggal transaksi (fillTransaksiData = true)
+      await _createRanjenSheet(
+        excel,
+        'RAN.PX',
+        ranPertamax,
+        getNopolByKendaraanId,
+        getJenisRanmorByKendaraanId,
+        dbDatasource,
+        true, // fillTransaksiData = true untuk menampilkan detail tanggal transaksi
+        filterBulan,
+        filterTahun,
+        effectiveStartDate,
+        effectiveEndDate,
+      );
+      await _createDukunganSheet(
+        excel,
+        'DUK.PX',
+        dukPertamax,
+        dbDatasource,
+        true, // fillTransaksiData = true
+        filterBulan,
+        filterTahun,
+        effectiveStartDate,
+        effectiveEndDate,
+      );
+      await _createRanjenSheet(
+        excel,
+        'RAN.DX',
+        ranDex,
+        getNopolByKendaraanId,
+        getJenisRanmorByKendaraanId,
+        dbDatasource,
+        true, // fillTransaksiData = true
+        filterBulan,
+        filterTahun,
+        effectiveStartDate,
+        effectiveEndDate,
+      );
+      await _createDukunganSheet(
+        excel,
+        'DUK.DX',
+        dukDex,
+        dbDatasource,
+        true, // fillTransaksiData = true
+        filterBulan,
+        filterTahun,
+        effectiveStartDate,
+        effectiveEndDate,
+      );
+
+      // Save file
+      final now = DateTime.now();
+      final timestamp =
+          '${now.day.toString().padLeft(2, '0')}${now.month.toString().padLeft(2, '0')}${now.year}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}';
+
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: 'Simpan Kupon Minus',
+        fileName: 'Kupon_Minus_$timestamp.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (result != null) {
+        final file = File(result);
+        await file.writeAsBytes(excel.encode()!);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
   // Buat sheet Transaksi Rekap per Satker dengan detail tanggal
   static Future<void> _createTransaksiRekapSheet(
     Excel excel,
@@ -2026,6 +2213,42 @@ class ExportService {
         );
 
         final literAmount = kuponTransaksi[i]; // i = tanggal (1-31)
+
+        if (literAmount != null && literAmount > 0) {
+          dateCell.value = IntCellValue(literAmount.toInt());
+          dateCell.cellStyle = CellStyle(
+            backgroundColorHex: ExcelColor.yellow100,
+            horizontalAlign: HorizontalAlign.Right,
+            verticalAlign: VerticalAlign.Center,
+            bottomBorder: Border(borderStyle: BorderStyle.Thin),
+            topBorder: Border(borderStyle: BorderStyle.Thin),
+            leftBorder: Border(borderStyle: BorderStyle.Thin),
+            rightBorder: Border(borderStyle: BorderStyle.Thin),
+          );
+        } else {
+          // Tidak ada transaksi
+          dateCell.value = TextCellValue('');
+          dateCell.cellStyle = CellStyle(
+            backgroundColorHex: ExcelColor.white,
+            horizontalAlign: HorizontalAlign.Center,
+            verticalAlign: VerticalAlign.Center,
+            bottomBorder: Border(borderStyle: BorderStyle.Thin),
+            topBorder: Border(borderStyle: BorderStyle.Thin),
+            leftBorder: Border(borderStyle: BorderStyle.Thin),
+            rightBorder: Border(borderStyle: BorderStyle.Thin),
+          );
+        }
+      }
+
+      // Kolom bulan 2: dari month2StartColRanjen sampai (month2StartColRanjen + daysInMonth2 - 1)
+      for (int i = 1; i <= daysInMonth2; i++) {
+        final col = month2StartColRanjen + i - 1;
+        final dateCell = sheet.cell(
+          CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row),
+        );
+
+        // Untuk bulan kedua, key di transaksiByDate adalah daysInMonth1 + i
+        final literAmount = kuponTransaksi[daysInMonth1 + i];
 
         if (literAmount != null && literAmount > 0) {
           dateCell.value = IntCellValue(literAmount.toInt());
