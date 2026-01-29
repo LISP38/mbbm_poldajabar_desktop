@@ -73,68 +73,118 @@ class _DashboardPageState extends State<DashboardPage>
     _tabController.addListener(_onTabChanged);
     _fetchKendaraanList();
     _fetchSatkerList();
+
     // Load dynamic filter options from DashboardProvider after first frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
+        if (!mounted) return;
+
         final provider = Provider.of<DashboardProvider>(context, listen: false);
-        provider.loadFilterOptions();
-        provider.fetchJenisBbm();
-      } catch (_) {
-        // Silently ignore - filter options loading failed
+
+        // Load semua dropdown options dulu (tanpa await, cukup queue-nya saja)
+        provider.loadFilterOptions(); // Bulan & Tahun
+        provider.fetchJenisBbm(); // BBM options
+        provider.fetchSatkers(); // Satker options
+        provider.fetchBulans(); // Bulans
+        provider.fetchTahuns(); // Tahuns
+
+        // PENTING: Set filter default saat page pertama load
+        // setFilter akan set _isRanjenMode = true dan fetch HANYA Ranjen data
+        // (tidak fetch Dukungan, untuk avoid race condition dengan _handleImportedData)
+        await provider.setFilter(
+          jenisKupon: '1', // Default ke Ranjen di tab pertama
+          jenisBBM: null,
+          satker: null,
+          nopol: null,
+          jenisRanmor: null,
+          bulanTerbit: null,
+          tahunTerbit: null,
+          nomorKupon: null,
+        );
+
+        // Setelah setFilter selesai, juga ensure Dukungan data di-fetch untuk dropdown
+        // Tapi gunakan preserveMode=true agar tidak mengubah _isRanjenMode (tetap true)
+        await provider.fetchDukunganKupons(
+          forceRefresh: true,
+          preserveMode: true,
+        );
+
+        // Ensure _isRanjenMode tetap true
+        provider.isRanjenMode = true;
+      } catch (e) {
+        if (mounted) {}
       }
     });
   }
 
   void _onTabChanged() {
-    if (_tabController.indexIsChanging) return;
+    // Skip first tab change during initialization (akan di-handle oleh initState)
+    if (_firstLoad) {
+      _firstLoad = false;
+      return;
+    }
 
-    // Terapkan filter default untuk tab yang aktif
+    // Reset semua filter saat switch tab (KECUALI jenisKupon)
+    // Ini memastikan tab Ranjen pure Ranjen dan tab Cadangan pure Cadangan
+    setState(() {
+      _nomorKuponController.clear();
+      _nopolController.clear();
+      _selectedSatker = null;
+      _selectedJenisBBM = null;
+      _selectedJenisRanmor = null;
+      _selectedBulan = null;
+      _selectedTahun = null;
+      _currentPageRanjen = 1;
+      _currentPageDukungan = 1;
+    });
+
     final defaultJenisKupon = _tabController.index == 0 ? '1' : '2';
     final provider = Provider.of<DashboardProvider>(context, listen: false);
 
-    // Set filter dengan mempertahankan filter yang sudah ada
-    // Convert selected jenisBBM name to ID if possible (case-insensitive)
-    String? jenisBbmParam;
-    if (_selectedJenisBBM != null && _selectedJenisBBM!.isNotEmpty) {
-      final selectedLower = _selectedJenisBBM!.toLowerCase();
-      final matches = provider.jenisBbmMap.entries
-          .where((e) => e.value.toLowerCase() == selectedLower)
-          .toList();
-      if (matches.isNotEmpty) jenisBbmParam = matches.first.key.toString();
-    }
+    // PENTING: Gunakan addPostFrameCallback untuk ensure UI frame selesai
+    // SEBELUM show SnackBar dan fetch data
+    // Ini mencegah race condition dan SnackBar tidak muncul
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
 
-    provider.setFilter(
-      jenisKupon: defaultJenisKupon,
-      jenisBBM: jenisBbmParam,
-      satker: _selectedSatker,
-      nopol: _nopolController.text.isNotEmpty ? _nopolController.text : null,
-      jenisRanmor: _selectedJenisRanmor,
-      bulanTerbit: _selectedBulan != null
-          ? int.tryParse(_selectedBulan!)
-          : null,
-      tahunTerbit: _selectedTahun != null
-          ? int.tryParse(_selectedTahun!)
-          : null,
-      nomorKupon: _nomorKuponController.text.isNotEmpty
-          ? _nomorKuponController.text
-          : null,
-    );
-
-    // Show loading indicator
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Row(
-          children: [
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-            SizedBox(width: 16),
-            Text('Memuat data...'),
-          ],
+      // Show loading indicator DULU
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+              SizedBox(width: 16),
+              Text('Memuat data...'),
+            ],
+          ),
+          duration: Duration(seconds: 1),
         ),
-        duration: Duration(seconds: 1),
-      ),
-    );
+      );
+
+      // Kemudian queue async fetch SETELAH SnackBar show
+      Future.microtask(() async {
+        if (!mounted) return;
+
+        try {
+          // Set filter hanya dengan jenisKupon saja (semua field lain kosong)
+          // Await agar data selesai ter-fetch sebelum UI rebuild
+          await provider.setFilter(
+            jenisKupon: defaultJenisKupon,
+            jenisBBM: null,
+            satker: null,
+            nopol: null,
+            jenisRanmor: null,
+            bulanTerbit: null,
+            tahunTerbit: null,
+            nomorKupon: null,
+          );
+        } catch (e) {
+          if (mounted) {}
+        }
+      });
+    });
   }
 
   @override
@@ -148,39 +198,8 @@ class _DashboardPageState extends State<DashboardPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_firstLoad) {
-      _firstLoad = false;
-
-      // Schedule the initial data fetch for the next frame
-      Future.microtask(() async {
-        if (!mounted) return;
-
-        final provider = Provider.of<DashboardProvider>(context, listen: false);
-        final masterDataProvider = Provider.of<MasterDataProvider>(
-          context,
-          listen: false,
-        );
-
-        // Set initial filters
-        provider.nomorKupon = null;
-        provider.satker = null;
-        provider.jenisBBM = null;
-        provider.jenisKupon = '1';
-        provider.nopol = null;
-        provider.jenisRanmor = null;
-        provider.bulanTerbit = null;
-        provider.tahunTerbit = null;
-
-        // Fetch initial data - BOTH Ranjen and Dukungan for complete totals
-        // Use await to ensure both are fetched sequentially
-        await provider.fetchRanjenKupons();
-        await provider.fetchDukunganKupons();
-        await provider
-            .fetchAllKuponsUnfiltered(); // Populate dropdown kupon list
-        provider.fetchSatkers();
-        masterDataProvider.fetchSatkers();
-      });
-    }
+    // Jangan double-fetch di sini, initState sudah handle semuanya via setFilter()
+    // didChangeDependencies sering dipanggil berkali-kali dan bisa cause race condition
   }
 
   Future<void> _fetchKendaraanList() async {
@@ -384,7 +403,7 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   /// Apply filter with current selection (called when dropdown changes)
-  void _applyFilterWithCurrentSelection() {
+  Future<void> _applyFilterWithCurrentSelection() async {
     final provider = Provider.of<DashboardProvider>(context, listen: false);
 
     // Convert selected jenisBBM name to ID using provider map (case-insensitive)
@@ -399,7 +418,7 @@ class _DashboardPageState extends State<DashboardPage>
 
     final defaultJenisKupon = _tabController.index == 0 ? '1' : '2';
 
-    provider.setFilter(
+    await provider.setFilter(
       jenisKupon: defaultJenisKupon,
       jenisBBM: jenisBbmParam,
       satker: _selectedSatker,
@@ -751,55 +770,64 @@ class _DashboardPageState extends State<DashboardPage>
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _selectedBulan ?? '',
-                        decoration: const InputDecoration(
-                          labelText: 'Bulan Terbit',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: [
-                          const DropdownMenuItem(
-                            value: '',
-                            child: Text('Semua'),
-                          ),
-                          ...provider.bulanTerbitList.map(
-                            (b) => DropdownMenuItem(
-                              value: b,
-                              child: Text(() {
-                                final num = int.tryParse(b);
-                                return num != null ? _getBulanName(num) : b;
-                              }()),
+                      child: Consumer<DashboardProvider>(
+                        builder: (context, prov, _) {
+                          return DropdownButtonFormField<String>(
+                            initialValue: _selectedBulan ?? '',
+                            decoration: const InputDecoration(
+                              labelText: 'Bulan Terbit',
+                              border: OutlineInputBorder(),
                             ),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          setState(() => _selectedBulan = value);
-                          // Auto-apply filter when bulan changes
-                          _applyFilterWithCurrentSelection();
+                            items: [
+                              const DropdownMenuItem(
+                                value: '',
+                                child: Text('Semua'),
+                              ),
+                              ...prov.bulanTerbitList.map(
+                                (b) => DropdownMenuItem(
+                                  value: b,
+                                  child: Text(() {
+                                    final num = int.tryParse(b);
+                                    return num != null ? _getBulanName(num) : b;
+                                  }()),
+                                ),
+                              ),
+                            ],
+                            onChanged: (value) async {
+                              setState(() => _selectedBulan = value);
+                              // Auto-apply filter when bulan changes - with await to ensure fetch completes
+                              await _applyFilterWithCurrentSelection();
+                            },
+                          );
                         },
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _selectedTahun ?? '',
-                        decoration: const InputDecoration(
-                          labelText: 'Tahun Terbit',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: [
-                          const DropdownMenuItem(
-                            value: '',
-                            child: Text('Semua'),
-                          ),
-                          ...provider.tahunTerbitList.map(
-                            (t) => DropdownMenuItem(value: t, child: Text(t)),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          setState(() => _selectedTahun = value);
-                          // Auto-apply filter when tahun changes
-                          _applyFilterWithCurrentSelection();
+                      child: Consumer<DashboardProvider>(
+                        builder: (context, prov, _) {
+                          return DropdownButtonFormField<String>(
+                            initialValue: _selectedTahun ?? '',
+                            decoration: const InputDecoration(
+                              labelText: 'Tahun Terbit',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: [
+                              const DropdownMenuItem(
+                                value: '',
+                                child: Text('Semua'),
+                              ),
+                              ...prov.tahunTerbitList.map(
+                                (t) =>
+                                    DropdownMenuItem(value: t, child: Text(t)),
+                              ),
+                            ],
+                            onChanged: (value) async {
+                              setState(() => _selectedTahun = value);
+                              // Auto-apply filter when tahun changes - with await to ensure fetch completes
+                              await _applyFilterWithCurrentSelection();
+                            },
+                          );
                         },
                       ),
                     ),
@@ -1053,10 +1081,10 @@ class _DashboardPageState extends State<DashboardPage>
                             ),
                           ),
                         ],
-                        onChanged: (value) {
+                        onChanged: (value) async {
                           setState(() => _selectedBulan = value);
-                          // Auto-apply filter when bulan changes
-                          _applyFilterWithCurrentSelection();
+                          // Auto-apply filter when bulan changes - with await to ensure fetch completes
+                          await _applyFilterWithCurrentSelection();
                         },
                       ),
                     ),
@@ -1077,10 +1105,10 @@ class _DashboardPageState extends State<DashboardPage>
                             (t) => DropdownMenuItem(value: t, child: Text(t)),
                           ),
                         ],
-                        onChanged: (value) {
+                        onChanged: (value) async {
                           setState(() => _selectedTahun = value);
-                          // Auto-apply filter when tahun changes
-                          _applyFilterWithCurrentSelection();
+                          // Auto-apply filter when tahun changes - with await to ensure fetch completes
+                          await _applyFilterWithCurrentSelection();
                         },
                       ),
                     ),

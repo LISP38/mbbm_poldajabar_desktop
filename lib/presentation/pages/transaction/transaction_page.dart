@@ -42,10 +42,7 @@ class _TransactionPageState extends State<TransactionPage>
 
   // Helper method untuk mendapatkan nama BBM
   String _getJenisBbmName(int jenisBbmId) {
-    final Map<int, String> jenisBBMMap = {
-      1: 'PERTAMAX',
-      2: 'PERTAMINA DEX',
-    };
+    final Map<int, String> jenisBBMMap = {1: 'PERTAMAX', 2: 'PERTAMINA DEX'};
     return jenisBBMMap[jenisBbmId] ?? 'Unknown';
   }
 
@@ -829,27 +826,6 @@ class _TransactionPageState extends State<TransactionPage>
       debugPrint('Error parsing date: $e');
     }
 
-    // Filter allKuponsForDropdown sesuai jenisBbm, jenisKuponId, dan validasi selisih bulan
-    final List<KuponEntity> kuponList = dashboardProvider.allKuponsForDropdown
-        .where(
-          (k) =>
-              k.jenisBbmId == jenisBbm &&
-              k.jenisKuponId == jenisKuponId &&
-              _isKuponValidForTransaction(
-                selectedDate.month,
-                selectedDate.year,
-                k.bulanTerbit,
-                k.tahunTerbit,
-              ),
-        )
-        .toList();
-
-    // Get unique periods (bulanTerbit) dari kupon yang tersedia
-    final uniquePeriods = <int>{};
-    for (var k in kuponList) {
-      uniquePeriods.add(k.bulanTerbit);
-    }
-    final periodList = uniquePeriods.toList()..sort();
     final Map<int, String> bulanNames = {
       1: 'Januari',
       2: 'Februari',
@@ -929,100 +905,135 @@ class _TransactionPageState extends State<TransactionPage>
                         },
                       ),
                       const SizedBox(height: 12),
-                      // Dropdown Periode Kupon
-                      DropdownButtonFormField<int>(
-                        value: selectedPeriod,
-                        decoration: InputDecoration(
-                          labelText: 'Periode Kupon',
-                          hintText: 'Pilih periode kupon',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        items: periodList.map((period) {
-                          return DropdownMenuItem(
-                            value: period,
-                            child: Text(
-                              '${bulanNames[period]} (Periode $period)',
-                            ),
+                      // Dropdown Periode Kupon - ambil dari bulanTerbitList di dashboard
+                      Consumer<DashboardProvider>(
+                        builder: (ctx, dashProv, _) {
+                          // Convert bulanTerbitList (List<String>) ke List<int> untuk periode
+                          final currentPeriodList =
+                              dashProv.bulanTerbitList.isEmpty
+                              ? <int>[]
+                              : dashProv.bulanTerbitList
+                                    .map((b) => int.tryParse(b) ?? 0)
+                                    .where((b) => b > 0)
+                                    .toList();
+
+                          debugPrint(
+                            '🔍 DEBUG Periode Dropdown: Periods from dashboard: $currentPeriodList',
                           );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            selectedPeriod = value;
-                            nomorKupon =
-                                null; // Reset nomor kupon saat periode berubah
-                          });
+
+                          return DropdownButtonFormField<int>(
+                            value: selectedPeriod,
+                            decoration: InputDecoration(
+                              labelText: 'Periode Kupon',
+                              hintText: 'Pilih periode kupon',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            items: currentPeriodList.map((period) {
+                              return DropdownMenuItem(
+                                value: period,
+                                child: Text(
+                                  '${bulanNames[period]} (Periode $period)',
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                selectedPeriod = value;
+                                nomorKupon =
+                                    null; // Reset nomor kupon saat periode berubah
+                              });
+                            },
+                            validator: (value) =>
+                                value == null ? 'Pilih periode kupon' : null,
+                          );
                         },
-                        validator: (value) =>
-                            value == null ? 'Pilih periode kupon' : null,
                       ),
                       const SizedBox(height: 12),
                       // Autocomplete Nomor Kupon - hanya tampil jika sudah pilih periode
                       if (selectedPeriod != null)
-                        Autocomplete<String>(
-                          optionsBuilder: (TextEditingValue textEditingValue) {
-                            // Filter kupon berdasarkan periode yang dipilih
-                            final filteredByPeriod = kuponList
-                                .where((k) => k.bulanTerbit == selectedPeriod)
-                                .toList();
-                            final kuponOptions = filteredByPeriod
-                                .map(
+                        Consumer<DashboardProvider>(
+                          builder: (ctx, dashProv, _) {
+                            // Rebuild kuponList dengan data terbaru dari provider
+                            final List<KuponEntity> currentKuponList = dashProv
+                                .allKuponsForDropdown
+                                .where(
                                   (k) =>
-                                      '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/${k.namaSatker}/${jenisKuponMap[k.jenisKuponId] ?? k.jenisKuponId} (${k.kuotaSisa.toInt()} L)',
+                                      k.jenisBbmId == jenisBbm &&
+                                      k.jenisKuponId == jenisKuponId,
                                 )
                                 .toList();
 
-                            if (textEditingValue.text.isEmpty) {
-                              return kuponOptions;
-                            }
+                            return Autocomplete<String>(
+                              optionsBuilder: (TextEditingValue textEditingValue) {
+                                // Filter kupon berdasarkan periode yang dipilih
+                                final filteredByPeriod = currentKuponList
+                                    .where(
+                                      (k) => k.bulanTerbit == selectedPeriod,
+                                    )
+                                    .toList();
+                                final kuponOptions = filteredByPeriod
+                                    .map(
+                                      (k) =>
+                                          '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/${k.namaSatker}/${jenisKuponMap[k.jenisKuponId] ?? k.jenisKuponId} (${k.kuotaSisa.toInt()} L)',
+                                    )
+                                    .toList();
 
-                            final searchText = textEditingValue.text.replaceAll(
-                              RegExp(r'[^0-9]'),
-                              '',
-                            );
+                                if (textEditingValue.text.isEmpty) {
+                                  return kuponOptions;
+                                }
 
-                            if (searchText.isEmpty) {
-                              return kuponOptions;
-                            }
+                                final searchText = textEditingValue.text
+                                    .replaceAll(RegExp(r'[^0-9]'), '');
 
-                            final filtered = kuponOptions.where((option) {
-                              final nomorKupon = option.split('/')[0];
-                              return nomorKupon.startsWith(searchText);
-                            });
+                                if (searchText.isEmpty) {
+                                  return kuponOptions;
+                                }
 
-                            return filtered.isNotEmpty
-                                ? filtered
-                                : ['Tidak ada kupon yang cocok dengan "$searchText"'];
-                          },
-                          onSelected: (value) {
-                            if (!value.startsWith('Tidak ada kupon')) {
-                              nomorKupon = value;
-                            }
-                          },
-                          fieldViewBuilder:
-                              (
-                                context,
-                                controller,
-                                focusNode,
-                                onFieldSubmitted,
-                              ) {
-                                return TextFormField(
-                                  controller: controller,
-                                  focusNode: focusNode,
-                                  decoration: InputDecoration(
-                                    labelText: 'Nomor Kupon',
-                                    hintText:
-                                        'Ketik nomor kupon atau cukup nomor saja',
-                                  ),
-                                  validator: (value) =>
-                                      value == null || value.isEmpty
-                                      ? 'Pilih nomor kupon'
-                                      : (value.startsWith('Tidak ada kupon')
-                                            ? 'Kupon tidak ditemukan'
-                                            : null),
-                                );
+                                final filtered = kuponOptions.where((option) {
+                                  final nomorKupon = option.split('/')[0];
+                                  return nomorKupon.startsWith(searchText);
+                                });
+
+                                return filtered.isNotEmpty
+                                    ? filtered
+                                    : [
+                                        'Tidak ada kupon yang cocok dengan "$searchText"',
+                                      ];
                               },
+                              onSelected: (value) {
+                                if (!value.startsWith('Tidak ada kupon')) {
+                                  setState(() {
+                                    nomorKupon = value;
+                                  });
+                                }
+                              },
+                              fieldViewBuilder:
+                                  (
+                                    context,
+                                    controller,
+                                    focusNode,
+                                    onFieldSubmitted,
+                                  ) {
+                                    return TextFormField(
+                                      controller: controller,
+                                      focusNode: focusNode,
+                                      decoration: InputDecoration(
+                                        labelText: 'Nomor Kupon',
+                                        hintText:
+                                            'Ketik nomor kupon atau cukup nomor saja',
+                                      ),
+                                      validator: (value) =>
+                                          value == null || value.isEmpty
+                                          ? 'Pilih nomor kupon'
+                                          : (value.startsWith('Tidak ada kupon')
+                                                ? 'Kupon tidak ditemukan'
+                                                : null),
+                                    );
+                                  },
+                            );
+                          },
                         )
                       else
                         Container(
@@ -1061,8 +1072,19 @@ class _TransactionPageState extends State<TransactionPage>
                   ElevatedButton(
                     onPressed: () async {
                       if (!formKey.currentState!.validate()) return;
+
+                      // Get fresh kuponList dari provider untuk find kupon yang dipilih
+                      final freshKuponList = dashboardProvider
+                          .allKuponsForDropdown
+                          .where(
+                            (k) =>
+                                k.jenisBbmId == jenisBbm &&
+                                k.jenisKuponId == jenisKuponId,
+                          )
+                          .toList();
+
                       KuponEntity? kupon;
-                      for (final k in kuponList) {
+                      for (final k in freshKuponList) {
                         final jenisKuponNama =
                             jenisKuponMap[k.jenisKuponId] ?? k.jenisKuponId;
                         final formatLengkap =

@@ -3,6 +3,8 @@ import 'package:kupon_bbm_app/domain/entities/kupon_entity.dart';
 import 'package:kupon_bbm_app/data/models/kupon_model.dart';
 import 'package:kupon_bbm_app/domain/repositories/kupon_repository.dart';
 import 'package:kupon_bbm_app/domain/repositories/kupon_repository_impl.dart';
+import 'package:kupon_bbm_app/data/services/database_change_listener.dart';
+import 'dart:async';
 
 class DashboardProvider extends ChangeNotifier {
   final KuponRepository _kuponRepository;
@@ -41,7 +43,12 @@ class DashboardProvider extends ChangeNotifier {
   String? _errorMessage;
 
   // State untuk mode tampilan (untuk refresh atau UI spesifik)
-  bool _isRanjenMode = false;
+  /// Mode: true = Ranjen (default), false = Dukungan
+  /// Default true karena tab pertama adalah Data Ranjen
+  bool _isRanjenMode = true;
+
+  // --- Real-time listener ---
+  StreamSubscription<DatabaseChange>? _databaseChangeSubscription;
 
   // --- Getters ---
   List<KuponEntity> get kupons => _allKupons;
@@ -71,19 +78,136 @@ class DashboardProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isRanjenMode => _isRanjenMode;
 
-  // --- Total Calculations (Combined Ranjen + Dukungan) ---
-  double get totalKuotaAwal =>
-      _ranjenKupons.fold(0.0, (sum, k) => sum + k.kuotaAwal) +
-      _dukunganKupons.fold(0.0, (sum, k) => sum + k.kuotaAwal);
-  double get totalTerpakai =>
-      _ranjenKupons.fold(0.0, (sum, k) => sum + (k.kuotaAwal - k.kuotaSisa)) +
-      _dukunganKupons.fold(0.0, (sum, k) => sum + (k.kuotaAwal - k.kuotaSisa));
-  double get totalSaldo =>
-      _ranjenKupons.fold(0.0, (sum, k) => sum + k.kuotaSisa) +
-      _dukunganKupons.fold(0.0, (sum, k) => sum + k.kuotaSisa);
+  /// Setter untuk mengubah mode (Ranjen/Dukungan)
+  /// dan trigger notifyListeners() untuk update UI
+  set isRanjenMode(bool value) {
+    if (_isRanjenMode != value) {
+      _isRanjenMode = value;
+      notifyListeners();
+    }
+  }
+
+  // --- Total Calculations (Per Tab - Ranjen or Dukungan) ---
+  /// Total kuota awal untuk jenis kupon aktif (Ranjen atau Dukungan)
+  double get totalKuotaAwal {
+    if (_isRanjenMode) {
+      return _ranjenKupons.fold(0.0, (sum, k) => sum + k.kuotaAwal);
+    } else {
+      return _dukunganKupons.fold(0.0, (sum, k) => sum + k.kuotaAwal);
+    }
+  }
+
+  /// Total terpakai untuk jenis kupon aktif (Ranjen atau Dukungan)
+  double get totalTerpakai {
+    if (_isRanjenMode) {
+      return _ranjenKupons.fold(
+        0.0,
+        (sum, k) => sum + (k.kuotaAwal - k.kuotaSisa),
+      );
+    } else {
+      return _dukunganKupons.fold(
+        0.0,
+        (sum, k) => sum + (k.kuotaAwal - k.kuotaSisa),
+      );
+    }
+  }
+
+  /// Total saldo untuk jenis kupon aktif (Ranjen atau Dukungan)
+  double get totalSaldo {
+    if (_isRanjenMode) {
+      return _ranjenKupons.fold(0.0, (sum, k) => sum + k.kuotaSisa);
+    } else {
+      return _dukunganKupons.fold(0.0, (sum, k) => sum + k.kuotaSisa);
+    }
+  }
 
   // --- Constructor ---
-  DashboardProvider(this._kuponRepository);
+  DashboardProvider(this._kuponRepository) {
+    // Initialize real-time listener
+    _initializeRealtimeListener();
+
+    // PENTING: Fetch data default (Ranjen) saat Provider di-create
+    // Jadi data sudah tersedia sebelum UI render untuk pertama kalinya
+    _initializeDefaultData();
+  }
+
+  /// Initialize default data saat Provider di-create
+  /// Ini memastikan summary card menampilkan data yang benar sejak awal
+  void _initializeDefaultData() {
+    // Set mode ke Ranjen (default)
+    _isRanjenMode = true;
+
+    // Fetch Ranjen data async, tapi jangan block constructor
+    Future.microtask(() async {
+      try {
+        debugPrint('🔄 _initializeDefaultData: Fetching Ranjen data...');
+        await fetchRanjenKupons(forceRefresh: false);
+        debugPrint('✅ _initializeDefaultData: Ranjen data loaded');
+      } catch (e) {
+        debugPrint('❌ _initializeDefaultData error: $e');
+      }
+    });
+  }
+
+  // --- Real-time Database Change Listener ---
+  void _initializeRealtimeListener() {
+    final listener = DatabaseChangeListener();
+    _databaseChangeSubscription = listener.kuponChangeStream.listen((change) {
+      print('[DashboardProvider] Received database change: ${change.type}');
+
+      // Auto-refresh kupon dan filter options ketika ada perubahan
+      if (change.type == DatabaseChangeType.bulkImport ||
+          change.type == DatabaseChangeType.importCompleted) {
+        print('[DashboardProvider] Import detected, refreshing kupon data...');
+
+        // Refresh semua data async dengan proper await
+        _handleImportedData();
+      }
+    });
+  }
+
+  /// Handle imported data refresh
+  /// Ini memastikan semua fetch selesai sebelum notifyListeners
+  void _handleImportedData() {
+    // Use Future.microtask untuk non-blocking async execution
+    Future.microtask(() async {
+      try {
+        print('[DashboardProvider] Starting import data refresh...');
+
+        // Fetch KEDUA-DUA jenis kupon untuk memastikan keduanya update
+        // PENTING: Fetch Dukungan DULU sebelum Ranjen
+        // Jadi `_isRanjenMode` akan ter-set ke TRUE di akhir (dari fetchRanjenKupons)
+        await fetchDukunganKupons(forceRefresh: true);
+        await fetchRanjenKupons(forceRefresh: true);
+
+        // Also fetch unfiltered for other uses
+        await fetchAllKuponsUnfiltered();
+
+        // Refresh dropdown options
+        await loadFilterOptions(); // Bulan & Tahun dari database
+        await fetchJenisBbm(); // BBM options
+        await fetchSatkers(); // Satker options
+
+        // PENTING: Ensure _isRanjenMode = true di akhir untuk menampilkan Ranjen
+        _isRanjenMode = true;
+        notifyListeners();
+
+        print(
+          '[DashboardProvider] Import refresh completed! Reset to Ranjen mode.',
+        );
+      } catch (e) {
+        print('[DashboardProvider] Error refreshing import data: $e');
+        _errorMessage = e.toString();
+        notifyListeners();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _databaseChangeSubscription?.cancel();
+    super.dispose();
+  }
 
   // --- Data Fetching Methods ---
 
@@ -555,10 +679,16 @@ class DashboardProvider extends ChangeNotifier {
 
       query += ' ORDER BY CAST(dk.nomor_kupon AS INTEGER) ASC';
 
+      debugPrint('🔍 _fetchKuponsByType SQL: $query | WhereArgs: $whereArgs');
+
       final results = await db.rawQuery(query, whereArgs);
       final fetchedKupons = results
           .map((map) => KuponModel.fromMap(map))
           .toList();
+
+      debugPrint(
+        '📊 _fetchKuponsByType: Jenis=$jenisKuponId, Filter: BBM=$jenisBBM, Bulan=$bulanTerbit, Tahun=$tahunTerbit, Total kupon fetched: ${fetchedKupons.length}',
+      );
 
       if (jenisKuponId == 1) {
         _ranjenKupons = fetchedKupons;
@@ -583,8 +713,15 @@ class DashboardProvider extends ChangeNotifier {
   }
 
   /// Metode publik untuk mengambil data Dukungan
-  Future<void> fetchDukunganKupons({bool forceRefresh = false}) async {
-    _isRanjenMode = false;
+  /// Set [preserveMode=true] untuk fetch Dukungan tanpa mengubah _isRanjenMode
+  /// (berguna saat pre-fetching untuk dropdown tanpa mengubah UI mode)
+  Future<void> fetchDukunganKupons({
+    bool forceRefresh = false,
+    bool preserveMode = false,
+  }) async {
+    if (!preserveMode) {
+      _isRanjenMode = false;
+    }
     await _fetchKuponsByType(2, forceRefresh: forceRefresh);
   }
 
@@ -651,6 +788,10 @@ class DashboardProvider extends ChangeNotifier {
     this.jenisRanmor = jenisRanmor?.trim();
     this.bulanTerbit = bulanTerbit;
     this.tahunTerbit = tahunTerbit;
+
+    debugPrint(
+      '🎯 setFilter called: jenisKupon=$jenisKupon, BBM=$jenisBBM, Bulan=$bulanTerbit, Tahun=$tahunTerbit',
+    );
 
     try {
       if (jenisKupon == 'Ranjen' || jenisKupon == '1') {
