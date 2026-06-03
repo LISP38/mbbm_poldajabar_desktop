@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../providers/alokasi_provider.dart';
+import 'perbandingan_alokasi_dialog.dart';
 
 class HasilRekomendasiDialog extends StatelessWidget {
   const HasilRekomendasiDialog({super.key});
@@ -196,6 +197,17 @@ class HasilRekomendasiDialog extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
+        OutlinedButton.icon(
+          onPressed: () {
+            showDialog(
+              context: context,
+              builder: (context) => const PerbandinganAlokasiDialog(),
+            );
+          },
+          icon: const Icon(Icons.compare_arrows),
+          label: const Text('Lihat Perbandingan'),
+        ),
+        const SizedBox(width: 16),
         OutlinedButton.icon(
           onPressed: () async {
             final success = await provider.exportRekomendasi();

@@ -12,8 +12,18 @@ class RpdTableWidget extends StatelessWidget {
 
   String _getBulanName(int bulan) {
     const names = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
     return bulan >= 1 && bulan <= 12 ? names[bulan - 1] : '';
   }
@@ -36,8 +46,11 @@ class RpdTableWidget extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.table_chart_outlined,
-                    size: 64, color: Colors.grey.shade400),
+                Icon(
+                  Icons.table_chart_outlined,
+                  size: 64,
+                  color: Colors.grey.shade400,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   'Belum ada data RPD',
@@ -59,7 +72,9 @@ class RpdTableWidget extends StatelessWidget {
                   label: const Text('Import RPD Excel'),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 12),
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
                   ),
                 ),
               ],
@@ -99,7 +114,8 @@ class RpdTableWidget extends StatelessWidget {
               child: Card(
                 elevation: 1,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 clipBehavior: Clip.antiAlias,
                 child: SingleChildScrollView(
                   child: Column(
@@ -115,16 +131,20 @@ class RpdTableWidget extends StatelessWidget {
                             _headerCell('Kuantitas', flex: 2),
                             _headerCell('Estimasi Harga', flex: 2),
                             _headerCell('Jumlah Harga', flex: 3),
-                            Container(
-                              color: Colors.grey.shade800,
-                              child: Row(
-                                children: [
-                                  _headerCell('K', flex: 1),
-                                  _headerCell('HK', flex: 1),
-                                  _headerCell(
+                            Expanded(
+                              flex: 3,
+                              child: Container(
+                                color: Colors.grey.shade800,
+                                child: Row(
+                                  children: [
+                                    _headerCell('K', flex: 1),
+                                    _headerCell('HK', flex: 1),
+                                    _headerCell(
                                       '-${provider.hariKerjaOffset}',
-                                      flex: 1),
-                                ],
+                                      flex: 1,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
@@ -161,7 +181,9 @@ class RpdTableWidget extends StatelessWidget {
                         final items = entry.value;
                         final hk = hariKerjaMap[bulan];
                         final subtotal = items.fold<double>(
-                            0, (sum, r) => sum + r.jumlahHarga);
+                          0,
+                          (sum, r) => sum + r.jumlahHarga,
+                        );
 
                         return Column(
                           children: [
@@ -174,7 +196,8 @@ class RpdTableWidget extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   border: Border(
                                     bottom: BorderSide(
-                                        color: Colors.grey.shade200),
+                                      color: Colors.grey.shade200,
+                                    ),
                                   ),
                                 ),
                                 child: Row(
@@ -185,28 +208,26 @@ class RpdTableWidget extends StatelessWidget {
                                       alignment: Alignment.center,
                                     ),
                                     _dataCell(
-                                      isFirst
-                                          ? _getBulanName(bulan)
-                                          : '',
+                                      isFirst ? _getBulanName(bulan) : '',
                                       flex: 2,
                                     ),
-                                    _dataCell(rpd.jenisBbm, flex: 2,
-                                        alignment: Alignment.center),
                                     _dataCell(
-                                      numberFormat
-                                          .format(rpd.kuantitasLiter),
+                                      rpd.jenisBbm,
                                       flex: 2,
-                                      alignment: Alignment.centerRight,
+                                      alignment: Alignment.center,
                                     ),
                                     _dataCell(
-                                      currencyFormat
-                                          .format(rpd.estimasiHarga),
+                                      numberFormat.format(rpd.kuantitasLiter),
                                       flex: 2,
                                       alignment: Alignment.centerRight,
                                     ),
                                     _dataCell(
-                                      currencyFormat
-                                          .format(rpd.jumlahHarga),
+                                      currencyFormat.format(rpd.estimasiHarga),
+                                      flex: 2,
+                                      alignment: Alignment.centerRight,
+                                    ),
+                                    _dataCell(
+                                      currencyFormat.format(rpd.jumlahHarga),
                                       flex: 3,
                                       alignment: Alignment.centerRight,
                                     ),
