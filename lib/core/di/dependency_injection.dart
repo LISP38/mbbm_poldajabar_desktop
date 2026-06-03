@@ -11,6 +11,8 @@ import 'package:kupon_bbm_app/domain/repositories/master_data_repository.dart';
 import 'package:kupon_bbm_app/domain/repositories/master_data_repository_impl.dart';
 import 'package:kupon_bbm_app/domain/repositories/transaksi_repository_impl.dart';
 import 'package:kupon_bbm_app/presentation/providers/enhanced_import_provider.dart';
+import 'package:kupon_bbm_app/domain/repositories/alokasi_repository.dart';
+import 'package:kupon_bbm_app/domain/repositories/alokasi_repository_impl.dart';
 
 final getIt = GetIt.instance;
 
@@ -32,6 +34,10 @@ Future<void> initializeDependencies() async {
 
   getIt.registerLazySingleton<MasterDataRepository>(
     () => MasterDataRepositoryImpl(getIt<DatabaseDatasource>()),
+  );
+
+  getIt.registerLazySingleton<AlokasiRepository>(
+    () => AlokasiRepositoryImpl(getIt<DatabaseDatasource>()),
   );
 
   // Validators

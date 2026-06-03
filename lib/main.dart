@@ -13,6 +13,8 @@ import 'package:kupon_bbm_app/presentation/providers/master_data_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:kupon_bbm_app/presentation/providers/transaksi_provider.dart';
 import 'package:kupon_bbm_app/domain/repositories/transaksi_repository_impl.dart';
+import 'package:kupon_bbm_app/presentation/providers/alokasi_provider.dart';
+import 'package:kupon_bbm_app/domain/repositories/alokasi_repository.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -45,6 +47,9 @@ void main() async {
           create: (_) => MasterDataProvider(getIt<MasterDataRepository>()),
         ),
         ChangeNotifierProvider(create: (_) => getIt<EnhancedImportProvider>()),
+        ChangeNotifierProvider(
+          create: (_) => AlokasiProvider(getIt<AlokasiRepository>()),
+        ),
       ],
       child: const MyApp(),
     ),

@@ -42,16 +42,21 @@ class TransaksiModel extends TransaksiEntity {
     super.status = 'Aktif',
     super.kuponCreatedAt,
     super.kuponExpiredAt,
+    super.jenisTransaksi,
+    super.namaPetugas,
+    super.namaKonsumen,
+    super.satkerText,
+    super.nomorKendaraanText,
   });
 
   factory TransaksiModel.fromMap(Map<String, dynamic> map) {
     return TransaksiModel(
       transaksiId: map['transaksi_id'] as int,
-      kuponId: (map['kupon_key'] ?? map['kupon_id']) as int,
-      nomorKupon: (map['kupon_nomor'] ?? map['nomor_kupon']) as String,
-      namaSatker: (map['kupon_satker'] ?? map['nama_satker']) as String,
-      jenisBbmId: (map['kupon_jenis_bbm'] ?? map['jenis_bbm_id']) as int,
-      jenisKuponId: (map['kupon_jenis_kupon'] ?? map['jenis_kupon_id']) as int,
+      kuponId: (map['kupon_key'] ?? map['kupon_id'] ?? 0) as int,
+      nomorKupon: (map['kupon_nomor'] ?? map['nomor_kupon'] ?? '-') as String,
+      namaSatker: (map['kupon_satker'] ?? map['nama_satker'] ?? map['satker_text'] ?? '-') as String,
+      jenisBbmId: (map['kupon_jenis_bbm'] ?? map['jenis_bbm_id'] ?? 0) as int,
+      jenisKuponId: (map['kupon_jenis_kupon'] ?? map['jenis_kupon_id'] ?? 0) as int,
       tanggalTransaksi: map['tanggal_transaksi'] as String,
       jumlahLiter: (map['jumlah_liter'] as num).toDouble(),
       createdAt: map['created_at'] as String,
@@ -60,6 +65,11 @@ class TransaksiModel extends TransaksiEntity {
       status: map['status'] as String? ?? 'pending',
       kuponCreatedAt: map['kupon_created_at'] as String?,
       kuponExpiredAt: map['kupon_expired_at'] as String?,
+      jenisTransaksi: map['jenis_transaksi'] as String?,
+      namaPetugas: map['nama_petugas'] as String?,
+      namaKonsumen: map['nama_konsumen'] as String?,
+      satkerText: map['satker_text'] as String?,
+      nomorKendaraanText: map['nomor_kendaraan_text'] as String?,
     );
   }
 
