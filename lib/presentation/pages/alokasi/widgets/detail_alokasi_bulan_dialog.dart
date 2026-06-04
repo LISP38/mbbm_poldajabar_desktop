@@ -11,6 +11,12 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<AlokasiProvider>();
+    final currentResult = provider.results.firstWhere(
+      (r) => r.bulan == result.bulan,
+      orElse: () => result,
+    );
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
@@ -25,7 +31,7 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'RENCANA KEBUTUHAN BBM KENDARAAN DINAS BULAN ${result.namaBulan.toUpperCase()}',
+                    'RENCANA KEBUTUHAN BBM KENDARAAN DINAS BULAN ${currentResult.namaBulan.toUpperCase()}',
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -40,7 +46,7 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
               ],
             ),
             const Divider(),
-            
+
             // Explanation
             Container(
               padding: const EdgeInsets.all(12),
@@ -67,15 +73,31 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
                 child: Column(
                   children: [
                     _buildTableHeader(),
-                    if (result.detailPx.isNotEmpty) ...[
+                    if (currentResult.detailPx.isNotEmpty) ...[
                       _buildGroupHeader('PERTAMAX'),
-                      ...result.detailPx.asMap().entries.map((e) => _buildRow(e.value, e.key + 1)),
-                      _buildGroupFooter(context, result.detailPx, result.cadanganPx, isPx: true),
+                      ...currentResult.detailPx.asMap().entries.map(
+                        (e) => _buildRow(e.value, e.key + 1),
+                      ),
+                      _buildGroupFooter(
+                        context,
+                        currentResult,
+                        currentResult.detailPx,
+                        currentResult.cadanganPx,
+                        isPx: true,
+                      ),
                     ],
-                    if (result.detailPdx.isNotEmpty) ...[
+                    if (currentResult.detailPdx.isNotEmpty) ...[
                       _buildGroupHeader('DEXLITE'),
-                      ...result.detailPdx.asMap().entries.map((e) => _buildRow(e.value, e.key + 1)),
-                      _buildGroupFooter(context, result.detailPdx, result.cadanganPdx, isPx: false),
+                      ...currentResult.detailPdx.asMap().entries.map(
+                        (e) => _buildRow(e.value, e.key + 1),
+                      ),
+                      _buildGroupFooter(
+                        context,
+                        currentResult,
+                        currentResult.detailPdx,
+                        currentResult.cadanganPdx,
+                        isPx: false,
+                      ),
                     ],
                   ],
                 ),
@@ -126,7 +148,7 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
 
   Widget _buildRow(AlokasiDetailKategori item, int index) {
     final literFormat = NumberFormat('#,##0.##', 'id_ID');
-    
+
     return Container(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
@@ -137,28 +159,28 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
           _dataCell(index.toString(), flex: 1, alignment: Alignment.center),
           _dataCell(item.namaKategori, flex: 4),
           _dataCell(
-            '${item.unit}  X', 
-            flex: 2, 
+            '${item.unit}  X',
+            flex: 2,
             alignment: Alignment.centerRight,
           ),
           _dataCell(
-            '${literFormat.format(item.literPerHari)}  x', 
-            flex: 2, 
+            '${literFormat.format(item.literPerHari)}  x',
+            flex: 2,
             alignment: Alignment.centerRight,
           ),
           _dataCell(
-            '${item.hari}  =', 
-            flex: 2, 
+            '${item.hari}  =',
+            flex: 2,
             alignment: Alignment.centerRight,
           ),
           _dataCell(
-            literFormat.format(item.jumlahLiterKebutuhan), 
-            flex: 3, 
+            literFormat.format(item.jumlahLiterKebutuhan),
+            flex: 3,
             alignment: Alignment.centerRight,
           ),
           _dataCell(
-            literFormat.format(item.jumlahLiterAlokasi), 
-            flex: 3, 
+            literFormat.format(item.jumlahLiterAlokasi),
+            flex: 3,
             alignment: Alignment.centerRight,
             isBold: true,
             color: Colors.green.shade700,
@@ -168,12 +190,26 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildGroupFooter(BuildContext context, List<AlokasiDetailKategori> details, double cadangan, {required bool isPx}) {
+  Widget _buildGroupFooter(
+    BuildContext context,
+    AlokasiResultModel currentResult,
+    List<AlokasiDetailKategori> details,
+    double cadangan, {
+    required bool isPx,
+  }) {
     final literFormat = NumberFormat('#,##0.##', 'id_ID');
-    final totalRaw = details.fold<double>(0, (sum, item) => sum + item.jumlahLiterKebutuhan);
-    final totalAlokasi = details.fold<double>(0, (sum, item) => sum + item.jumlahLiterAlokasi);
+    final totalRaw = details.fold<double>(
+      0,
+      (sum, item) => sum + item.jumlahLiterKebutuhan,
+    );
+    final totalAlokasi = details.fold<double>(
+      0,
+      (sum, item) => sum + item.jumlahLiterAlokasi,
+    );
 
-    final percentVal = isPx ? result.appliedCadanganPxPercent : result.appliedCadanganPdxPercent;
+    final percentVal = isPx
+        ? currentResult.appliedCadanganPxPercent
+        : currentResult.appliedCadanganPdxPercent;
     final percentText = percentVal == percentVal.truncateToDouble()
         ? '${percentVal.toInt()}%'
         : '${percentVal.toStringAsFixed(1)}%';
@@ -192,12 +228,21 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
                     children: [
                       Text(
                         'KUPON DUKUNGAN ($percentText)',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade700, fontSize: 12),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade700,
+                          fontSize: 12,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       InkWell(
-                        onTap: () => _showEditCadanganDialog(context),
-                        child: Icon(Icons.edit, size: 16, color: Colors.blue.shade700),
+                        onTap: () =>
+                            _showEditCadanganDialog(context, currentResult),
+                        child: Icon(
+                          Icons.edit,
+                          size: 16,
+                          color: Colors.blue.shade700,
+                        ),
                       ),
                     ],
                   ),
@@ -227,15 +272,15 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
               _dataCell('', flex: 2),
               _dataCell('', flex: 2),
               _dataCell(
-                literFormat.format(totalRaw), 
-                flex: 3, 
-                isBold: true, 
+                literFormat.format(totalRaw),
+                flex: 3,
+                isBold: true,
                 alignment: Alignment.centerRight,
               ),
               _dataCell(
-                literFormat.format(totalAlokasi + cadangan), 
-                flex: 3, 
-                isBold: true, 
+                literFormat.format(totalAlokasi + cadangan),
+                flex: 3,
+                isBold: true,
                 alignment: Alignment.centerRight,
               ),
             ],
@@ -284,28 +329,45 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
     );
   }
 
-  void _showEditCadanganDialog(BuildContext context) {
-    final pxController = TextEditingController(text: result.appliedCadanganPxPercent.toString());
-    final pdxController = TextEditingController(text: result.appliedCadanganPdxPercent.toString());
+  void _showEditCadanganDialog(
+    BuildContext context,
+    AlokasiResultModel currentResult,
+  ) {
+    final pxController = TextEditingController(
+      text: currentResult.appliedCadanganPxPercent.toString(),
+    );
+    final pdxController = TextEditingController(
+      text: currentResult.appliedCadanganPdxPercent.toString(),
+    );
 
     showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text('Edit % Dukungan Bulan ${result.bulan}'),
+          title: Text('Edit % Dukungan Bulan ${currentResult.bulan}'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextFormField(
                 controller: pxController,
-                decoration: const InputDecoration(labelText: '% Dukungan Pertamax', suffixText: '%'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: '% Dukungan Pertamax',
+                  suffixText: '%',
+                ),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: pdxController,
-                decoration: const InputDecoration(labelText: '% Dukungan Dexlite', suffixText: '%'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: '% Dukungan Dexlite',
+                  suffixText: '%',
+                ),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
               ),
             ],
           ),
@@ -316,9 +378,17 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
             ),
             ElevatedButton(
               onPressed: () {
-                final px = double.tryParse(pxController.text) ?? result.appliedCadanganPxPercent;
-                final pdx = double.tryParse(pdxController.text) ?? result.appliedCadanganPdxPercent;
-                context.read<AlokasiProvider>().editBulanCadanganPercent(result.bulan, px, pdx);
+                final px =
+                    double.tryParse(pxController.text) ??
+                    currentResult.appliedCadanganPxPercent;
+                final pdx =
+                    double.tryParse(pdxController.text) ??
+                    currentResult.appliedCadanganPdxPercent;
+                context.read<AlokasiProvider>().editBulanCadanganPercent(
+                  currentResult.bulan,
+                  px,
+                  pdx,
+                );
                 Navigator.pop(dialogContext);
               },
               child: const Text('Simpan'),
