@@ -53,6 +53,8 @@ class AlokasiCalculator {
     required int hariKerjaOffset,
     double cadanganPxPercent = 0.0,
     double cadanganPdxPercent = 0.0,
+    Map<int, double>? cadanganPxOverrides,
+    Map<int, double>? cadanganPdxOverrides,
   }) {
     if (sisaAnggaran <= 0 || startBulan > 12) return [];
 
@@ -100,6 +102,8 @@ class AlokasiCalculator {
             detailPdx: [],
             cadanganPx: 0.0,
             cadanganPdx: 0.0,
+            appliedCadanganPxPercent: 0.0,
+            appliedCadanganPdxPercent: 0.0,
           ),
         );
         continue;
@@ -147,9 +151,12 @@ class AlokasiCalculator {
       double literPx = hargaPertamax > 0 ? biPx / hargaPertamax : 0;
       double literPdx = hargaDexlite > 0 ? biPdx / hargaDexlite : 0;
 
-      // Reserve Cadangan
-      final cadanganPx = literPx * (cadanganPxPercent / 100);
-      final cadanganPdx = literPdx * (cadanganPdxPercent / 100);
+      // Reserve Cadangan using override if available
+      final currentPxPercent = cadanganPxOverrides?[hk.bulan] ?? cadanganPxPercent;
+      final currentPdxPercent = cadanganPdxOverrides?[hk.bulan] ?? cadanganPdxPercent;
+
+      final cadanganPx = literPx * (currentPxPercent / 100);
+      final cadanganPdx = literPdx * (currentPdxPercent / 100);
 
       final literPxForRanjen = literPx - cadanganPx;
       final literPdxForRanjen = literPdx - cadanganPdx;
@@ -192,6 +199,11 @@ class AlokasiCalculator {
           detailPdx: detailPdx,
           cadanganPx: cadanganPx,
           cadanganPdx: cadanganPdx,
+          appliedCadanganPxPercent: currentPxPercent,
+          appliedCadanganPdxPercent: currentPdxPercent,
+          isCadanganEdited: cadanganPxOverrides?.containsKey(hk.bulan) == true || cadanganPdxOverrides?.containsKey(hk.bulan) == true,
+          editedCadanganPxPercent: cadanganPxOverrides?[hk.bulan],
+          editedCadanganPdxPercent: cadanganPdxOverrides?[hk.bulan],
         ),
       );
 
@@ -218,6 +230,8 @@ class AlokasiCalculator {
     required int hariKerjaOffset,
     double cadanganPxPercent = 0.0,
     double cadanganPdxPercent = 0.0,
+    Map<int, double>? cadanganPxOverrides,
+    Map<int, double>? cadanganPdxOverrides,
   }) {
     // Calculate how much budget is consumed by ALL edited months
     double editedBudgetTotal = 0;
@@ -324,8 +338,11 @@ class AlokasiCalculator {
       double literPdx = hargaDexlite > 0 ? biPdx / hargaDexlite : 0;
 
       // Reserve Cadangan
-      final cadanganPx = literPx * (cadanganPxPercent / 100);
-      final cadanganPdx = literPdx * (cadanganPdxPercent / 100);
+      final currentPxPercent = cadanganPxOverrides?[result.bulan] ?? cadanganPxPercent;
+      final currentPdxPercent = cadanganPdxOverrides?[result.bulan] ?? cadanganPdxPercent;
+
+      final cadanganPx = literPx * (currentPxPercent / 100);
+      final cadanganPdx = literPdx * (currentPdxPercent / 100);
 
       final literPxForRanjen = literPx - cadanganPx;
       final literPdxForRanjen = literPdx - cadanganPdx;
@@ -339,7 +356,7 @@ class AlokasiCalculator {
         offset: hariKerjaOffset,
         outputMap: literPerKategori,
       );
-      final detailPdx = _distributeLitersToCategories(
+      final detailsPdx = _distributeLitersToCategories(
         totalLiters: literPdxForRanjen,
         categories: pdxKategori,
         normaMap: normaMap,
@@ -360,11 +377,16 @@ class AlokasiCalculator {
           jumlahHargaPdx: literPdx * hargaDexlite,
           literPerKategori: literPerKategori,
           detailPx: detailPx,
-          detailPdx: detailPdx,
+          detailPdx: detailsPdx,
           cadanganPx: cadanganPx,
           cadanganPdx: cadanganPdx,
+          appliedCadanganPxPercent: currentPxPercent,
+          appliedCadanganPdxPercent: currentPdxPercent,
+          isCadanganEdited: cadanganPxOverrides?.containsKey(result.bulan) == true || cadanganPdxOverrides?.containsKey(result.bulan) == true,
+          editedCadanganPxPercent: cadanganPxOverrides?[result.bulan],
+          editedCadanganPdxPercent: cadanganPdxOverrides?[result.bulan],
           isEdited: isEdited,
-          editedJatahAnggaran: editedValue,
+          editedJatahAnggaran: isEdited ? editedValue : null,
         ),
       );
 

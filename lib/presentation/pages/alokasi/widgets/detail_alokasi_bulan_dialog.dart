@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../../../domain/models/alokasi_result_model.dart';
+import '../../../../presentation/providers/alokasi_provider.dart';
 
 class DetailAlokasiBulanDialog extends StatelessWidget {
   final AlokasiResultModel result;
@@ -68,12 +70,12 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
                     if (result.detailPx.isNotEmpty) ...[
                       _buildGroupHeader('PERTAMAX'),
                       ...result.detailPx.asMap().entries.map((e) => _buildRow(e.value, e.key + 1)),
-                      _buildGroupFooter(result.detailPx, result.cadanganPx),
+                      _buildGroupFooter(context, result.detailPx, result.cadanganPx, isPx: true),
                     ],
                     if (result.detailPdx.isNotEmpty) ...[
                       _buildGroupHeader('DEXLITE'),
                       ...result.detailPdx.asMap().entries.map((e) => _buildRow(e.value, e.key + 1)),
-                      _buildGroupFooter(result.detailPdx, result.cadanganPdx),
+                      _buildGroupFooter(context, result.detailPdx, result.cadanganPdx, isPx: false),
                     ],
                   ],
                 ),
@@ -166,20 +168,40 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildGroupFooter(List<AlokasiDetailKategori> details, double cadangan) {
+  Widget _buildGroupFooter(BuildContext context, List<AlokasiDetailKategori> details, double cadangan, {required bool isPx}) {
     final literFormat = NumberFormat('#,##0.##', 'id_ID');
     final totalRaw = details.fold<double>(0, (sum, item) => sum + item.jumlahLiterKebutuhan);
     final totalAlokasi = details.fold<double>(0, (sum, item) => sum + item.jumlahLiterAlokasi);
 
+    final percentVal = isPx ? result.appliedCadanganPxPercent : result.appliedCadanganPdxPercent;
+    final percentText = percentVal == percentVal.truncateToDouble()
+        ? '${percentVal.toInt()}%'
+        : '${percentVal.toStringAsFixed(1)}%';
+
     return Column(
       children: [
-        if (cadangan > 0)
+        if (cadangan >= 0) // Always show so they can edit it even if 0
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             child: Row(
               children: [
                 _dataCell('', flex: 1),
-                _dataCell('KUPON DUKUNGAN', flex: 4, isBold: true, color: Colors.blue.shade700),
+                Expanded(
+                  flex: 4,
+                  child: Row(
+                    children: [
+                      Text(
+                        'KUPON DUKUNGAN ($percentText)',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade700, fontSize: 12),
+                      ),
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: () => _showEditCadanganDialog(context),
+                        child: Icon(Icons.edit, size: 16, color: Colors.blue.shade700),
+                      ),
+                    ],
+                  ),
+                ),
                 _dataCell('', flex: 2),
                 _dataCell('', flex: 2),
                 _dataCell('', flex: 2),
@@ -259,6 +281,51 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  void _showEditCadanganDialog(BuildContext context) {
+    final pxController = TextEditingController(text: result.appliedCadanganPxPercent.toString());
+    final pdxController = TextEditingController(text: result.appliedCadanganPdxPercent.toString());
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Edit % Dukungan Bulan ${result.bulan}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: pxController,
+                decoration: const InputDecoration(labelText: '% Dukungan Pertamax', suffixText: '%'),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: pdxController,
+                decoration: const InputDecoration(labelText: '% Dukungan Dexlite', suffixText: '%'),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final px = double.tryParse(pxController.text) ?? result.appliedCadanganPxPercent;
+                final pdx = double.tryParse(pdxController.text) ?? result.appliedCadanganPdxPercent;
+                context.read<AlokasiProvider>().editBulanCadanganPercent(result.bulan, px, pdx);
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

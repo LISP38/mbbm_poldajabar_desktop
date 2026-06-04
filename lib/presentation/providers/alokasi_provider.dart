@@ -43,6 +43,8 @@ class AlokasiProvider extends ChangeNotifier {
   int _hariKerjaOffset = 2;
   double _cadanganPxPercent = 0;
   double _cadanganPdxPercent = 0;
+  final Map<int, double> _cadanganPxOverrides = {};
+  final Map<int, double> _cadanganPdxOverrides = {};
   double _sisaAnggaran = 0; // User-inputted remaining budget
 
   // Calculation results
@@ -68,6 +70,8 @@ class AlokasiProvider extends ChangeNotifier {
   int get hariKerjaOffset => _hariKerjaOffset;
   double get cadanganPxPercent => _cadanganPxPercent;
   double get cadanganPdxPercent => _cadanganPdxPercent;
+  Map<int, double> get cadanganPxOverrides => _cadanganPxOverrides;
+  Map<int, double> get cadanganPdxOverrides => _cadanganPdxOverrides;
   double get sisaAnggaran => _sisaAnggaran;
 
   List<AlokasiResultModel> get results => _results;
@@ -115,6 +119,15 @@ class AlokasiProvider extends ChangeNotifier {
           double.tryParse(config['cadangan_px_percent'] ?? '') ?? 0;
       _cadanganPdxPercent =
           double.tryParse(config['cadangan_pdx_percent'] ?? '') ?? 0;
+
+      for (int i = 1; i <= 12; i++) {
+        if (config.containsKey('cadangan_px_percent_m$i')) {
+          _cadanganPxOverrides[i] = double.tryParse(config['cadangan_px_percent_m$i']!) ?? 0;
+        }
+        if (config.containsKey('cadangan_pdx_percent_m$i')) {
+          _cadanganPdxOverrides[i] = double.tryParse(config['cadangan_pdx_percent_m$i']!) ?? 0;
+        }
+      }
 
       // Load all reference data in parallel
       final futures = await Future.wait([
@@ -265,6 +278,39 @@ class AlokasiProvider extends ChangeNotifier {
       'cadangan_pdx_percent',
       pdxPercent.toString(),
     );
+    // When global percentage changes, we don't wipe per-month overrides automatically,
+    // they remain intact until user decides to reset them.
+    notifyListeners();
+  }
+
+  /// Update a specific month's Cadangan percentage and recalculate.
+  Future<void> editBulanCadanganPercent(int bulan, double pxPercent, double pdxPercent) async {
+    _cadanganPxOverrides[bulan] = pxPercent;
+    _cadanganPdxOverrides[bulan] = pdxPercent;
+
+    await _repository.saveAlokasiConfig('cadangan_px_percent_m$bulan', pxPercent.toString());
+    await _repository.saveAlokasiConfig('cadangan_pdx_percent_m$bulan', pdxPercent.toString());
+
+    if (_hasResults) {
+      // Trigger a recalculation using existing budget overrides
+      _results = AlokasiCalculator.hitungUlangDenganEdit(
+        currentResults: _results,
+        editedBulan: -1, // No new budget edit
+        editedJatahAnggaran: 0,
+        totalSisaAnggaran: _sisaAnggaran,
+        hargaPertamax: _hargaPertamax,
+        hargaDexlite: _hargaDexlite,
+        hariKerjaList: _hariKerjaList,
+        kategoriList: _kategoriList,
+        normaList: _normaList,
+        hariKerjaOffset: _hariKerjaOffset,
+        cadanganPxPercent: _cadanganPxPercent,
+        cadanganPdxPercent: _cadanganPdxPercent,
+        cadanganPxOverrides: _cadanganPxOverrides,
+        cadanganPdxOverrides: _cadanganPdxOverrides,
+      );
+      _deficitWarnings = AlokasiCalculator.checkDeficitWarnings(_results);
+    }
     notifyListeners();
   }
 
@@ -321,6 +367,8 @@ class AlokasiProvider extends ChangeNotifier {
         hariKerjaOffset: hariKerjaOffset,
         cadanganPxPercent: cadanganPxPercent,
         cadanganPdxPercent: cadanganPdxPercent,
+        cadanganPxOverrides: _cadanganPxOverrides,
+        cadanganPdxOverrides: _cadanganPdxOverrides,
       );
 
       // Check for deficit warnings
@@ -351,6 +399,8 @@ class AlokasiProvider extends ChangeNotifier {
       hariKerjaOffset: _hariKerjaOffset,
       cadanganPxPercent: _cadanganPxPercent,
       cadanganPdxPercent: _cadanganPdxPercent,
+      cadanganPxOverrides: _cadanganPxOverrides,
+      cadanganPdxOverrides: _cadanganPdxOverrides,
     );
 
     _deficitWarnings = AlokasiCalculator.checkDeficitWarnings(_results);
@@ -402,6 +452,8 @@ class AlokasiProvider extends ChangeNotifier {
         detailPdx: [],
         cadanganPx: 0.0,
         cadanganPdx: 0.0,
+        appliedCadanganPxPercent: 0.0,
+        appliedCadanganPdxPercent: 0.0,
       ),
     );
 

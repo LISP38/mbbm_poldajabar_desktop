@@ -43,6 +43,12 @@ class AlokasiResultModel {
   final List<AlokasiDetailKategori> detailPdx;
   final double cadanganPx;
   final double cadanganPdx;
+  final double appliedCadanganPxPercent;
+  final double appliedCadanganPdxPercent;
+
+  bool isCadanganEdited;
+  double? editedCadanganPxPercent;
+  double? editedCadanganPdxPercent;
 
   bool isEdited; // whether user manually changed this month's allocation
   double? editedJatahAnggaran; // user-overridden budget for this month
@@ -61,6 +67,11 @@ class AlokasiResultModel {
     required this.detailPdx,
     required this.cadanganPx,
     required this.cadanganPdx,
+    required this.appliedCadanganPxPercent,
+    required this.appliedCadanganPdxPercent,
+    this.isCadanganEdited = false,
+    this.editedCadanganPxPercent,
+    this.editedCadanganPdxPercent,
     this.isEdited = false,
     this.editedJatahAnggaran,
   });
@@ -88,6 +99,11 @@ class AlokasiResultModel {
     List<AlokasiDetailKategori>? detailPdx,
     double? cadanganPx,
     double? cadanganPdx,
+    double? appliedCadanganPxPercent,
+    double? appliedCadanganPdxPercent,
+    bool? isCadanganEdited,
+    double? editedCadanganPxPercent,
+    double? editedCadanganPdxPercent,
     bool? isEdited,
     double? editedJatahAnggaran,
   }) {
@@ -105,6 +121,11 @@ class AlokasiResultModel {
       detailPdx: detailPdx ?? this.detailPdx,
       cadanganPx: cadanganPx ?? this.cadanganPx,
       cadanganPdx: cadanganPdx ?? this.cadanganPdx,
+      appliedCadanganPxPercent: appliedCadanganPxPercent ?? this.appliedCadanganPxPercent,
+      appliedCadanganPdxPercent: appliedCadanganPdxPercent ?? this.appliedCadanganPdxPercent,
+      isCadanganEdited: isCadanganEdited ?? this.isCadanganEdited,
+      editedCadanganPxPercent: editedCadanganPxPercent ?? this.editedCadanganPxPercent,
+      editedCadanganPdxPercent: editedCadanganPdxPercent ?? this.editedCadanganPdxPercent,
       isEdited: isEdited ?? this.isEdited,
       editedJatahAnggaran: editedJatahAnggaran ?? this.editedJatahAnggaran,
     );
