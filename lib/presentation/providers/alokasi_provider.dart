@@ -41,6 +41,8 @@ class AlokasiProvider extends ChangeNotifier {
   double _hargaPertamax = 0;
   double _hargaDexlite = 0;
   int _hariKerjaOffset = 2;
+  double _cadanganPxPercent = 0;
+  double _cadanganPdxPercent = 0;
   double _sisaAnggaran = 0; // User-inputted remaining budget
 
   // Calculation results
@@ -64,6 +66,8 @@ class AlokasiProvider extends ChangeNotifier {
   double get hargaPertamax => _hargaPertamax;
   double get hargaDexlite => _hargaDexlite;
   int get hariKerjaOffset => _hariKerjaOffset;
+  double get cadanganPxPercent => _cadanganPxPercent;
+  double get cadanganPdxPercent => _cadanganPdxPercent;
   double get sisaAnggaran => _sisaAnggaran;
 
   List<AlokasiResultModel> get results => _results;
@@ -104,12 +108,13 @@ class AlokasiProvider extends ChangeNotifier {
     try {
       // Load config first
       final config = await _repository.getAlokasiConfig();
-      _hargaPertamax =
-          double.tryParse(config['harga_pertamax'] ?? '') ?? 0;
-      _hargaDexlite =
-          double.tryParse(config['harga_dexlite'] ?? '') ?? 0;
-      _hariKerjaOffset =
-          int.tryParse(config['hari_kerja_offset'] ?? '2') ?? 2;
+      _hargaPertamax = double.tryParse(config['harga_pertamax'] ?? '') ?? 0;
+      _hargaDexlite = double.tryParse(config['harga_dexlite'] ?? '') ?? 0;
+      _hariKerjaOffset = int.tryParse(config['hari_kerja_offset'] ?? '2') ?? 2;
+      _cadanganPxPercent =
+          double.tryParse(config['cadangan_px_percent'] ?? '') ?? 0;
+      _cadanganPdxPercent =
+          double.tryParse(config['cadangan_pdx_percent'] ?? '') ?? 0;
 
       // Load all reference data in parallel
       final futures = await Future.wait([
@@ -243,18 +248,30 @@ class AlokasiProvider extends ChangeNotifier {
   Future<void> setHargaBbm(double pertamax, double dexlite) async {
     _hargaPertamax = pertamax;
     _hargaDexlite = dexlite;
+    await _repository.saveAlokasiConfig('harga_pertamax', pertamax.toString());
+    await _repository.saveAlokasiConfig('harga_dexlite', dexlite.toString());
+    notifyListeners();
+  }
+
+  /// Set Cadangan percentages and save to config.
+  Future<void> setCadanganPercent(double pxPercent, double pdxPercent) async {
+    _cadanganPxPercent = pxPercent;
+    _cadanganPdxPercent = pdxPercent;
     await _repository.saveAlokasiConfig(
-        'harga_pertamax', pertamax.toString());
+      'cadangan_px_percent',
+      pxPercent.toString(),
+    );
     await _repository.saveAlokasiConfig(
-        'harga_dexlite', dexlite.toString());
+      'cadangan_pdx_percent',
+      pdxPercent.toString(),
+    );
     notifyListeners();
   }
 
   /// Set hari kerja offset and save to config.
   Future<void> setHariKerjaOffset(int offset) async {
     _hariKerjaOffset = offset;
-    await _repository.saveAlokasiConfig(
-        'hari_kerja_offset', offset.toString());
+    await _repository.saveAlokasiConfig('hari_kerja_offset', offset.toString());
     notifyListeners();
   }
 
@@ -273,6 +290,8 @@ class AlokasiProvider extends ChangeNotifier {
     required int hariKerjaOffset,
     required double sisaAnggaran,
     required int startBulan,
+    required double cadanganPxPercent,
+    required double cadanganPdxPercent,
   }) async {
     try {
       _isLoading = true;
@@ -282,10 +301,13 @@ class AlokasiProvider extends ChangeNotifier {
       // Save config
       await setHargaBbm(hargaPertamax, hargaDexlite);
       await setHariKerjaOffset(hariKerjaOffset);
+      await setCadanganPercent(cadanganPxPercent, cadanganPdxPercent);
       _sisaAnggaran = sisaAnggaran;
 
       await _repository.saveAlokasiConfig(
-          'last_run_date', DateTime.now().toIso8601String());
+        'last_run_date',
+        DateTime.now().toIso8601String(),
+      );
 
       // Run calculation
       _results = AlokasiCalculator.hitungRekomendasi(
@@ -297,6 +319,8 @@ class AlokasiProvider extends ChangeNotifier {
         kategoriList: _kategoriList,
         normaList: _normaList,
         hariKerjaOffset: hariKerjaOffset,
+        cadanganPxPercent: cadanganPxPercent,
+        cadanganPdxPercent: cadanganPdxPercent,
       );
 
       // Check for deficit warnings
@@ -325,6 +349,8 @@ class AlokasiProvider extends ChangeNotifier {
       kategoriList: _kategoriList,
       normaList: _normaList,
       hariKerjaOffset: _hariKerjaOffset,
+      cadanganPxPercent: _cadanganPxPercent,
+      cadanganPdxPercent: _cadanganPdxPercent,
     );
 
     _deficitWarnings = AlokasiCalculator.checkDeficitWarnings(_results);
@@ -345,7 +371,10 @@ class AlokasiProvider extends ChangeNotifier {
   Future<bool> exportRekomendasi() async {
     if (_results.isEmpty) return false;
     return await _repository.exportRekomendasiToExcel(
-        _results, _rpdAcuan, _currentYear);
+      _results,
+      _rpdAcuan,
+      _currentYear,
+    );
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────
@@ -369,6 +398,10 @@ class AlokasiProvider extends ChangeNotifier {
         jumlahHargaPx: 0,
         jumlahHargaPdx: 0,
         literPerKategori: {},
+        detailPx: [],
+        detailPdx: [],
+        cadanganPx: 0.0,
+        cadanganPdx: 0.0,
       ),
     );
 
@@ -381,13 +414,17 @@ class AlokasiProvider extends ChangeNotifier {
 
     return {
       'selisih_liter_px':
-          result.totalLiterPx - (rpdPx.isNotEmpty ? rpdPx.first.kuantitasLiter : 0),
+          result.totalLiterPx -
+          (rpdPx.isNotEmpty ? rpdPx.first.kuantitasLiter : 0),
       'selisih_liter_pdx':
-          result.totalLiterPdx - (rpdPdx.isNotEmpty ? rpdPdx.first.kuantitasLiter : 0),
+          result.totalLiterPdx -
+          (rpdPdx.isNotEmpty ? rpdPdx.first.kuantitasLiter : 0),
       'selisih_harga_px':
-          result.jumlahHargaPx - (rpdPx.isNotEmpty ? rpdPx.first.jumlahHarga : 0),
+          result.jumlahHargaPx -
+          (rpdPx.isNotEmpty ? rpdPx.first.jumlahHarga : 0),
       'selisih_harga_pdx':
-          result.jumlahHargaPdx - (rpdPdx.isNotEmpty ? rpdPdx.first.jumlahHarga : 0),
+          result.jumlahHargaPdx -
+          (rpdPdx.isNotEmpty ? rpdPdx.first.jumlahHarga : 0),
     };
   }
 }

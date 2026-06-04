@@ -6,12 +6,23 @@ import '../../domain/entities/kendaraan_kategori_entity.dart';
 import '../../domain/models/alokasi_result_model.dart';
 
 /// Core calculation engine for the BBM allocation recommendation.
-///
+/// Formula Before:
 /// Implements the proportional reallocation formula:
 ///   1. Ri = D − Ei                        (remaining budget)
 ///   2. Bi = Ri × (JHKi / Σj JHKj)         (monthly budget share)
 ///   3. LI = Bi / HB                        (liters purchasable)
 ///   4. UKJi = LI × (JUi×INi×Oi) / Σ(JUj×INj×Oj) (per-category liters)
+///
+/// Formula After:
+/// Implements the proportional reallocation formula with Cadangan and Dual-Fuel scaling:
+///   1. Bi = Ri × (JHKi / Σj JHKj)                           (monthly budget share based on working days)
+///   2. NeedPx = Σ(JUi×INi×Oi) × HargaPx                     (raw budget need for Pertamax)
+///   3. NeedPdx = Σ(JUi×INi×Oi) × HargaPdx                   (raw budget need for Dexlite)
+///   4. BiPx = Bi × (NeedPx / (NeedPx + NeedPdx))            (budget proportion for Pertamax)
+///   5. LiterPx = BiPx / HargaPx                             (affordable Pertamax liters)
+///   6. CadanganPx = LiterPx × CadanganPxPercent             (reserve deduction)
+///   7. LiterPxRanjen = LiterPx - CadanganPx                 (liters available for vehicles)
+///   8. UKJi = LiterPxRanjen × (JUi×INi×Oi) / Σ(JUj×INj×Oj)  (final per-category allocation)
 ///
 /// Where PJU categories use calendar days (K) and others use HK − offset.
 class AlokasiCalculator {
@@ -40,12 +51,15 @@ class AlokasiCalculator {
     required List<KendaraanKategoriEntity> kategoriList,
     required List<IndexNormaEntity> normaList,
     required int hariKerjaOffset,
+    double cadanganPxPercent = 0.0,
+    double cadanganPdxPercent = 0.0,
   }) {
     if (sisaAnggaran <= 0 || startBulan > 12) return [];
 
     // Filter hari kerja for remaining months (startBulan to December)
-    final remainingHariKerja =
-        hariKerjaList.where((hk) => hk.bulan >= startBulan).toList();
+    final remainingHariKerja = hariKerjaList
+        .where((hk) => hk.bulan >= startBulan)
+        .toList();
     if (remainingHariKerja.isEmpty) return [];
 
     // Calculate total remaining working days (HK - offset for non-PJU)
@@ -56,10 +70,8 @@ class AlokasiCalculator {
     if (totalRemainingHK <= 0) return [];
 
     // Separate categories by fuel type
-    final pxKategori =
-        kategoriList.where((k) => k.jenisBbm == 'PX').toList();
-    final pdxKategori =
-        kategoriList.where((k) => k.jenisBbm == 'PDX').toList();
+    final pxKategori = kategoriList.where((k) => k.jenisBbm == 'PX').toList();
+    final pdxKategori = kategoriList.where((k) => k.jenisBbm == 'PDX').toList();
 
     // Build norma lookup: kategoriId → jumlahLiterPerHari
     final normaMap = <int, double>{};
@@ -73,17 +85,23 @@ class AlokasiCalculator {
     for (final hk in remainingHariKerja) {
       if (runningRemaining <= 0) {
         // Budget exhausted — add zero allocation
-        results.add(AlokasiResultModel(
-          bulan: hk.bulan,
-          namaBulan: AlokasiResultModel.getBulanName(hk.bulan),
-          sisaDana: 0,
-          jatahAnggaran: 0,
-          totalLiterPx: 0,
-          totalLiterPdx: 0,
-          jumlahHargaPx: 0,
-          jumlahHargaPdx: 0,
-          literPerKategori: {},
-        ));
+        results.add(
+          AlokasiResultModel(
+            bulan: hk.bulan,
+            namaBulan: AlokasiResultModel.getBulanName(hk.bulan),
+            sisaDana: 0,
+            jatahAnggaran: 0,
+            totalLiterPx: 0,
+            totalLiterPdx: 0,
+            jumlahHargaPx: 0,
+            jumlahHargaPdx: 0,
+            literPerKategori: {},
+            detailPx: [],
+            detailPdx: [],
+            cadanganPx: 0.0,
+            cadanganPdx: 0.0,
+          ),
+        );
         continue;
       }
 
@@ -91,32 +109,57 @@ class AlokasiCalculator {
       final jhki = hk.getHariKerjaWithOffset(hariKerjaOffset);
       final remainingHKFromHere = remainingHariKerja
           .where((h) => h.bulan >= hk.bulan)
-          .fold<int>(0, (s, h) => s + h.getHariKerjaWithOffset(hariKerjaOffset));
+          .fold<int>(
+            0,
+            (s, h) => s + h.getHariKerjaWithOffset(hariKerjaOffset),
+          );
 
       final double bi = remainingHKFromHere > 0
           ? runningRemaining * (jhki / remainingHKFromHere)
           : 0;
 
-      // Determine PX/PDX budget split based on weighted demand
-      final pxWeight = _calculateFuelWeight(
-          pxKategori, normaMap, hk, hariKerjaOffset);
-      final pdxWeight = _calculateFuelWeight(
-          pdxKategori, normaMap, hk, hariKerjaOffset);
-      final totalWeight = pxWeight + pdxWeight;
+      // Determine PX/PDX budget split based on weighted cost demand
+      final pxVolumeNeed = _calculateFuelWeight(
+        pxKategori,
+        normaMap,
+        hk,
+        hariKerjaOffset,
+      );
+      final pdxVolumeNeed = _calculateFuelWeight(
+        pdxKategori,
+        normaMap,
+        hk,
+        hariKerjaOffset,
+      );
 
-      double biPx = totalWeight > 0 ? bi * (pxWeight / totalWeight) : bi / 2;
-      double biPdx = totalWeight > 0 ? bi * (pdxWeight / totalWeight) : bi / 2;
+      final budgetPxNeed = pxVolumeNeed * hargaPertamax;
+      final budgetPdxNeed = pdxVolumeNeed * hargaDexlite;
+      final totalBudgetNeed = budgetPxNeed + budgetPdxNeed;
+
+      double biPx = totalBudgetNeed > 0
+          ? bi * (budgetPxNeed / totalBudgetNeed)
+          : bi / 2;
+      double biPdx = totalBudgetNeed > 0
+          ? bi * (budgetPdxNeed / totalBudgetNeed)
+          : bi / 2;
 
       // Step 3: LI = Bi / HB
       double literPx = hargaPertamax > 0 ? biPx / hargaPertamax : 0;
       double literPdx = hargaDexlite > 0 ? biPdx / hargaDexlite : 0;
 
+      // Reserve Cadangan
+      final cadanganPx = literPx * (cadanganPxPercent / 100);
+      final cadanganPdx = literPdx * (cadanganPdxPercent / 100);
+
+      final literPxForRanjen = literPx - cadanganPx;
+      final literPdxForRanjen = literPdx - cadanganPdx;
+
       // Step 4: UKJi per category
       final literPerKategori = <String, double>{};
 
       // Distribute PX liters
-      _distributeLitersToCategories(
-        totalLiters: literPx,
+      final detailPx = _distributeLitersToCategories(
+        totalLiters: literPxForRanjen,
         categories: pxKategori,
         normaMap: normaMap,
         hariKerja: hk,
@@ -125,8 +168,8 @@ class AlokasiCalculator {
       );
 
       // Distribute PDX liters
-      _distributeLitersToCategories(
-        totalLiters: literPdx,
+      final detailPdx = _distributeLitersToCategories(
+        totalLiters: literPdxForRanjen,
         categories: pdxKategori,
         normaMap: normaMap,
         hariKerja: hk,
@@ -134,17 +177,23 @@ class AlokasiCalculator {
         outputMap: literPerKategori,
       );
 
-      results.add(AlokasiResultModel(
-        bulan: hk.bulan,
-        namaBulan: AlokasiResultModel.getBulanName(hk.bulan),
-        sisaDana: runningRemaining,
-        jatahAnggaran: bi,
-        totalLiterPx: literPx,
-        totalLiterPdx: literPdx,
-        jumlahHargaPx: literPx * hargaPertamax,
-        jumlahHargaPdx: literPdx * hargaDexlite,
-        literPerKategori: literPerKategori,
-      ));
+      results.add(
+        AlokasiResultModel(
+          bulan: hk.bulan,
+          namaBulan: AlokasiResultModel.getBulanName(hk.bulan),
+          sisaDana: runningRemaining,
+          jatahAnggaran: bi,
+          totalLiterPx: literPx,
+          totalLiterPdx: literPdx,
+          jumlahHargaPx: literPx * hargaPertamax,
+          jumlahHargaPdx: literPdx * hargaDexlite,
+          literPerKategori: literPerKategori,
+          detailPx: detailPx,
+          detailPdx: detailPdx,
+          cadanganPx: cadanganPx,
+          cadanganPdx: cadanganPdx,
+        ),
+      );
 
       runningRemaining -= bi;
     }
@@ -167,6 +216,8 @@ class AlokasiCalculator {
     required List<KendaraanKategoriEntity> kategoriList,
     required List<IndexNormaEntity> normaList,
     required int hariKerjaOffset,
+    double cadanganPxPercent = 0.0,
+    double cadanganPdxPercent = 0.0,
   }) {
     // Calculate how much budget is consumed by ALL edited months
     double editedBudgetTotal = 0;
@@ -187,19 +238,21 @@ class AlokasiCalculator {
 
     // Get hari kerja for non-edited months
     final nonEditedHK = hariKerjaList
-        .where((hk) =>
-            !editedMonths.contains(hk.bulan) &&
-            currentResults.any((r) => r.bulan == hk.bulan))
+        .where(
+          (hk) =>
+              !editedMonths.contains(hk.bulan) &&
+              currentResults.any((r) => r.bulan == hk.bulan),
+        )
         .toList();
 
     final totalNonEditedHK = nonEditedHK.fold<int>(
-        0, (s, hk) => s + hk.getHariKerjaWithOffset(hariKerjaOffset));
+      0,
+      (s, hk) => s + hk.getHariKerjaWithOffset(hariKerjaOffset),
+    );
 
     // Separate categories by fuel type
-    final pxKategori =
-        kategoriList.where((k) => k.jenisBbm == 'PX').toList();
-    final pdxKategori =
-        kategoriList.where((k) => k.jenisBbm == 'PDX').toList();
+    final pxKategori = kategoriList.where((k) => k.jenisBbm == 'PX').toList();
+    final pdxKategori = kategoriList.where((k) => k.jenisBbm == 'PDX').toList();
     final normaMap = <int, double>{};
     for (final n in normaList) {
       normaMap[n.kategoriId] = n.jumlahLiterPerHari;
@@ -242,30 +295,52 @@ class AlokasiCalculator {
         editedValue = null;
       }
 
-      // Distribute to fuel types and categories
-      final pxWeight = _calculateFuelWeight(
-          pxKategori, normaMap, hk, hariKerjaOffset);
-      final pdxWeight = _calculateFuelWeight(
-          pdxKategori, normaMap, hk, hariKerjaOffset);
-      final totalWeight = pxWeight + pdxWeight;
+      // Distribute to fuel types and categories based on weighted cost demand
+      final pxVolumeNeed = _calculateFuelWeight(
+        pxKategori,
+        normaMap,
+        hk,
+        hariKerjaOffset,
+      );
+      final pdxVolumeNeed = _calculateFuelWeight(
+        pdxKategori,
+        normaMap,
+        hk,
+        hariKerjaOffset,
+      );
 
-      double biPx = totalWeight > 0 ? bi * (pxWeight / totalWeight) : bi / 2;
-      double biPdx = totalWeight > 0 ? bi * (pdxWeight / totalWeight) : bi / 2;
+      final budgetPxNeed = pxVolumeNeed * hargaPertamax;
+      final budgetPdxNeed = pdxVolumeNeed * hargaDexlite;
+      final totalBudgetNeed = budgetPxNeed + budgetPdxNeed;
+
+      double biPx = totalBudgetNeed > 0
+          ? bi * (budgetPxNeed / totalBudgetNeed)
+          : bi / 2;
+      double biPdx = totalBudgetNeed > 0
+          ? bi * (budgetPdxNeed / totalBudgetNeed)
+          : bi / 2;
 
       double literPx = hargaPertamax > 0 ? biPx / hargaPertamax : 0;
       double literPdx = hargaDexlite > 0 ? biPdx / hargaDexlite : 0;
 
+      // Reserve Cadangan
+      final cadanganPx = literPx * (cadanganPxPercent / 100);
+      final cadanganPdx = literPdx * (cadanganPdxPercent / 100);
+
+      final literPxForRanjen = literPx - cadanganPx;
+      final literPdxForRanjen = literPdx - cadanganPdx;
+
       final literPerKategori = <String, double>{};
-      _distributeLitersToCategories(
-        totalLiters: literPx,
+      final detailPx = _distributeLitersToCategories(
+        totalLiters: literPxForRanjen,
         categories: pxKategori,
         normaMap: normaMap,
         hariKerja: hk,
         offset: hariKerjaOffset,
         outputMap: literPerKategori,
       );
-      _distributeLitersToCategories(
-        totalLiters: literPdx,
+      final detailPdx = _distributeLitersToCategories(
+        totalLiters: literPdxForRanjen,
         categories: pdxKategori,
         normaMap: normaMap,
         hariKerja: hk,
@@ -273,19 +348,25 @@ class AlokasiCalculator {
         outputMap: literPerKategori,
       );
 
-      newResults.add(AlokasiResultModel(
-        bulan: result.bulan,
-        namaBulan: result.namaBulan,
-        sisaDana: runningRemaining,
-        jatahAnggaran: bi,
-        totalLiterPx: literPx,
-        totalLiterPdx: literPdx,
-        jumlahHargaPx: literPx * hargaPertamax,
-        jumlahHargaPdx: literPdx * hargaDexlite,
-        literPerKategori: literPerKategori,
-        isEdited: isEdited,
-        editedJatahAnggaran: editedValue,
-      ));
+      newResults.add(
+        AlokasiResultModel(
+          bulan: result.bulan,
+          namaBulan: result.namaBulan,
+          sisaDana: runningRemaining,
+          jatahAnggaran: bi,
+          totalLiterPx: literPx,
+          totalLiterPdx: literPdx,
+          jumlahHargaPx: literPx * hargaPertamax,
+          jumlahHargaPdx: literPdx * hargaDexlite,
+          literPerKategori: literPerKategori,
+          detailPx: detailPx,
+          detailPdx: detailPdx,
+          cadanganPx: cadanganPx,
+          cadanganPdx: cadanganPdx,
+          isEdited: isEdited,
+          editedJatahAnggaran: editedValue,
+        ),
+      );
 
       runningRemaining -= bi;
     }
@@ -316,7 +397,7 @@ class AlokasiCalculator {
 
   /// Distribute total liters to individual categories based on weighted demand.
   /// UKJi = LI × (JUi × INi × Oi) / Σ(JUj × INj × Oj)
-  static void _distributeLitersToCategories({
+  static List<AlokasiDetailKategori> _distributeLitersToCategories({
     required double totalLiters,
     required List<KendaraanKategoriEntity> categories,
     required Map<int, double> normaMap,
@@ -324,11 +405,16 @@ class AlokasiCalculator {
     required int offset,
     required Map<String, double> outputMap,
   }) {
-    if (totalLiters <= 0 || categories.isEmpty) return;
+    final details = <AlokasiDetailKategori>[];
+    if (totalLiters <= 0 || categories.isEmpty) return details;
 
-    final totalWeight =
-        _calculateFuelWeight(categories, normaMap, hariKerja, offset);
-    if (totalWeight <= 0) return;
+    final totalWeight = _calculateFuelWeight(
+      categories,
+      normaMap,
+      hariKerja,
+      offset,
+    );
+    if (totalWeight <= 0) return details;
 
     for (final cat in categories) {
       if (cat.jumlahKendaraan <= 0) continue;
@@ -339,7 +425,21 @@ class AlokasiCalculator {
       final weight = cat.jumlahKendaraan * indexNorma * oi;
       final ukj = totalLiters * (weight / totalWeight);
       outputMap[cat.namaKategori] = ukj;
+
+      details.add(
+        AlokasiDetailKategori(
+          namaKategori: cat.namaKategori,
+          jenisBbm: cat.jenisBbm,
+          unit: cat.jumlahKendaraan,
+          literPerHari: indexNorma,
+          hari: oi,
+          jumlahLiterKebutuhan: weight,
+          jumlahLiterAlokasi: ukj,
+        ),
+      );
     }
+
+    return details;
   }
 
   /// Check if any month has a budget deficit warning.
@@ -349,11 +449,15 @@ class AlokasiCalculator {
 
     final avgBudget =
         results.fold<double>(0, (s, r) => s + r.effectiveJatahAnggaran) /
-            results.length;
+        results.length;
     final threshold = avgBudget * kMinBudgetThresholdFraction;
 
     return results
-        .where((r) => r.effectiveJatahAnggaran < threshold && r.effectiveJatahAnggaran > 0)
+        .where(
+          (r) =>
+              r.effectiveJatahAnggaran < threshold &&
+              r.effectiveJatahAnggaran > 0,
+        )
         .map((r) => r.bulan)
         .toList();
   }

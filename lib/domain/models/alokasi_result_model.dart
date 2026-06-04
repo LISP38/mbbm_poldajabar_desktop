@@ -1,3 +1,28 @@
+/// Model representing the raw calculation detail for a single category in a month.
+class AlokasiDetailKategori {
+  final String namaKategori;
+  final String jenisBbm;
+  final int unit; // jumlahKendaraan
+  final double literPerHari; // indexNorma
+  final int hari; // hariKerja (or hariKalender for PJU)
+
+  // Raw needed volume = unit * literPerHari * hari
+  final double jumlahLiterKebutuhan;
+
+  // Final volume allocated after budget constraints
+  final double jumlahLiterAlokasi;
+
+  AlokasiDetailKategori({
+    required this.namaKategori,
+    required this.jenisBbm,
+    required this.unit,
+    required this.literPerHari,
+    required this.hari,
+    required this.jumlahLiterKebutuhan,
+    required this.jumlahLiterAlokasi,
+  });
+}
+
 /// Model representing the allocation recommendation result for a single month.
 ///
 /// Each month from the current month to December gets one of these,
@@ -11,8 +36,14 @@ class AlokasiResultModel {
   final double totalLiterPdx; // Total liters of Dexlite for this month
   final double jumlahHargaPx; // totalLiterPx × hargaPertamax
   final double jumlahHargaPdx; // totalLiterPdx × hargaDexlite
-  final Map<String, double>
-  literPerKategori; // UKJi per category name → liters
+  final Map<String, double> literPerKategori; // UKJi per category name → liters
+
+  // Detailed breakdown of the raw calculation vs final allocation
+  final List<AlokasiDetailKategori> detailPx;
+  final List<AlokasiDetailKategori> detailPdx;
+  final double cadanganPx;
+  final double cadanganPdx;
+
   bool isEdited; // whether user manually changed this month's allocation
   double? editedJatahAnggaran; // user-overridden budget for this month
 
@@ -26,6 +57,10 @@ class AlokasiResultModel {
     required this.jumlahHargaPx,
     required this.jumlahHargaPdx,
     required this.literPerKategori,
+    required this.detailPx,
+    required this.detailPdx,
+    required this.cadanganPx,
+    required this.cadanganPdx,
     this.isEdited = false,
     this.editedJatahAnggaran,
   });
@@ -49,6 +84,10 @@ class AlokasiResultModel {
     double? jumlahHargaPx,
     double? jumlahHargaPdx,
     Map<String, double>? literPerKategori,
+    List<AlokasiDetailKategori>? detailPx,
+    List<AlokasiDetailKategori>? detailPdx,
+    double? cadanganPx,
+    double? cadanganPdx,
     bool? isEdited,
     double? editedJatahAnggaran,
   }) {
@@ -62,6 +101,10 @@ class AlokasiResultModel {
       jumlahHargaPx: jumlahHargaPx ?? this.jumlahHargaPx,
       jumlahHargaPdx: jumlahHargaPdx ?? this.jumlahHargaPdx,
       literPerKategori: literPerKategori ?? this.literPerKategori,
+      detailPx: detailPx ?? this.detailPx,
+      detailPdx: detailPdx ?? this.detailPdx,
+      cadanganPx: cadanganPx ?? this.cadanganPx,
+      cadanganPdx: cadanganPdx ?? this.cadanganPdx,
       isEdited: isEdited ?? this.isEdited,
       editedJatahAnggaran: editedJatahAnggaran ?? this.editedJatahAnggaran,
     );

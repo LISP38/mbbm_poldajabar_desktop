@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../../providers/alokasi_provider.dart';
 import 'perbandingan_alokasi_dialog.dart';
+import 'detail_alokasi_bulan_dialog.dart';
 
 class HasilRekomendasiDialog extends StatelessWidget {
   const HasilRekomendasiDialog({super.key});
@@ -149,11 +150,32 @@ class HasilRekomendasiDialog extends StatelessWidget {
                     ),
                     Expanded(
                       flex: 1,
-                      child: IconButton(
-                        icon: const Icon(Icons.edit, size: 20),
-                        color: Colors.blue.shade700,
-                        onPressed: () => _showEditAlokasiDialog(context, r),
-                        tooltip: 'Edit Alokasi Bulan Ini',
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.list_alt, size: 20),
+                            color: Colors.green.shade700,
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (c) => DetailAlokasiBulanDialog(result: r),
+                              );
+                            },
+                            tooltip: 'Lihat Detail Kebutuhan',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.edit, size: 20),
+                            color: Colors.blue.shade700,
+                            onPressed: () => _showEditAlokasiDialog(context, r),
+                            tooltip: 'Edit Alokasi Bulan Ini',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
                       ),
                     ),
                   ],

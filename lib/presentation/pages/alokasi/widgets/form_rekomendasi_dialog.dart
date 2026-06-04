@@ -15,6 +15,8 @@ class _FormRekomendasiDialogState extends State<FormRekomendasiDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _pxController;
   late TextEditingController _pdxController;
+  late TextEditingController _cadanganPxController;
+  late TextEditingController _cadanganPdxController;
   late TextEditingController _sisaAnggaranController;
   int _selectedOffset = 2;
   int _selectedStartBulan = DateTime.now().month;
@@ -47,6 +49,12 @@ class _FormRekomendasiDialogState extends State<FormRekomendasiDialog> {
     _pdxController = TextEditingController(
       text: provider.hargaDexlite.toInt().toString(),
     );
+    _cadanganPxController = TextEditingController(
+      text: provider.cadanganPxPercent.toString(),
+    );
+    _cadanganPdxController = TextEditingController(
+      text: provider.cadanganPdxPercent.toString(),
+    );
     _sisaAnggaranController = TextEditingController(
       text: provider.dipa > 0 ? '' : '',
     ); // Ask user to input
@@ -57,6 +65,8 @@ class _FormRekomendasiDialogState extends State<FormRekomendasiDialog> {
   void dispose() {
     _pxController.dispose();
     _pdxController.dispose();
+    _cadanganPxController.dispose();
+    _cadanganPdxController.dispose();
     _sisaAnggaranController.dispose();
     super.dispose();
   }
@@ -129,6 +139,38 @@ class _FormRekomendasiDialogState extends State<FormRekomendasiDialog> {
                   return null;
                 },
               ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _cadanganPxController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Persentase Dukungan Pertamax (%)',
+                  border: OutlineInputBorder(),
+                  suffixText: '%',
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Persentase tidak boleh kosong';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _cadanganPdxController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Persentase Dukungan Dexlite (%)',
+                  border: OutlineInputBorder(),
+                  suffixText: '%',
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Persentase tidak boleh kosong';
+                  }
+                  return null;
+                },
+              ),
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 8),
@@ -188,6 +230,8 @@ class _FormRekomendasiDialogState extends State<FormRekomendasiDialog> {
                 hargaDexlite: double.parse(_pdxController.text),
                 hariKerjaOffset: _selectedOffset,
                 startBulan: _selectedStartBulan,
+                cadanganPxPercent: double.parse(_cadanganPxController.text),
+                cadanganPdxPercent: double.parse(_cadanganPdxController.text),
               );
 
               if (context.mounted) {
