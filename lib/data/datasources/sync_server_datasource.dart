@@ -30,7 +30,7 @@ class SyncServerDatasource {
           // Only active/current coupons
           final kupon = await db.query(
             'dim_kupon',
-            where: "status = 'Aktif' AND is_current = 1",
+            where: 'is_current = 1',
           );
 
           final responseData = {
