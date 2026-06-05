@@ -15,6 +15,12 @@ class TransaksiEntity {
   final String? kuponCreatedAt;
   final String? kuponExpiredAt;
 
+  final String? jenisTransaksi;
+  final String? namaPetugas;
+  final String? namaKonsumen;
+  final String? satkerText;
+  final String? nomorKendaraanText;
+
   String get jenisBbm => jenisBbmId.toString();
 
   const TransaksiEntity({
@@ -33,5 +39,10 @@ class TransaksiEntity {
     this.status = 'Aktif',
     this.kuponCreatedAt,
     this.kuponExpiredAt,
+    this.jenisTransaksi,
+    this.namaPetugas,
+    this.namaKonsumen,
+    this.satkerText,
+    this.nomorKendaraanText,
   });
 }

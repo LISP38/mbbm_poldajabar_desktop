@@ -57,7 +57,7 @@ class DatabaseDatasource {
     return await dbFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 11,
+        version: 13,
         onConfigure: (db) async {
           await db.execute('PRAGMA foreign_keys = ON;');
         },
@@ -417,10 +417,54 @@ class DatabaseDatasource {
             await db.execute('DROP INDEX IF EXISTS idx_fact_snapshot_date');
           }
 
-          if (oldVersion < 11) {
-            await db.execute(
-              'ALTER TABLE fact_transaksi ADD COLUMN created_by TEXT',
-            );
+          if (oldVersion < 12) {
+            await db.execute('CREATE TABLE fact_transaksi_temp AS SELECT * FROM fact_transaksi');
+            await db.execute('DROP TABLE fact_transaksi');
+            await db.execute('''
+              CREATE TABLE fact_transaksi (
+                transaksi_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kupon_key INTEGER,
+                satker_id INTEGER,
+                kendaraan_id INTEGER,
+                jenis_bbm_id INTEGER,
+                jenis_kupon_id INTEGER,
+                date_key INTEGER,
+                jumlah_liter REAL NOT NULL,
+                tanggal_transaksi TEXT NOT NULL,
+                created_by TEXT,
+                jenis_transaksi TEXT DEFAULT 'Non-Hutang',
+                nama_petugas TEXT,
+                nama_konsumen TEXT,
+                satker_text TEXT,
+                nomor_kendaraan_text TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                is_deleted INTEGER DEFAULT 0,
+                FOREIGN KEY (kupon_key) REFERENCES dim_kupon(kupon_key),
+                FOREIGN KEY (satker_id) REFERENCES dim_satker(satker_id),
+                FOREIGN KEY (kendaraan_id) REFERENCES dim_kendaraan(kendaraan_id),
+                FOREIGN KEY (jenis_bbm_id) REFERENCES dim_jenis_bbm(jenis_bbm_id),
+                FOREIGN KEY (jenis_kupon_id) REFERENCES dim_jenis_kupon(jenis_kupon_id),
+                FOREIGN KEY (date_key) REFERENCES dim_date(date_key)
+              )
+            ''');
+            await db.execute('''
+              INSERT INTO fact_transaksi (
+                transaksi_id, kupon_key, satker_id, kendaraan_id, jenis_bbm_id, 
+                jenis_kupon_id, date_key, jumlah_liter, tanggal_transaksi, 
+                created_by, created_at, updated_at, is_deleted
+              )
+              SELECT 
+                transaksi_id, kupon_key, satker_id, kendaraan_id, jenis_bbm_id, 
+                jenis_kupon_id, date_key, jumlah_liter, tanggal_transaksi, 
+                created_by, created_at, updated_at, is_deleted
+              FROM fact_transaksi_temp
+            ''');
+            await db.execute('DROP TABLE fact_transaksi_temp');
+          }
+
+          if (oldVersion < 13) {
+            await _migrateV13(db);
           }
         },
       ),
@@ -507,15 +551,20 @@ class DatabaseDatasource {
     batch.execute('''
       CREATE TABLE fact_transaksi (
         transaksi_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        kupon_key INTEGER NOT NULL,
-        satker_id INTEGER NOT NULL,
+        kupon_key INTEGER,
+        satker_id INTEGER,
         kendaraan_id INTEGER,
-        jenis_bbm_id INTEGER NOT NULL,
-        jenis_kupon_id INTEGER NOT NULL,
+        jenis_bbm_id INTEGER,
+        jenis_kupon_id INTEGER,
         date_key INTEGER,
         jumlah_liter REAL NOT NULL,
         tanggal_transaksi TEXT NOT NULL,
         created_by TEXT,
+        jenis_transaksi TEXT DEFAULT 'Non-Hutang',
+        nama_petugas TEXT,
+        nama_konsumen TEXT,
+        satker_text TEXT,
+        nomor_kendaraan_text TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         is_deleted INTEGER DEFAULT 0,
@@ -563,6 +612,8 @@ class DatabaseDatasource {
 
     await batch.commit(noResult: true);
     await _seedMasterData(db);
+    // Create alokasi tables for fresh installs
+    await _migrateV13(db);
   }
 
   Future<void> _seedMasterData(Database db) async {
@@ -863,6 +914,151 @@ class DatabaseDatasource {
         } else {
           rethrow;
         }
+      }
+    }
+  }
+
+  /// Migration v13: Add tables for Rekomendasi Alokasi BBM feature
+  Future<void> _migrateV13(Database db) async {
+    // ── rpd_acuan: Stores the current reference RPD ──
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS rpd_acuan (
+        rpd_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tahun INTEGER NOT NULL,
+        bulan INTEGER NOT NULL,
+        jenis_bbm TEXT NOT NULL,
+        kuantitas_liter REAL NOT NULL,
+        estimasi_harga REAL NOT NULL,
+        jumlah_harga REAL NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_rpd_acuan_tahun_bulan ON rpd_acuan(tahun, bulan)',
+    );
+
+    // ── alokasi_kendaraan_kategori: Vehicle category configuration ──
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS alokasi_kendaraan_kategori (
+        kategori_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nama_kategori TEXT NOT NULL UNIQUE,
+        jenis_bbm TEXT NOT NULL,
+        is_pju INTEGER DEFAULT 0,
+        jumlah_kendaraan INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    ''');
+
+    // ── index_norma: Fuel consumption norms per category ──
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS index_norma (
+        norma_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kategori_id INTEGER NOT NULL,
+        jumlah_liter_per_hari REAL NOT NULL,
+        FOREIGN KEY (kategori_id) REFERENCES alokasi_kendaraan_kategori(kategori_id)
+      )
+    ''');
+
+    // ── hari_kerja: Working days per month ──
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS hari_kerja (
+        hari_kerja_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tahun INTEGER NOT NULL,
+        bulan INTEGER NOT NULL,
+        hari_kalender INTEGER NOT NULL,
+        hari_kerja INTEGER NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tahun, bulan)
+      )
+    ''');
+
+    // ── alokasi_config: Key-value config storage ──
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS alokasi_config (
+        config_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        config_key TEXT NOT NULL UNIQUE,
+        config_value TEXT NOT NULL,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    ''');
+
+    // ── Seed default vehicle categories ──
+    final defaultCategories = [
+      {'nama': 'R2 Motor', 'bbm': 'PX', 'pju': 0, 'norma': 1.0},
+      {'nama': 'R4 PJU', 'bbm': 'PX', 'pju': 1, 'norma': 6.0},
+      {'nama': 'R4 OPS', 'bbm': 'PX', 'pju': 0, 'norma': 2.0},
+      {'nama': 'R4 STAF', 'bbm': 'PX', 'pju': 0, 'norma': 2.0},
+      {'nama': 'R4 PJU (PDX)', 'bbm': 'PDX', 'pju': 1, 'norma': 6.0},
+      {'nama': 'R4 OPS (PDX)', 'bbm': 'PDX', 'pju': 0, 'norma': 2.0},
+      {'nama': 'R4 Ambulance', 'bbm': 'PDX', 'pju': 0, 'norma': 2.0},
+      {'nama': 'R4 STAF (PDX)', 'bbm': 'PDX', 'pju': 0, 'norma': 2.0},
+      {'nama': 'R6 OPS', 'bbm': 'PDX', 'pju': 0, 'norma': 2.0},
+      {'nama': 'R6 STAF', 'bbm': 'PDX', 'pju': 0, 'norma': 2.0},
+    ];
+
+    for (final cat in defaultCategories) {
+      try {
+        final catId = await db.insert('alokasi_kendaraan_kategori', {
+          'nama_kategori': cat['nama'],
+          'jenis_bbm': cat['bbm'],
+          'is_pju': cat['pju'],
+          'jumlah_kendaraan': 0,
+        });
+        await db.insert('index_norma', {
+          'kategori_id': catId,
+          'jumlah_liter_per_hari': cat['norma'],
+        });
+      } catch (e) {
+        // Skip if already exists (UNIQUE constraint)
+      }
+    }
+
+    // ── Seed 2026 hari kerja data ──
+    final hariKerja2026 = [
+      {'bulan': 1, 'k': 31, 'hk': 20},
+      {'bulan': 2, 'k': 28, 'hk': 19},
+      {'bulan': 3, 'k': 31, 'hk': 20},
+      {'bulan': 4, 'k': 30, 'hk': 21},
+      {'bulan': 5, 'k': 31, 'hk': 18},
+      {'bulan': 6, 'k': 30, 'hk': 20},
+      {'bulan': 7, 'k': 31, 'hk': 23},
+      {'bulan': 8, 'k': 31, 'hk': 19},
+      {'bulan': 9, 'k': 30, 'hk': 22},
+      {'bulan': 10, 'k': 31, 'hk': 22},
+      {'bulan': 11, 'k': 30, 'hk': 21},
+      {'bulan': 12, 'k': 31, 'hk': 22},
+    ];
+
+    for (final hk in hariKerja2026) {
+      try {
+        await db.insert('hari_kerja', {
+          'tahun': 2026,
+          'bulan': hk['bulan'],
+          'hari_kalender': hk['k'],
+          'hari_kerja': hk['hk'],
+        });
+      } catch (e) {
+        // Skip if already exists (UNIQUE constraint)
+      }
+    }
+
+    // ── Seed default config ──
+    final defaultConfig = {
+      'harga_pertamax': '14326',
+      'harga_dexlite': '17748',
+      'hari_kerja_offset': '2',
+    };
+    for (final entry in defaultConfig.entries) {
+      try {
+        await db.insert('alokasi_config', {
+          'config_key': entry.key,
+          'config_value': entry.value,
+        });
+      } catch (e) {
+        // Skip if already exists
       }
     }
   }

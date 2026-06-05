@@ -6,6 +6,7 @@ import 'package:kupon_bbm_app/presentation/pages/sync_server_page.dart';
 import 'package:kupon_bbm_app/presentation/providers/dashboard_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:kupon_bbm_app/presentation/pages/analysis_data/analysis_data_page.dart';
+import 'package:kupon_bbm_app/presentation/pages/alokasi/rekomendasi_alokasi_page.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -56,6 +57,9 @@ class _MainPageState extends State<MainPage> {
         return const AnalysisDataPage();
 
       case 4:
+        return const RekomendasiAlokasiPage();
+
+      case 5:
         return const SyncServerPage();
 
       default:
@@ -96,6 +100,11 @@ class _MainPageState extends State<MainPage> {
                 icon: Icon(Icons.analytics),
                 selectedIcon: Icon(Icons.analytics_outlined),
                 label: Text('Analisis Data'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.recommend),
+                selectedIcon: Icon(Icons.recommend_outlined),
+                label: Text('Rekomendasi\nAlokasi', textAlign: TextAlign.center),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.phonelink_setup),

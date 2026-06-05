@@ -30,7 +30,7 @@ class SyncServerDatasource {
           // Only active/current coupons
           final kupon = await db.query(
             'dim_kupon',
-            where: "status = 'Aktif' AND is_current = 1",
+            where: 'is_current = 1',
           );
 
           final responseData = {
@@ -63,14 +63,57 @@ class SyncServerDatasource {
 
           int count = 0;
           for (var t in transactions) {
-            // Remove ID to let auto-increment work (and avoid conflict)
-            final Map<String, dynamic> data = Map<String, dynamic>.from(t);
-            data.remove('transaksi_id');
-
-            // Ensure created_by is present (it should be from mobile)
-            // If mobile sends 'id', we ignore it.
-
-            batch.insert('fact_transaksi', data);
+            final jenisTransaksi = t['jenis_transaksi'] ?? 'Non-Hutang';
+            final jumlahLiter = t['jumlah_liter'];
+            final tanggalTransaksi = t['tanggal_transaksi'];
+            final namaPetugas = t['nama_petugas'];
+            
+            if (jenisTransaksi == 'Hutang') {
+               final namaKonsumen = t['nama_konsumen'];
+               final satkerText = t['satker'];
+               final nopolText = t['nomor_kendaraan'];
+               
+               batch.insert('fact_transaksi', {
+                 'jumlah_liter': jumlahLiter,
+                 'tanggal_transaksi': tanggalTransaksi,
+                 'jenis_transaksi': jenisTransaksi,
+                 'nama_petugas': namaPetugas,
+                 'created_by': namaPetugas,
+                 'nama_konsumen': namaKonsumen,
+                 'satker_text': satkerText,
+                 'nomor_kendaraan_text': nopolText,
+               });
+            } else {
+               // Non-Hutang
+               final nomorKupon = t['nomor_kupon'];
+               
+               // Look up dim_kupon
+               final kuponRes = await db.query('dim_kupon', where: 'nomor_kupon = ? AND is_current = 1', whereArgs: [nomorKupon], limit: 1);
+               if (kuponRes.isNotEmpty) {
+                 final kupon = kuponRes.first;
+                 batch.insert('fact_transaksi', {
+                   'kupon_key': kupon['kupon_key'],
+                   'satker_id': kupon['satker_id'],
+                   'kendaraan_id': kupon['kendaraan_id'],
+                   'jenis_bbm_id': kupon['jenis_bbm_id'],
+                   'jenis_kupon_id': kupon['jenis_kupon_id'],
+                   'jumlah_liter': jumlahLiter,
+                   'tanggal_transaksi': tanggalTransaksi,
+                   'jenis_transaksi': jenisTransaksi,
+                   'nama_petugas': namaPetugas,
+                   'created_by': namaPetugas,
+                 });
+               } else {
+                 // Fallback if kupon not found (should rarely happen if synced)
+                 batch.insert('fact_transaksi', {
+                   'jumlah_liter': jumlahLiter,
+                   'tanggal_transaksi': tanggalTransaksi,
+                   'jenis_transaksi': jenisTransaksi,
+                   'nama_petugas': namaPetugas,
+                   'created_by': namaPetugas,
+                 });
+               }
+            }
             count++;
           }
 
