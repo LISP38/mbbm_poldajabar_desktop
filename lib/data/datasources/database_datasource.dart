@@ -741,10 +741,6 @@ class DatabaseDatasource {
           }
         }
 
-        // Determine whether dim_kupon has tahun_terbit_id column
-        final kuponPragma = await db.rawQuery("PRAGMA table_info('dim_kupon')");
-        final kuponCols = kuponPragma.map((c) => c['name'] as String).toSet();
-
         // (prepared args handled inline below)
 
         List<Map<String, Object?>> duplicateResults = [];

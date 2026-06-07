@@ -172,26 +172,6 @@ class ExportService {
     return transaksiByDate;
   }
 
-  // Helper function to extract list of (month, year) tuples from date range
-  // Returns list of consecutive months in the date range
-  static String _getMonthNameAbbr(int month) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return months[month - 1];
-  }
-
   // Export Master Data Kupon untuk Dashboard (tanpa kolom tanggal)
   // 4 sheets: RAN.PX, DUK.PX, RAN.DX, DUK.DX dengan 9 kolom saja
   static Future<bool> exportMasterDataKupon({
@@ -812,42 +792,30 @@ class ExportService {
         }
       }
 
-      // Filter kupon berdasarkan masa berlaku yang overlap dengan range
-      List<KuponEntity> filteredKupons = allKupons;
-      if (effectiveStartDate != null && effectiveEndDate != null) {
-        final startDate = effectiveStartDate;
-        final endDate = effectiveEndDate;
-        filteredKupons = allKupons.where((kupon) {
-          try {
-            final kuponStart =
-                DateTime.tryParse(kupon.tanggalMulai) ?? DateTime.now();
-            final kuponEnd =
-                DateTime.tryParse(kupon.tanggalSampai) ?? DateTime.now();
-            // Check if kupon periode overlap dengan filter range
-            return !(kuponEnd.isBefore(startDate) ||
-                kuponStart.isAfter(endDate));
-          } catch (e) {
-            return true; // Include jika parsing error
-          }
-        }).toList();
-      }
+      // Smart period selection untuk menentukan bulan filter
+      final (displayMonth, displayYear) = _getDisplayMonthYear(
+        filterBulan: filterBulan,
+        filterTahun: filterTahun,
+        filterTanggalMulai: filterTanggalMulai,
+      );
 
-      // Filter hanya kupon yang ada transaksi
-      final kuponsWithTransaction = filteredKupons
-          .where((k) => k.kuotaSisa < k.kuotaAwal)
+      // Filter kupon berdasarkan bulanTerbit & tahunTerbit (bukan transaksi)
+      // Ambil semua kupon yang terbit di bulan/tahun yang di-filtered
+      final filteredKupons = allKupons
+          .where((k) => k.bulanTerbit == displayMonth && k.tahunTerbit == displayYear)
           .toList();
 
       // Filter berdasarkan jenis kupon dan BBM
-      final ranPertamax = kuponsWithTransaction
+      final ranPertamax = filteredKupons
           .where((k) => k.jenisKuponId == 1 && k.jenisBbmId == 1)
           .toList();
-      final dukPertamax = kuponsWithTransaction
+      final dukPertamax = filteredKupons
           .where((k) => k.jenisKuponId == 2 && k.jenisBbmId == 1)
           .toList();
-      final ranDex = kuponsWithTransaction
+      final ranDex = filteredKupons
           .where((k) => k.jenisKuponId == 1 && k.jenisBbmId == 2)
           .toList();
-      final dukDex = kuponsWithTransaction
+      final dukDex = filteredKupons
           .where((k) => k.jenisKuponId == 2 && k.jenisBbmId == 2)
           .toList();
 
@@ -901,10 +869,10 @@ class ExportService {
       await _createRekapBulananSheet(
         excel: excel,
         sheetName: 'Rekapitulasi Bulanan',
-        allKupons: kuponsWithTransaction,
+        allKupons: filteredKupons,
         dbDatasource: dbDatasource,
-        filterBulan: filterBulan,
-        filterTahun: filterTahun,
+        filterBulan: displayMonth,
+        filterTahun: displayYear,
         filterTanggalMulai: effectiveStartDate,
         filterTanggalSelesai: effectiveEndDate,
       );
@@ -957,22 +925,30 @@ class ExportService {
         excel.delete('Sheet1');
       }
 
-      // Filter hanya kupon yang ada transaksi
-      final kuponsWithTransaction = allKupons
-          .where((k) => k.kuotaSisa < k.kuotaAwal)
+      // Smart period selection untuk menentukan bulan filter
+      final (displayMonth, displayYear) = _getDisplayMonthYear(
+        filterBulan: filterBulan,
+        filterTahun: filterTahun,
+        filterTanggalMulai: filterTanggalMulai,
+      );
+
+      // Filter kupon berdasarkan bulanTerbit & tahunTerbit (bukan transaksi)
+      // Ambil semua kupon yang terbit di bulan/tahun yang di-filter
+      final kuponsFiltered = allKupons
+          .where((k) => k.bulanTerbit == displayMonth && k.tahunTerbit == displayYear)
           .toList();
 
       // Filter berdasarkan jenis kupon dan BBM
-      final ranPertamax = kuponsWithTransaction
+      final ranPertamax = kuponsFiltered
           .where((k) => k.jenisKuponId == 1 && k.jenisBbmId == 1)
           .toList();
-      final dukPertamax = kuponsWithTransaction
+      final dukPertamax = kuponsFiltered
           .where((k) => k.jenisKuponId == 2 && k.jenisBbmId == 1)
           .toList();
-      final ranDex = kuponsWithTransaction
+      final ranDex = kuponsFiltered
           .where((k) => k.jenisKuponId == 1 && k.jenisBbmId == 2)
           .toList();
-      final dukDex = kuponsWithTransaction
+      final dukDex = kuponsFiltered
           .where((k) => k.jenisKuponId == 2 && k.jenisBbmId == 2)
           .toList();
 
@@ -3749,9 +3725,21 @@ class ExportService {
         'DESEMBER',
       ];
 
-      // Filter kupon berdasarkan jenis BBM
-      final kuponsPX = allKupons.where((k) => k.jenisBbmId == 1).toList();
-      final kuponsDX = allKupons.where((k) => k.jenisBbmId == 2).toList();
+        // Filter kupon berdasarkan jenis BBM
+        // Hanya sertakan kupon yang bulanTerbit/tahunTerbit-nya berada
+        // pada periode yang ditampilkan (month1/year1 atau month2/year2)
+        final kuponsPX = allKupons
+          .where((k) =>
+            k.jenisBbmId == 1 &&
+            ((k.bulanTerbit == month1 && k.tahunTerbit == year1) ||
+              (k.bulanTerbit == month2 && k.tahunTerbit == year2)))
+          .toList();
+        final kuponsDX = allKupons
+          .where((k) =>
+            k.jenisBbmId == 2 &&
+            ((k.bulanTerbit == month1 && k.tahunTerbit == year1) ||
+              (k.bulanTerbit == month2 && k.tahunTerbit == year2)))
+          .toList();
 
       // Get transaksi aggregated untuk semua kupon
       final transaksiMap = await _getAggregatedDailyTransaksi(
@@ -4346,8 +4334,20 @@ class ExportService {
     ];
 
     // Filter kupon berdasarkan jenis BBM
-    final kuponsPX = allKupons.where((k) => k.jenisBbmId == 1).toList();
-    final kuponsDX = allKupons.where((k) => k.jenisBbmId == 2).toList();
+    // Hanya sertakan kupon yang bulanTerbit/tahunTerbit-nya berada
+    // pada periode yang ditampilkan (month1/year1 atau month2/year2)
+    final kuponsPX = allKupons
+      .where((k) =>
+        k.jenisBbmId == 1 &&
+        ((k.bulanTerbit == month1 && k.tahunTerbit == year1) ||
+          (k.bulanTerbit == month2 && k.tahunTerbit == year2)))
+      .toList();
+    final kuponsDX = allKupons
+      .where((k) =>
+        k.jenisBbmId == 2 &&
+        ((k.bulanTerbit == month1 && k.tahunTerbit == year1) ||
+          (k.bulanTerbit == month2 && k.tahunTerbit == year2)))
+      .toList();
 
     // Get transaksi aggregated
     final transaksiMap = await _getAggregatedDailyTransaksi(
