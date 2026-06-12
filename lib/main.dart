@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:kupon_bbm_app/core/di/dependency_injection.dart';
 import 'package:kupon_bbm_app/core/themes/app_theme.dart';
+import 'package:kupon_bbm_app/data/repositories/database_provider.dart';
 import 'package:kupon_bbm_app/domain/repositories/kupon_repository.dart';
 import 'package:kupon_bbm_app/domain/repositories/master_data_repository.dart';
 import 'package:kupon_bbm_app/presentation/pages/main_page.dart';
@@ -27,6 +28,9 @@ void main() async {
     initializeDependencies(),
     initializeDateFormatting('id_ID'),
   ]);
+
+  // Initialize database to ensure tables are created
+  await DatabaseProvider.instance.database;
 
   // Run app with providers
   runApp(

@@ -11,7 +11,7 @@ class JenisBbmRepositoryImpl implements JenisBbmRepository {
   @override
   Future<List<JenisBbmEntity>> getAllJenisBbm() async {
     final db = await dbHelper.database;
-    final result = await db.query('dim_jenis_bbm', orderBy: 'jenis_bbm_id');
+    final result = await db.query('jenis_bbm', orderBy: 'jenis_bbm_id');
     return result.map((map) => JenisBbmEntity.fromMap(map)).toList();
   }
 
@@ -19,7 +19,7 @@ class JenisBbmRepositoryImpl implements JenisBbmRepository {
   Future<JenisBbmEntity?> getJenisBbmById(int id) async {
     final db = await dbHelper.database;
     final result = await db.query(
-      'dim_jenis_bbm',
+      'jenis_bbm',
       where: 'jenis_bbm_id = ?',
       whereArgs: [id],
       limit: 1,
@@ -38,7 +38,7 @@ class JenisBbmRepositoryImpl implements JenisBbmRepository {
 
     // Get next available ID
     final maxIdResult = await db.rawQuery(
-      'SELECT COALESCE(MAX(jenis_bbm_id), 0) as max_id FROM dim_jenis_bbm',
+      'SELECT COALESCE(MAX(jenis_bbm_id), 0) as max_id FROM jenis_bbm',
     );
     final nextId = (maxIdResult.first['max_id'] as int) + 1;
 
@@ -48,7 +48,7 @@ class JenisBbmRepositoryImpl implements JenisBbmRepository {
     );
 
     await db.insert(
-      'dim_jenis_bbm',
+      'jenis_bbm',
       entity.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -63,7 +63,7 @@ class JenisBbmRepositoryImpl implements JenisBbmRepository {
     
     // Try exact match first
     var result = await db.query(
-      'dim_jenis_bbm',
+      'jenis_bbm',
       where: 'LOWER(nama_jenis_bbm) = ?',
       whereArgs: [normalizedName],
       limit: 1,
@@ -75,7 +75,7 @@ class JenisBbmRepositoryImpl implements JenisBbmRepository {
 
     // Try contains match
     result = await db.query(
-      'dim_jenis_bbm',
+      'jenis_bbm',
       where: 'LOWER(nama_jenis_bbm) LIKE ?',
       whereArgs: ['%$normalizedName%'],
       limit: 1,

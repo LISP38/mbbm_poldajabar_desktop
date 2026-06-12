@@ -5,35 +5,29 @@ import 'package:kupon_bbm_app/data/models/kendaraan_model.dart';
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-/// Database datasource for the Kupon BBM application.
-///
-/// This class manages the SQLite database using a star schema design:
-///
-/// **Dimension Tables:**
-/// - `dim_kupon`: Stores coupon master data
-/// - `dim_satker`: Work unit (Satuan Kerja) reference
-/// - `dim_kendaraan`: Vehicle information
-/// - `dim_jenis_bbm`: Fuel types (Pertamax, Dex, etc.)
-/// - `dim_jenis_kupon`: Coupon types (RANJEN, DUKUNGAN)
-///
-/// **Fact Table:**
-/// - `fact_transaksi`: Records all fuel transactions
-///
-/// The database supports:
-/// - CRUD operations for all entities
-/// - Automatic schema migrations
-/// - Soft delete functionality
-/// - SCD Type 2 versioning for kupons
-///
-/// Example usage:
-/// ```dart
-/// final db = DatabaseDatasource();
-/// final database = await db.database;
-/// final kupons = await database.query('dim_kupon');
-/// ```
 class DatabaseDatasource {
   Database? _database;
   final String _dbFileName = 'kupon_bbm.db';
+
+  Future<bool> _tableExists(Database db, String tableName) async {
+    final result = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+      [tableName],
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<bool> verifyDatabaseSchema() async {
+    final db = await database;
+    final requiredTables = ['satker', 'jenis_bbm', 'jenis_kupon', 'kendaraan', 'kupon', 'transaksi'];
+    
+    for (final table in requiredTables) {
+      if (!await _tableExists(db, table)) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   DatabaseDatasource() {
     sqfliteFfiInit();
@@ -57,7 +51,7 @@ class DatabaseDatasource {
     return await dbFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 10,
+        version: 11,
         onConfigure: (db) async {
           await db.execute('PRAGMA foreign_keys = ON;');
         },
@@ -65,356 +59,262 @@ class DatabaseDatasource {
           await _createDB(db, version);
         },
         onUpgrade: (db, oldVersion, newVersion) async {
+          // Progressive migrations to transform legacy star-schema into domain model
           if (oldVersion < 2) {
-            // Remove UNIQUE constraint from nomor_kupon
-            await db.execute(
-              'CREATE TABLE fact_kupon_temp AS SELECT * FROM fact_kupon',
-            );
-            await db.execute('DROP TABLE fact_kupon');
-            await db.execute('''
-              CREATE TABLE fact_kupon (
-                kupon_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nomor_kupon TEXT NOT NULL,
-                kendaraan_id INTEGER NOT NULL,
-                jenis_bbm_id INTEGER NOT NULL,
-                jenis_kupon_id INTEGER NOT NULL,
-                bulan_terbit INTEGER NOT NULL,
-                tahun_terbit INTEGER NOT NULL,
-                tanggal_mulai TEXT NOT NULL,
-                tanggal_sampai TEXT NOT NULL,
-                kuota_awal REAL NOT NULL,
-                kuota_sisa REAL NOT NULL CHECK (kuota_sisa >= -999999),
-                nama_satker TEXT NOT NULL,
-                status TEXT DEFAULT 'Aktif',
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                is_deleted INTEGER DEFAULT 0,
-                FOREIGN KEY (kendaraan_id) REFERENCES dim_kendaraan(kendaraan_id)
-                  ON DELETE CASCADE ON UPDATE CASCADE,
-                FOREIGN KEY (jenis_bbm_id) REFERENCES dim_jenis_bbm(jenis_bbm_id),
-                FOREIGN KEY (jenis_kupon_id) REFERENCES dim_jenis_kupon(jenis_kupon_id)
-              );
-            ''');
-            await db.execute(
-              'INSERT INTO fact_kupon SELECT * FROM fact_kupon_temp',
-            );
-            await db.execute('DROP TABLE fact_kupon_temp');
-          }
-
-          if (oldVersion < 3) {
-            // Add import history tracking tables
-            await db.execute('''
-              CREATE TABLE import_history (
-                session_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                file_name TEXT NOT NULL,
-                import_type TEXT NOT NULL,
-                import_date TEXT NOT NULL,
-                expected_period TEXT,
-                total_kupons INTEGER NOT NULL,
-                success_count INTEGER DEFAULT 0,
-                error_count INTEGER DEFAULT 0,
-                duplicate_count INTEGER DEFAULT 0,
-                status TEXT NOT NULL DEFAULT 'PROCESSING',
-                error_message TEXT,
-                metadata TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-              );
-            ''');
-
-            await db.execute('''
-              CREATE TABLE import_details (
-                detail_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id INTEGER NOT NULL,
-                kupon_data TEXT NOT NULL,
-                status TEXT NOT NULL,
-                error_message TEXT,
-                action TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (session_id) REFERENCES import_history(session_id) 
-                  ON DELETE CASCADE
-              );
-            ''');
-
-            // Add indexes for import history
-            await db.execute(
-              'CREATE INDEX IF NOT EXISTS idx_import_history_date ON import_history(import_date);',
-            );
-            await db.execute(
-              'CREATE INDEX IF NOT EXISTS idx_import_history_status ON import_history(status);',
-            );
-            await db.execute(
-              'CREATE INDEX IF NOT EXISTS idx_import_details_session ON import_details(session_id);',
-            );
-          }
-
-          if (oldVersion < 4) {
-            // Make kendaraan_id nullable to support DUKUNGAN kupon
-
-            // Create new table with nullable kendaraan_id
-            await db.execute('''
-              CREATE TABLE fact_kupon_new (
-                kupon_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nomor_kupon TEXT NOT NULL,
-                kendaraan_id INTEGER,
-                jenis_bbm_id INTEGER NOT NULL,
-                jenis_kupon_id INTEGER NOT NULL,
-                bulan_terbit INTEGER NOT NULL,
-                tahun_terbit INTEGER NOT NULL,
-                tanggal_mulai TEXT NOT NULL,
-                tanggal_sampai TEXT NOT NULL,
-                kuota_awal REAL NOT NULL,
-                kuota_sisa REAL NOT NULL CHECK (kuota_sisa >= -999999),
-                satker_id INTEGER NOT NULL,
-                nama_satker TEXT NOT NULL,
-                status TEXT DEFAULT 'Aktif',
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                is_deleted INTEGER DEFAULT 0,
-                FOREIGN KEY (kendaraan_id) REFERENCES dim_kendaraan(kendaraan_id)
-                  ON DELETE CASCADE ON UPDATE CASCADE,
-                FOREIGN KEY (jenis_bbm_id) REFERENCES dim_jenis_bbm(jenis_bbm_id),
-                FOREIGN KEY (jenis_kupon_id) REFERENCES dim_jenis_kupon(jenis_kupon_id),
-                FOREIGN KEY (satker_id) REFERENCES dim_satker(satker_id)
-                  ON DELETE RESTRICT ON UPDATE CASCADE
-              );
-            ''');
-
-            // Copy data from old table
-            await db.execute('''
-              INSERT INTO fact_kupon_new
-              SELECT * FROM fact_kupon;
-            ''');
-
-            // Drop old table and rename
-            await db.execute('DROP TABLE fact_kupon');
-            await db.execute('ALTER TABLE fact_kupon_new RENAME TO fact_kupon');
-          }
-
-          if (oldVersion < 5) {
-            await db.execute('''
-              CREATE UNIQUE INDEX IF NOT EXISTS idx_fact_kupon_unique_key
-              ON fact_kupon (nomor_kupon, jenis_kupon_id, satker_id, bulan_terbit, tahun_terbit)
-              WHERE is_deleted = 0;
-            ''');
-          }
-
-          if (oldVersion < 6) {
-            // Drop old index
-            await db.execute('DROP INDEX IF EXISTS idx_fact_kupon_unique_key');
-            // Create new index with jenis_bbm_id
-            await db.execute('''
-              CREATE UNIQUE INDEX IF NOT EXISTS idx_fact_kupon_unique_key
-              ON fact_kupon (nomor_kupon, jenis_kupon_id, jenis_bbm_id, satker_id, bulan_terbit, tahun_terbit)
-              WHERE is_deleted = 0;
-            ''');
+            // No-op for very old versions; schema will be rebuilt in later steps
           }
 
           if (oldVersion < 7) {
-            // Step 1: Backup existing data
-            await db.execute(
-              'CREATE TABLE fact_kupon_backup AS SELECT * FROM fact_kupon',
-            );
-            await db.execute(
-              'CREATE TABLE fact_transaksi_backup AS SELECT * FROM fact_transaksi',
-            );
+              // Backup legacy tables if they exist
+              if (await _tableExists(db, 'fact_kupon')) {
+                await db.execute('CREATE TABLE IF NOT EXISTS fact_kupon_backup AS SELECT * FROM fact_kupon');
+              }
+              if (await _tableExists(db, 'fact_transaksi')) {
+                await db.execute('CREATE TABLE IF NOT EXISTS fact_transaksi_backup AS SELECT * FROM fact_transaksi');
+              }
 
-            // Step 2: Drop legacy tables and unused star schema tables
-            await db.execute('DROP TABLE IF EXISTS fact_purchasing');
-            await db.execute('DROP TABLE IF EXISTS import_history');
-            await db.execute('DROP TABLE IF EXISTS import_details');
-
-            // Step 3: Create dim_kupon (master kupon)
+            // Create domain master tables
             await db.execute('''
-              CREATE TABLE IF NOT EXISTS dim_kupon (
-                kupon_key INTEGER PRIMARY KEY AUTOINCREMENT,
-                nomor_kupon TEXT NOT NULL,
-                satker_id INTEGER NOT NULL,
-                kendaraan_id INTEGER,
-                jenis_bbm_id INTEGER NOT NULL,
-                jenis_kupon_id INTEGER NOT NULL,
-                bulan_terbit INTEGER NOT NULL,
-                tahun_terbit INTEGER NOT NULL,
-                tanggal_mulai TEXT NOT NULL,
-                tanggal_sampai TEXT NOT NULL,
-                kuota_awal REAL NOT NULL,
-                status TEXT DEFAULT 'Aktif',
-                valid_from TEXT DEFAULT CURRENT_TIMESTAMP,
-                valid_to TEXT,
-                is_current INTEGER DEFAULT 1,
-                FOREIGN KEY (satker_id) REFERENCES dim_satker(satker_id),
-                FOREIGN KEY (kendaraan_id) REFERENCES dim_kendaraan(kendaraan_id),
-                FOREIGN KEY (jenis_bbm_id) REFERENCES dim_jenis_bbm(jenis_bbm_id),
-                FOREIGN KEY (jenis_kupon_id) REFERENCES dim_jenis_kupon(jenis_kupon_id)
+              CREATE TABLE IF NOT EXISTS satker (
+                satker_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nama_satker TEXT NOT NULL UNIQUE
               )
             ''');
 
-            // Step 4: Migrate fact_kupon to dim_kupon
             await db.execute('''
-              INSERT INTO dim_kupon (
-                nomor_kupon, satker_id, kendaraan_id, jenis_bbm_id, jenis_kupon_id,
-                bulan_terbit, tahun_terbit, tanggal_mulai, tanggal_sampai, kuota_awal, status
-              )
-              SELECT 
-                nomor_kupon, satker_id, kendaraan_id, jenis_bbm_id, jenis_kupon_id,
-                bulan_terbit, tahun_terbit, tanggal_mulai, tanggal_sampai, kuota_awal, status
-              FROM fact_kupon_backup
-              WHERE is_deleted = 0
-            ''');
-
-            // Step 5: Create fact_kupon_snapshot
-            await db.execute('''
-              CREATE TABLE IF NOT EXISTS fact_kupon_snapshot (
-                snapshot_key INTEGER PRIMARY KEY AUTOINCREMENT,
-                kupon_key INTEGER NOT NULL,
-                date_key INTEGER,
-                snapshot_date TEXT NOT NULL,
-                kuota_awal REAL NOT NULL,
-                kuota_terpakai REAL NOT NULL DEFAULT 0,
-                kuota_sisa REAL NOT NULL,
-                jumlah_transaksi INTEGER DEFAULT 0,
-                status_kupon TEXT,
-                FOREIGN KEY (kupon_key) REFERENCES dim_kupon(kupon_key),
-                FOREIGN KEY (date_key) REFERENCES dim_date(date_key)
+              CREATE TABLE IF NOT EXISTS jenis_bbm (
+                jenis_bbm_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nama_jenis_bbm TEXT NOT NULL UNIQUE
               )
             ''');
 
-            // Step 6: Recreate fact_transaksi with proper FK to dim_kupon
-            await db.execute('DROP TABLE IF EXISTS fact_transaksi');
             await db.execute('''
-              CREATE TABLE fact_transaksi (
-                transaksi_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                kupon_key INTEGER NOT NULL,
-                satker_id INTEGER NOT NULL,
-                kendaraan_id INTEGER,
-                jenis_bbm_id INTEGER NOT NULL,
-                jenis_kupon_id INTEGER NOT NULL,
-                date_key INTEGER,
-                jumlah_liter REAL NOT NULL,
-                tanggal_transaksi TEXT NOT NULL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                is_deleted INTEGER DEFAULT 0,
-                FOREIGN KEY (kupon_key) REFERENCES dim_kupon(kupon_key),
-                FOREIGN KEY (satker_id) REFERENCES dim_satker(satker_id),
-                FOREIGN KEY (kendaraan_id) REFERENCES dim_kendaraan(kendaraan_id),
-                FOREIGN KEY (jenis_bbm_id) REFERENCES dim_jenis_bbm(jenis_bbm_id),
-                FOREIGN KEY (jenis_kupon_id) REFERENCES dim_jenis_kupon(jenis_kupon_id),
-                FOREIGN KEY (date_key) REFERENCES dim_date(date_key)
+              CREATE TABLE IF NOT EXISTS jenis_kupon (
+                jenis_kupon_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nama_jenis_kupon TEXT NOT NULL UNIQUE
               )
             ''');
 
-            // Step 7: Migrate transactions with lookup to dim_kupon
             await db.execute('''
-              INSERT INTO fact_transaksi (
-                kupon_key, satker_id, kendaraan_id, jenis_bbm_id, jenis_kupon_id,
-                jumlah_liter, tanggal_transaksi, created_at, updated_at, is_deleted
-              )
-              SELECT 
-                (SELECT dk.kupon_key FROM dim_kupon dk 
-                 WHERE dk.nomor_kupon = ft.nomor_kupon 
-                 AND dk.is_current = 1 LIMIT 1) as kupon_key,
-                (SELECT fk.satker_id FROM fact_kupon_backup fk 
-                 WHERE fk.kupon_id = ft.kupon_id LIMIT 1) as satker_id,
-                (SELECT fk.kendaraan_id FROM fact_kupon_backup fk 
-                 WHERE fk.kupon_id = ft.kupon_id LIMIT 1) as kendaraan_id,
-                ft.jenis_bbm_id,
-                (SELECT fk.jenis_kupon_id FROM fact_kupon_backup fk 
-                 WHERE fk.kupon_id = ft.kupon_id LIMIT 1) as jenis_kupon_id,
-                ft.jumlah_liter,
-                ft.tanggal_transaksi,
-                ft.created_at,
-                ft.updated_at,
-                ft.is_deleted
-              FROM fact_transaksi_backup ft
-              WHERE (SELECT dk.kupon_key FROM dim_kupon dk 
-                     WHERE dk.nomor_kupon = ft.nomor_kupon 
-                     AND dk.is_current = 1 LIMIT 1) IS NOT NULL
-            ''');
-
-            // Step 8: Drop fact_kupon (migrated to dim_kupon)
-            await db.execute('DROP TABLE IF EXISTS fact_kupon');
-
-            // Step 9: Create initial snapshot from current state
-            await db.execute('''
-              INSERT INTO fact_kupon_snapshot (
-                kupon_key, snapshot_date, kuota_awal, kuota_terpakai, kuota_sisa, jumlah_transaksi, status_kupon
-              )
-              SELECT 
-                dk.kupon_key,
-                date('now') as snapshot_date,
-                dk.kuota_awal,
-                COALESCE(SUM(ft.jumlah_liter), 0) as kuota_terpakai,
-                dk.kuota_awal - COALESCE(SUM(ft.jumlah_liter), 0) as kuota_sisa,
-                COUNT(ft.transaksi_id) as jumlah_transaksi,
-                dk.status as status_kupon
-              FROM dim_kupon dk
-              LEFT JOIN fact_transaksi ft ON dk.kupon_key = ft.kupon_key AND ft.is_deleted = 0
-              WHERE dk.is_current = 1
-              GROUP BY dk.kupon_key
-            ''');
-
-            // Step 10: Create indexes
-            await db.execute(
-              'CREATE INDEX IF NOT EXISTS idx_dim_kupon_nomor ON dim_kupon(nomor_kupon)',
-            );
-            await db.execute(
-              'CREATE INDEX IF NOT EXISTS idx_dim_kupon_satker ON dim_kupon(satker_id)',
-            );
-            await db.execute(
-              'CREATE INDEX IF NOT EXISTS idx_dim_kupon_current ON dim_kupon(is_current)',
-            );
-            await db.execute(
-              'CREATE INDEX IF NOT EXISTS idx_fact_transaksi_kupon ON fact_transaksi(kupon_key)',
-            );
-            await db.execute(
-              'CREATE INDEX IF NOT EXISTS idx_fact_transaksi_date ON fact_transaksi(tanggal_transaksi)',
-            );
-            await db.execute(
-              'CREATE INDEX IF NOT EXISTS idx_fact_transaksi_deleted ON fact_transaksi(is_deleted)',
-            );
-            await db.execute(
-              'CREATE INDEX IF NOT EXISTS idx_fact_snapshot_kupon ON fact_kupon_snapshot(kupon_key)',
-            );
-            await db.execute(
-              'CREATE INDEX IF NOT EXISTS idx_fact_snapshot_date ON fact_kupon_snapshot(snapshot_date)',
-            );
-
-            // Step 11: Drop backup tables
-            await db.execute('DROP TABLE IF EXISTS fact_kupon_backup');
-            await db.execute('DROP TABLE IF EXISTS fact_transaksi_backup');
-          }
-
-          if (oldVersion < 8) {
-            // leave v8 migration as-is (earlier star-schema work)
-          }
-
-          if (oldVersion < 9) {
-            // Drop dimension tables that should not exist in the final schema
-            await db.execute('DROP TABLE IF EXISTS dim_nopol');
-            await db.execute('DROP TABLE IF EXISTS dim_jenis_ranmor');
-
-            // Ensure final dim_kendaraan structure exists. If columns from older
-            // migrations still exist (nopol_id, jenis_ranmor_id), SQLite cannot
-            // drop columns easily — we create the canonical table if missing and
-            // rely on SELECTing only valid columns elsewhere.
-            await db.execute('''
-              CREATE TABLE IF NOT EXISTS dim_kendaraan (
+              CREATE TABLE IF NOT EXISTS kendaraan (
                 kendaraan_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 satker_id INTEGER,
                 jenis_ranmor TEXT,
                 no_pol_kode TEXT,
                 no_pol_nomor TEXT,
-                status_aktif INTEGER DEFAULT 1
+                status_aktif INTEGER DEFAULT 1,
+                FOREIGN KEY (satker_id) REFERENCES satker(satker_id)
+              )
+            ''');
+
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS kupon (
+                kupon_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nomor_kupon TEXT NOT NULL,
+                satker_id INTEGER NOT NULL,
+                kendaraan_id INTEGER,
+                jenis_bbm_id INTEGER NOT NULL,
+                jenis_kupon_id INTEGER NOT NULL,
+                bulan_terbit INTEGER NOT NULL,
+                tahun_terbit INTEGER NOT NULL,
+                tanggal_mulai TEXT NOT NULL,
+                tanggal_sampai TEXT NOT NULL,
+                kuota_awal REAL NOT NULL,
+                status TEXT DEFAULT 'Aktif',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                is_deleted INTEGER DEFAULT 0,
+                FOREIGN KEY (satker_id) REFERENCES satker(satker_id),
+                FOREIGN KEY (kendaraan_id) REFERENCES kendaraan(kendaraan_id),
+                FOREIGN KEY (jenis_bbm_id) REFERENCES jenis_bbm(jenis_bbm_id),
+                FOREIGN KEY (jenis_kupon_id) REFERENCES jenis_kupon(jenis_kupon_id)
+              )
+            ''');
+
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS transaksi (
+                transaksi_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kupon_id INTEGER NOT NULL,
+                jumlah_liter REAL NOT NULL,
+                tanggal_transaksi TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                is_deleted INTEGER DEFAULT 0,
+                FOREIGN KEY (kupon_id) REFERENCES kupon(kupon_id)
+              )
+            ''');
+
+            // Migrate master data from legacy dim tables if available
+            if (await _tableExists(db, 'dim_satker')) {
+              await db.execute("INSERT OR IGNORE INTO satker(nama_satker) SELECT nama_satker FROM dim_satker WHERE nama_satker IS NOT NULL");
+            }
+            if (await _tableExists(db, 'dim_jenis_bbm')) {
+              await db.execute("INSERT OR IGNORE INTO jenis_bbm(nama_jenis_bbm) SELECT nama_jenis_bbm FROM dim_jenis_bbm WHERE nama_jenis_bbm IS NOT NULL");
+            }
+            if (await _tableExists(db, 'dim_jenis_kupon')) {
+              await db.execute("INSERT OR IGNORE INTO jenis_kupon(nama_jenis_kupon) SELECT nama_jenis_kupon FROM dim_jenis_kupon WHERE nama_jenis_kupon IS NOT NULL");
+            }
+            if (await _tableExists(db, 'dim_kendaraan')) {
+              await db.execute("INSERT OR IGNORE INTO kendaraan(kendaraan_id, satker_id, jenis_ranmor, no_pol_kode, no_pol_nomor, status_aktif) SELECT kendaraan_id, satker_id, jenis_ranmor, no_pol_kode, no_pol_nomor, status_aktif FROM dim_kendaraan");
+            }
+
+            // Migrate kupon/master from fact_kupon_backup if available
+            if (await _tableExists(db, 'fact_kupon_backup')) {
+            await db.execute('''
+              INSERT INTO kupon (
+                nomor_kupon, satker_id, kendaraan_id, jenis_bbm_id, jenis_kupon_id,
+                bulan_terbit, tahun_terbit, tanggal_mulai, tanggal_sampai, kuota_awal, status, created_at, updated_at, is_deleted
+              )
+              SELECT 
+                nomor_kupon, satker_id, kendaraan_id, jenis_bbm_id, jenis_kupon_id,
+                bulan_terbit, tahun_terbit, tanggal_mulai, tanggal_sampai, kuota_awal, status, created_at, updated_at, is_deleted
+              FROM fact_kupon_backup
+              WHERE is_deleted = 0
+            ''');
+            }
+
+            // Migrate transaksi from backup, link by nomor_kupon -> kupon.nomor_kupon
+            if (await _tableExists(db, 'fact_transaksi_backup')) {
+              await db.execute('''
+                INSERT INTO transaksi (kupon_id, jumlah_liter, tanggal_transaksi, created_at, updated_at, is_deleted)
+                SELECT 
+                  (SELECT k.kupon_id FROM kupon k WHERE k.nomor_kupon = ft.nomor_kupon LIMIT 1) as kupon_id,
+                  ft.jumlah_liter, ft.tanggal_transaksi, ft.created_at, ft.updated_at, ft.is_deleted
+                FROM fact_transaksi_backup ft
+                WHERE (SELECT k.kupon_id FROM kupon k WHERE k.nomor_kupon = ft.nomor_kupon LIMIT 1) IS NOT NULL
+              ''');
+            }
+
+            // Drop legacy tables we no longer need
+            final legacyTables = [
+              'fact_purchasing',
+              'fact_kupon',
+              'fact_transaksi',
+              'dim_kupon',
+              'dim_date',
+              'dim_jenis_ranmor',
+              'dim_nopol',
+              'import_history',
+              'import_details',
+              'fact_kupon_backup',
+              'fact_transaksi_backup',
+            ];
+            for (final table in legacyTables) {
+              if (await _tableExists(db, table)) {
+                await db.execute('DROP TABLE IF EXISTS $table');
+              }
+            }
+          }
+
+          if (oldVersion < 9) {
+            // Ensure kendaraan table exists in canonical form
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS kendaraan (
+                kendaraan_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                satker_id INTEGER,
+                jenis_ranmor TEXT,
+                no_pol_kode TEXT,
+                no_pol_nomor TEXT,
+                status_aktif INTEGER DEFAULT 1,
+                FOREIGN KEY (satker_id) REFERENCES satker(satker_id)
               )
             ''');
           }
 
-          if (oldVersion < 10) {
-            // Drop fact_kupon_snapshot as kuota_sisa is now calculated real-time
-            await db.execute('DROP TABLE IF EXISTS fact_kupon_snapshot');
-            await db.execute('DROP INDEX IF EXISTS idx_fact_snapshot_kupon');
-            await db.execute('DROP INDEX IF EXISTS idx_fact_snapshot_date');
+          if (oldVersion < 11) {
+            // Ensure all core tables exist (handles database files from previous versions)
+            final tablesToCreate = [
+              ('satker', '''
+                CREATE TABLE IF NOT EXISTS satker (
+                  satker_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  nama_satker TEXT NOT NULL UNIQUE
+                )
+              '''),
+              ('jenis_bbm', '''
+                CREATE TABLE IF NOT EXISTS jenis_bbm (
+                  jenis_bbm_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  nama_jenis_bbm TEXT NOT NULL UNIQUE
+                )
+              '''),
+              ('jenis_kupon', '''
+                CREATE TABLE IF NOT EXISTS jenis_kupon (
+                  jenis_kupon_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  nama_jenis_kupon TEXT NOT NULL UNIQUE
+                )
+              '''),
+              ('kendaraan', '''
+                CREATE TABLE IF NOT EXISTS kendaraan (
+                  kendaraan_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  satker_id INTEGER,
+                  jenis_ranmor TEXT,
+                  no_pol_kode TEXT,
+                  no_pol_nomor TEXT,
+                  status_aktif INTEGER DEFAULT 1,
+                  FOREIGN KEY (satker_id) REFERENCES satker(satker_id)
+                )
+              '''),
+              ('kupon', '''
+                CREATE TABLE IF NOT EXISTS kupon (
+                  kupon_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  nomor_kupon TEXT NOT NULL,
+                  satker_id INTEGER NOT NULL,
+                  kendaraan_id INTEGER,
+                  jenis_bbm_id INTEGER NOT NULL,
+                  jenis_kupon_id INTEGER NOT NULL,
+                  bulan_terbit INTEGER NOT NULL,
+                  tahun_terbit INTEGER NOT NULL,
+                  tanggal_mulai TEXT NOT NULL,
+                  tanggal_sampai TEXT NOT NULL,
+                  kuota_awal REAL NOT NULL,
+                  status TEXT DEFAULT 'Aktif',
+                  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                  is_deleted INTEGER DEFAULT 0,
+                  FOREIGN KEY (satker_id) REFERENCES satker(satker_id),
+                  FOREIGN KEY (kendaraan_id) REFERENCES kendaraan(kendaraan_id),
+                  FOREIGN KEY (jenis_bbm_id) REFERENCES jenis_bbm(jenis_bbm_id),
+                  FOREIGN KEY (jenis_kupon_id) REFERENCES jenis_kupon(jenis_kupon_id)
+                )
+              '''),
+              ('transaksi', '''
+                CREATE TABLE IF NOT EXISTS transaksi (
+                  transaksi_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  kupon_id INTEGER NOT NULL,
+                  jumlah_liter REAL NOT NULL,
+                  tanggal_transaksi TEXT NOT NULL,
+                  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                  is_deleted INTEGER DEFAULT 0,
+                  FOREIGN KEY (kupon_id) REFERENCES kupon(kupon_id)
+                )
+              '''),
+            ];
+
+            for (final (tableName, createSql) in tablesToCreate) {
+              if (!await _tableExists(db, tableName)) {
+                await db.execute(createSql);
+              }
+            }
+
+            // Create indexes if they don't exist
+            final indexesToCreate = [
+              'CREATE INDEX IF NOT EXISTS idx_kendaraan_satker ON kendaraan(satker_id)',
+              'CREATE INDEX IF NOT EXISTS idx_kendaraan_nopol ON kendaraan(no_pol_kode, no_pol_nomor)',
+              'CREATE INDEX IF NOT EXISTS idx_kupon_nomor ON kupon(nomor_kupon)',
+              'CREATE INDEX IF NOT EXISTS idx_kupon_satker ON kupon(satker_id)',
+              'CREATE INDEX IF NOT EXISTS idx_kupon_periode ON kupon(bulan_terbit, tahun_terbit)',
+              'CREATE INDEX IF NOT EXISTS idx_transaksi_kupon ON transaksi(kupon_id)',
+              'CREATE INDEX IF NOT EXISTS idx_transaksi_date ON transaksi(tanggal_transaksi)',
+              'CREATE INDEX IF NOT EXISTS idx_transaksi_deleted ON transaksi(is_deleted)',
+            ];
+
+            for (final indexSql in indexesToCreate) {
+              try {
+                await db.execute(indexSql);
+              } catch (e) {
+                // Index might already exist or other issues; continue
+              }
+            }
           }
         },
       ),
@@ -424,57 +324,44 @@ class DatabaseDatasource {
   Future<void> _createDB(Database db, int version) async {
     final batch = db.batch();
 
-    // ===== DIMENSION TABLES =====
+    // ===== DOMAIN TABLES =====
 
     batch.execute('''
-      CREATE TABLE dim_satker (
+      CREATE TABLE IF NOT EXISTS satker (
         satker_id INTEGER PRIMARY KEY AUTOINCREMENT,
         nama_satker TEXT NOT NULL UNIQUE
       )
     ''');
 
     batch.execute('''
-      CREATE TABLE dim_jenis_bbm (
+      CREATE TABLE IF NOT EXISTS jenis_bbm (
         jenis_bbm_id INTEGER PRIMARY KEY AUTOINCREMENT,
         nama_jenis_bbm TEXT NOT NULL UNIQUE
       )
     ''');
 
     batch.execute('''
-      CREATE TABLE dim_jenis_kupon (
+      CREATE TABLE IF NOT EXISTS jenis_kupon (
         jenis_kupon_id INTEGER PRIMARY KEY AUTOINCREMENT,
         nama_jenis_kupon TEXT NOT NULL UNIQUE
       )
     ''');
 
     batch.execute('''
-      CREATE TABLE dim_kendaraan (
+      CREATE TABLE IF NOT EXISTS kendaraan (
         kendaraan_id INTEGER PRIMARY KEY AUTOINCREMENT,
         satker_id INTEGER,
         jenis_ranmor TEXT,
         no_pol_kode TEXT,
         no_pol_nomor TEXT,
-        status_aktif INTEGER DEFAULT 1
+        status_aktif INTEGER DEFAULT 1,
+        FOREIGN KEY (satker_id) REFERENCES satker(satker_id)
       )
     ''');
 
     batch.execute('''
-      CREATE TABLE dim_date (
-        date_key INTEGER PRIMARY KEY AUTOINCREMENT,
-        date_value TEXT NOT NULL UNIQUE,
-        year INTEGER,
-        month INTEGER,
-        day INTEGER,
-        week_of_year INTEGER,
-        quarter INTEGER,
-        bulan_terbit INTEGER,
-        tahun_terbit INTEGER
-      )
-    ''');
-
-    batch.execute('''
-      CREATE TABLE dim_kupon (
-        kupon_key INTEGER PRIMARY KEY AUTOINCREMENT,
+      CREATE TABLE IF NOT EXISTS kupon (
+        kupon_id INTEGER PRIMARY KEY AUTOINCREMENT,
         nomor_kupon TEXT NOT NULL,
         satker_id INTEGER NOT NULL,
         kendaraan_id INTEGER,
@@ -486,73 +373,38 @@ class DatabaseDatasource {
         tanggal_sampai TEXT NOT NULL,
         kuota_awal REAL NOT NULL,
         status TEXT DEFAULT 'Aktif',
-        valid_from TEXT DEFAULT CURRENT_TIMESTAMP,
-        valid_to TEXT,
-        is_current INTEGER DEFAULT 1,
-        FOREIGN KEY (satker_id) REFERENCES dim_satker(satker_id),
-        FOREIGN KEY (kendaraan_id) REFERENCES dim_kendaraan(kendaraan_id),
-        FOREIGN KEY (jenis_bbm_id) REFERENCES dim_jenis_bbm(jenis_bbm_id),
-        FOREIGN KEY (jenis_kupon_id) REFERENCES dim_jenis_kupon(jenis_kupon_id)
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        is_deleted INTEGER DEFAULT 0,
+        FOREIGN KEY (satker_id) REFERENCES satker(satker_id),
+        FOREIGN KEY (kendaraan_id) REFERENCES kendaraan(kendaraan_id),
+        FOREIGN KEY (jenis_bbm_id) REFERENCES jenis_bbm(jenis_bbm_id),
+        FOREIGN KEY (jenis_kupon_id) REFERENCES jenis_kupon(jenis_kupon_id)
       )
     ''');
 
-    // ===== FACT TABLES =====
-
     batch.execute('''
-      CREATE TABLE fact_transaksi (
+      CREATE TABLE IF NOT EXISTS transaksi (
         transaksi_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        kupon_key INTEGER NOT NULL,
-        satker_id INTEGER NOT NULL,
-        kendaraan_id INTEGER,
-        jenis_bbm_id INTEGER NOT NULL,
-        jenis_kupon_id INTEGER NOT NULL,
-        date_key INTEGER,
+        kupon_id INTEGER NOT NULL,
         jumlah_liter REAL NOT NULL,
         tanggal_transaksi TEXT NOT NULL,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         is_deleted INTEGER DEFAULT 0,
-        FOREIGN KEY (kupon_key) REFERENCES dim_kupon(kupon_key),
-        FOREIGN KEY (satker_id) REFERENCES dim_satker(satker_id),
-        FOREIGN KEY (kendaraan_id) REFERENCES dim_kendaraan(kendaraan_id),
-        FOREIGN KEY (jenis_bbm_id) REFERENCES dim_jenis_bbm(jenis_bbm_id),
-        FOREIGN KEY (jenis_kupon_id) REFERENCES dim_jenis_kupon(jenis_kupon_id),
-        FOREIGN KEY (date_key) REFERENCES dim_date(date_key)
+        FOREIGN KEY (kupon_id) REFERENCES kupon(kupon_id)
       )
     ''');
 
-    // ===== INDEXES =====
-
-    // Dimension indexes
-    batch.execute(
-      'CREATE INDEX idx_kendaraan_satker ON dim_kendaraan(satker_id)',
-    );
-    batch.execute(
-      'CREATE INDEX idx_kendaraan_nopol ON dim_kendaraan(no_pol_kode, no_pol_nomor)',
-    );
-    batch.execute('CREATE INDEX idx_dim_kupon_nomor ON dim_kupon(nomor_kupon)');
-    batch.execute('CREATE INDEX idx_dim_kupon_satker ON dim_kupon(satker_id)');
-    batch.execute(
-      'CREATE INDEX idx_dim_kupon_current ON dim_kupon(is_current)',
-    );
-    batch.execute(
-      'CREATE INDEX idx_dim_kupon_periode ON dim_kupon(bulan_terbit, tahun_terbit)',
-    );
-    batch.execute('CREATE INDEX idx_dim_date_value ON dim_date(date_value)');
-
-    // Fact table indexes
-    batch.execute(
-      'CREATE INDEX idx_fact_transaksi_kupon ON fact_transaksi(kupon_key)',
-    );
-    batch.execute(
-      'CREATE INDEX idx_fact_transaksi_satker ON fact_transaksi(satker_id)',
-    );
-    batch.execute(
-      'CREATE INDEX idx_fact_transaksi_date ON fact_transaksi(tanggal_transaksi)',
-    );
-    batch.execute(
-      'CREATE INDEX idx_fact_transaksi_deleted ON fact_transaksi(is_deleted)',
-    );
+    // Indexes
+    batch.execute('CREATE INDEX idx_kendaraan_satker ON kendaraan(satker_id)');
+    batch.execute('CREATE INDEX idx_kendaraan_nopol ON kendaraan(no_pol_kode, no_pol_nomor)');
+    batch.execute('CREATE INDEX idx_kupon_nomor ON kupon(nomor_kupon)');
+    batch.execute('CREATE INDEX idx_kupon_satker ON kupon(satker_id)');
+    batch.execute('CREATE INDEX idx_kupon_periode ON kupon(bulan_terbit, tahun_terbit)');
+    batch.execute('CREATE INDEX idx_transaksi_kupon ON transaksi(kupon_id)');
+    batch.execute('CREATE INDEX idx_transaksi_date ON transaksi(tanggal_transaksi)');
+    batch.execute('CREATE INDEX idx_transaksi_deleted ON transaksi(is_deleted)');
 
     await batch.commit(noResult: true);
     await _seedMasterData(db);
@@ -623,7 +475,7 @@ class DatabaseDatasource {
     final db = await database;
 
     // Inspect schema to determine available columns
-    final pragma = await db.rawQuery("PRAGMA table_info('dim_kendaraan')");
+    final pragma = await db.rawQuery("PRAGMA table_info('kendaraan')");
     final cols = pragma.map((c) => c['name'] as String).toSet();
 
     // Prefer matching by provided keys. If legacy/nested columns exist in the
@@ -639,7 +491,7 @@ class DatabaseDatasource {
         whereArgs.add(jenisRanmorId);
       }
       final existing = await db.query(
-        'dim_kendaraan',
+        'kendaraan',
         where: where,
         whereArgs: whereArgs,
         limit: 1,
@@ -660,7 +512,7 @@ class DatabaseDatasource {
       ];
       final whereArgs = [satkerId, nopolKode, nopolNomor];
       final existing = await db.query(
-        'dim_kendaraan',
+        'kendaraan',
         where: whereConds.join(' AND '),
         whereArgs: whereArgs,
         limit: 1,
@@ -672,7 +524,7 @@ class DatabaseDatasource {
     // Fallback lama menyebabkan semua kendaraan jenis sama di satker sama
     // dianggap sebagai satu kendaraan (SALAH!)
     // Sekarang jika tidak ditemukan, langsung insert kendaraan baru
-
+  
     // Not found -> insert. Only include columns that exist in the schema.
     final insertMap = <String, Object?>{};
     if (cols.contains('satker_id')) insertMap['satker_id'] = satkerId;
@@ -687,7 +539,7 @@ class DatabaseDatasource {
     }
     if (cols.contains('status_aktif')) insertMap['status_aktif'] = 1;
 
-    final id = await db.insert('dim_kendaraan', insertMap);
+    final id = await db.insert('kendaraan', insertMap);
     return id;
   }
 
@@ -696,7 +548,7 @@ class DatabaseDatasource {
     final db = await database;
 
     // Ambil mapping satker dari master
-    final satkerRows = await db.query('dim_satker');
+    final satkerRows = await db.query('satker');
     final satkerMap = <String, int>{};
     for (final row in satkerRows) {
       final name = (row['nama_satker'] as String)
@@ -726,7 +578,7 @@ class DatabaseDatasource {
         if (satkerId == null) {
           // Gunakan normalisasi yang sama saat mencari di database
           final existing = await db.query(
-            'dim_satker',
+            'satker',
             where: 'UPPER(TRIM(nama_satker)) = ?',
             whereArgs: [namaSatker],
           );
@@ -734,7 +586,7 @@ class DatabaseDatasource {
             satkerId = existing.first['satker_id'] as int;
             satkerMap[namaSatker] = satkerId;
           } else {
-            satkerId = await db.insert('dim_satker', {
+            satkerId = await db.insert('satker', {
               'nama_satker': namaSatker,
             });
             satkerMap[namaSatker] = satkerId;
@@ -746,15 +598,14 @@ class DatabaseDatasource {
         List<Map<String, Object?>> duplicateResults = [];
         // Check by bulan_terbit and tahun_terbit (dim_tahun_terbit was removed)
         duplicateResults = await db.query(
-          'dim_kupon',
+          'kupon',
           where: '''
             nomor_kupon = ? AND
             jenis_kupon_id = ? AND
             jenis_bbm_id = ? AND
             satker_id = ? AND
             bulan_terbit = ? AND
-            tahun_terbit = ? AND
-            is_current = 1
+            tahun_terbit = ?
           ''',
           whereArgs: [
             k.nomorKupon,
@@ -778,9 +629,9 @@ class DatabaseDatasource {
         if (k.jenisKuponId == 2) {
           kendaraanId = null;
         } else if (k.kendaraanId != null) {
-          // Check if kendaraan exists in dim_kendaraan
+          // Check if kendaraan exists in kendaraan
           final kendaraanRow = await db.query(
-            'dim_kendaraan',
+            'kendaraan',
             where: 'kendaraan_id = ?',
             whereArgs: [k.kendaraanId],
             limit: 1,
@@ -795,7 +646,7 @@ class DatabaseDatasource {
         final jenisBbmId = k.jenisBbmId;
         final jenisKuponId = k.jenisKuponId;
 
-        // Insert kupon to dim_kupon (star schema)
+        // Insert kupon to kupon (domain table)
         final insertMap = <String, Object?>{
           'nomor_kupon': k.nomorKupon,
           'kendaraan_id': kendaraanId,
@@ -808,11 +659,12 @@ class DatabaseDatasource {
           'kuota_awal': k.kuotaAwal,
           'satker_id': satkerId,
           'status': k.status,
-          'valid_from': DateTime.now().toIso8601String(),
-          'is_current': 1,
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+          'is_deleted': 0,
         };
 
-        final insertedId = await db.insert('dim_kupon', insertMap);
+        final insertedId = await db.insert('kupon', insertMap);
         // kuota_sisa is now calculated real-time from fact_transaksi
 
         if (insertedId > 0) {
@@ -835,7 +687,7 @@ class DatabaseDatasource {
     // Insert satu per satu
     for (final k in kendaraans) {
       try {
-        final insertedId = await db.insert('dim_kendaraan', {
+        final insertedId = await db.insert('kendaraan', {
           'satker_id': k.satkerId,
           'jenis_ranmor': k.jenisRanmor,
           'no_pol_kode': k.noPolKode,

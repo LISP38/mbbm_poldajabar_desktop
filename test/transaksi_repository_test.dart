@@ -24,33 +24,24 @@ void main() {
     // Clear any existing data in a safe order. Disable foreign keys to allow
     // deleting parent rows for a clean test DB, then re-enable.
     await db.execute('PRAGMA foreign_keys = OFF;');
-    await db.delete('fact_transaksi');
-    final _purchasingExists = await db.rawQuery(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name = 'fact_purchasing'",
-    );
-    if (_purchasingExists.isNotEmpty) {
-      await db.delete('fact_purchasing');
-    }
-    await db.delete('dim_kupon');
-    await db.delete('dim_kendaraan');
-    await db.delete('dim_satker');
-    await db.delete('dim_jenis_bbm');
-    await db.delete('dim_jenis_kupon');
+    await db.delete('transaksi');
+    await db.delete('kupon');
+    await db.delete('kendaraan');
+    await db.delete('satker');
+    await db.delete('jenis_bbm');
+    await db.delete('jenis_kupon');
     await db.execute('PRAGMA foreign_keys = ON;');
   });
 
   tearDown(() async {
     // Clean up the tables (disable foreign keys to avoid FK failures)
     await db.execute('PRAGMA foreign_keys = OFF;');
-    await db.delete('fact_transaksi');
-    final _purchasingExists2 = await db.rawQuery(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name = 'fact_purchasing'",
-    );
-    if (_purchasingExists2.isNotEmpty) {
-      await db.delete('fact_purchasing');
-    }
-    await db.delete('dim_kupon');
-    await db.delete('dim_satker');
+    await db.delete('transaksi');
+    await db.delete('kupon');
+    await db.delete('kendaraan');
+    await db.delete('satker');
+    await db.delete('jenis_bbm');
+    await db.delete('jenis_kupon');
     await db.execute('PRAGMA foreign_keys = ON;');
     await db.close();
   });
@@ -60,23 +51,23 @@ void main() {
     () async {
       // First create required dimension tables data
       await db.execute('''
-      INSERT INTO dim_jenis_bbm (jenis_bbm_id, nama_jenis_bbm) 
+      INSERT INTO jenis_bbm (jenis_bbm_id, nama_jenis_bbm) 
       VALUES (1, 'Pertamax'), (2, 'Pertamina Dex')
     ''');
 
       await db.execute('''
-      INSERT INTO dim_jenis_kupon (jenis_kupon_id, nama_jenis_kupon) 
+      INSERT INTO jenis_kupon (jenis_kupon_id, nama_jenis_kupon) 
       VALUES (1, 'RANJEN'), (2, 'DUKUNGAN')
     ''');
 
       // Create test satker
-      final satkerId = await db.insert('dim_satker', {
+      final satkerId = await db.insert('satker', {
         'satker_id': 1,
         'nama_satker': 'SATKER A',
       });
 
-      // First create kupon records (now stored in dim_kupon)
-      final kupon1 = await db.insert('dim_kupon', {
+      // First create kupon records in the new domain table
+      final kupon1 = await db.insert('kupon', {
         'nomor_kupon': 'A001',
         'satker_id': satkerId,
         'kendaraan_id': null,
@@ -90,7 +81,7 @@ void main() {
         'status': 'Aktif',
       });
 
-      final kupon2 = await db.insert('dim_kupon', {
+      final kupon2 = await db.insert('kupon', {
         'nomor_kupon': 'A002',
         'satker_id': satkerId,
         'kendaraan_id': null,

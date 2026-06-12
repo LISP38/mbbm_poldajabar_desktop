@@ -13,40 +13,39 @@ class KuponRepositoryImpl implements KuponRepository {
     final db = await dbHelper.database;
     final result = await db.rawQuery('''
       SELECT 
-        dk.kupon_key,
-        dk.nomor_kupon,
-        dk.kendaraan_id,
-        dk.jenis_bbm_id,
-        dbb.nama_jenis_bbm AS jenis_bbm_name,
-        dk.jenis_kupon_id,
-        dku.nama_jenis_kupon AS jenis_kupon_name,
-        dk.bulan_terbit,
-        dk.tahun_terbit,
-        dk.tanggal_mulai,
-        dk.tanggal_sampai,
-        dk.kuota_awal,
-        (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
-        dk.satker_id,
-        ds.nama_satker,
-        dk.status,
-        dk.valid_from as created_at,
-        CURRENT_TIMESTAMP as updated_at,
-        0 as is_deleted,
-        -- kendaraan labels (use dim_kendaraan fields directly)
-        TRIM(COALESCE(dk2.no_pol_kode, '') || ' ' || COALESCE(dk2.no_pol_nomor, '')) AS nopol,
-        COALESCE(dk2.jenis_ranmor, '') AS jenis_ranmor
-      FROM dim_kupon dk
-      LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
-      LEFT JOIN dim_jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
-      LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
-      LEFT JOIN dim_kendaraan dk2 ON dk.kendaraan_id = dk2.kendaraan_id
+        k.kupon_id as kupon_id,
+        k.nomor_kupon,
+        k.kendaraan_id,
+        k.jenis_bbm_id,
+        jb.nama_jenis_bbm AS jenis_bbm_name,
+        k.jenis_kupon_id,
+        jk.nama_jenis_kupon AS jenis_kupon_name,
+        k.bulan_terbit,
+        k.tahun_terbit,
+        k.tanggal_mulai,
+        k.tanggal_sampai,
+        k.kuota_awal,
+        (k.kuota_awal - COALESCE(tx_sum.total_used, 0)) as kuota_sisa,
+        k.satker_id,
+        s.nama_satker,
+        k.status,
+        k.created_at as created_at,
+        k.updated_at as updated_at,
+        k.is_deleted,
+        TRIM(COALESCE(k2.no_pol_kode, '') || ' ' || COALESCE(k2.no_pol_nomor, '')) AS nopol,
+        COALESCE(k2.jenis_ranmor, '') AS jenis_ranmor
+      FROM kupon k
+      LEFT JOIN satker s ON k.satker_id = s.satker_id
+      LEFT JOIN jenis_bbm jb ON k.jenis_bbm_id = jb.jenis_bbm_id
+      LEFT JOIN jenis_kupon jk ON k.jenis_kupon_id = jk.jenis_kupon_id
+      LEFT JOIN kendaraan k2 ON k.kendaraan_id = k2.kendaraan_id
       LEFT JOIN (
-        SELECT kupon_key, SUM(jumlah_liter) as total_used
-        FROM fact_transaksi
+        SELECT kupon_id, SUM(jumlah_liter) as total_used
+        FROM transaksi
         WHERE is_deleted = 0
-        GROUP BY kupon_key
-      ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
-      WHERE dk.is_current = 1
+        GROUP BY kupon_id
+      ) tx_sum ON k.kupon_id = tx_sum.kupon_id
+      WHERE k.is_deleted = 0
     ''');
     return result.map((map) => KuponModel.fromMap(map)).toList();
   }
@@ -57,39 +56,39 @@ class KuponRepositoryImpl implements KuponRepository {
     final result = await db.rawQuery(
       '''
       SELECT 
-        dk.kupon_key,
-        dk.nomor_kupon,
-        dk.kendaraan_id,
-        dk.jenis_bbm_id,
-        dbb.nama_jenis_bbm AS jenis_bbm_name,
-        dk.jenis_kupon_id,
-        dku.nama_jenis_kupon AS jenis_kupon_name,
-        dk.bulan_terbit,
-        dk.tahun_terbit,
-        dk.tanggal_mulai,
-        dk.tanggal_sampai,
-        dk.kuota_awal,
-        (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
-        dk.satker_id,
-        ds.nama_satker,
-        dk.status,
-        dk.valid_from as created_at,
-        CURRENT_TIMESTAMP as updated_at,
-        0 as is_deleted,
-        TRIM(COALESCE(dk2.no_pol_kode, '') || ' ' || COALESCE(dk2.no_pol_nomor, '')) AS nopol,
-        COALESCE(dk2.jenis_ranmor, '') AS jenis_ranmor
-      FROM dim_kupon dk
-      LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
-      LEFT JOIN dim_jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
-      LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
-      LEFT JOIN dim_kendaraan dk2 ON dk.kendaraan_id = dk2.kendaraan_id
+        k.kupon_id as kupon_id,
+        k.nomor_kupon,
+        k.kendaraan_id,
+        k.jenis_bbm_id,
+        jb.nama_jenis_bbm AS jenis_bbm_name,
+        k.jenis_kupon_id,
+        jk.nama_jenis_kupon AS jenis_kupon_name,
+        k.bulan_terbit,
+        k.tahun_terbit,
+        k.tanggal_mulai,
+        k.tanggal_sampai,
+        k.kuota_awal,
+        (k.kuota_awal - COALESCE(tx_sum.total_used, 0)) as kuota_sisa,
+        k.satker_id,
+        s.nama_satker,
+        k.status,
+        k.created_at as created_at,
+        k.updated_at as updated_at,
+        k.is_deleted,
+        TRIM(COALESCE(k2.no_pol_kode, '') || ' ' || COALESCE(k2.no_pol_nomor, '')) AS nopol,
+        COALESCE(k2.jenis_ranmor, '') AS jenis_ranmor
+      FROM kupon k
+      LEFT JOIN satker s ON k.satker_id = s.satker_id
+      LEFT JOIN jenis_bbm jb ON k.jenis_bbm_id = jb.jenis_bbm_id
+      LEFT JOIN jenis_kupon jk ON k.jenis_kupon_id = jk.jenis_kupon_id
+      LEFT JOIN kendaraan k2 ON k.kendaraan_id = k2.kendaraan_id
       LEFT JOIN (
-        SELECT kupon_key, SUM(jumlah_liter) as total_used
-        FROM fact_transaksi
+        SELECT kupon_id, SUM(jumlah_liter) as total_used
+        FROM transaksi
         WHERE is_deleted = 0
-        GROUP BY kupon_key
-      ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
-      WHERE dk.kupon_key = ?
+        GROUP BY kupon_id
+      ) tx_sum ON k.kupon_id = tx_sum.kupon_id
+      WHERE k.kupon_id = ?
     ''',
       [kuponId],
     );
@@ -104,33 +103,26 @@ class KuponRepositoryImpl implements KuponRepository {
   Future<void> insertKupon(KuponEntity kupon) async {
     final db = await dbHelper.database;
     await db.transaction((txn) async {
-      // Check if kupon with same nomor_kupon already exists (is_current=1)
+      // Upsert into kupon table: if exists (same nomor + period + jenis), update; else insert
+      final map = (kupon as KuponModel).toMap();
       final existing = await txn.query(
-        'dim_kupon',
-        where: 'nomor_kupon = ? AND is_current = 1',
-        whereArgs: [kupon.nomorKupon],
+        'kupon',
+        where: 'nomor_kupon = ? AND jenis_kupon_id = ? AND jenis_bbm_id = ? AND bulan_terbit = ? AND tahun_terbit = ?',
+        whereArgs: [kupon.nomorKupon, kupon.jenisKuponId, kupon.jenisBbmId, kupon.bulanTerbit, kupon.tahunTerbit],
       );
 
       if (existing.isNotEmpty) {
-        // Expire existing record (SCD Type 2)
-        await txn.update(
-          'dim_kupon',
-          {'is_current': 0, 'valid_to': DateTime.now().toIso8601String()},
-          where: 'nomor_kupon = ? AND is_current = 1',
-          whereArgs: [kupon.nomorKupon],
-        );
+        final existingId = existing.first['kupon_id'] as int?;
+        if (existingId != null) {
+          map.remove('kupon_id');
+          map['updated_at'] = DateTime.now().toIso8601String();
+          await txn.update('kupon', map, where: 'kupon_id = ?', whereArgs: [existingId]);
+          return;
+        }
       }
 
-      // Insert new version
-      final map = (kupon as KuponModel).toMap();
-      map['valid_from'] = DateTime.now().toIso8601String();
-      map['is_current'] = 1;
-      map.remove('kupon_id'); // Use kupon_key auto-increment
-      map.remove('is_deleted'); // Not in dim_kupon
-      map.remove('updated_at'); // Not in dim_kupon
-      map.remove('created_at'); // Use valid_from
-      map.remove('nama_satker'); // Denormalized, not stored
-      await txn.insert('dim_kupon', map);
+      map.remove('kupon_id');
+      await txn.insert('kupon', map);
     });
   }
 
@@ -138,39 +130,26 @@ class KuponRepositoryImpl implements KuponRepository {
   Future<void> updateKupon(KuponEntity kupon) async {
     final db = await dbHelper.database;
     await db.transaction((txn) async {
-      // Expire old record (set is_current=0, valid_to=now)
-      await txn.update(
-        'dim_kupon',
-        {'is_current': 0, 'valid_to': DateTime.now().toIso8601String()},
-        where: 'kupon_key = ? AND is_current = 1',
-        whereArgs: [kupon.kuponId],
-      );
-
-      // Insert new version
+      // Update kupon in-place
       final map = (kupon as KuponModel).toMap();
-      map['valid_from'] = DateTime.now().toIso8601String();
-      map['is_current'] = 1;
-      map.remove('kupon_id'); // Auto-increment new key
-      map.remove('is_deleted');
-      map.remove('updated_at');
-      map.remove('created_at');
-      map.remove('nama_satker');
-      await txn.insert('dim_kupon', map);
+      map.remove('kupon_id');
+      map['updated_at'] = DateTime.now().toIso8601String();
+      await txn.update('kupon', map, where: 'kupon_id = ?', whereArgs: [kupon.kuponId]);
     });
   }
 
   @override
   Future<void> deleteKupon(int kuponId) async {
     final db = await dbHelper.database;
-    // Soft delete via SCD Type 2: expire current record
+    // Soft delete: mark kupon as deleted
     await db.update(
-      'dim_kupon',
+      'kupon',
       {
-        'is_current': 0,
-        'valid_to': DateTime.now().toIso8601String(),
+        'is_deleted': 1,
+        'updated_at': DateTime.now().toIso8601String(),
         'status': 'Tidak Aktif',
       },
-      where: 'kupon_key = ? AND is_current = 1',
+      where: 'kupon_id = ?',
       whereArgs: [kuponId],
     );
   }
@@ -181,39 +160,39 @@ class KuponRepositoryImpl implements KuponRepository {
     final result = await db.rawQuery(
       '''
       SELECT 
-        dk.kupon_key,
-        dk.nomor_kupon,
-        dk.kendaraan_id,
-        dk.jenis_bbm_id,
-        dbb.nama_jenis_bbm AS jenis_bbm_name,
-        dk.jenis_kupon_id,
-        dku.nama_jenis_kupon AS jenis_kupon_name,
-        dk.bulan_terbit,
-        dk.tahun_terbit,
-        dk.tanggal_mulai,
-        dk.tanggal_sampai,
-        dk.kuota_awal,
-        (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
-        dk.satker_id,
-        ds.nama_satker,
-        dk.status,
-        dk.valid_from as created_at,
-        CURRENT_TIMESTAMP as updated_at,
-        0 as is_deleted,
-        TRIM(COALESCE(dk2.no_pol_kode, '') || ' ' || COALESCE(dk2.no_pol_nomor, '')) AS nopol,
-        COALESCE(dk2.jenis_ranmor, '') AS jenis_ranmor
-      FROM dim_kupon dk
-      LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
-      LEFT JOIN dim_jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
-      LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
-      LEFT JOIN dim_kendaraan dk2 ON dk.kendaraan_id = dk2.kendaraan_id
+        k.kupon_id as kupon_id,
+        k.nomor_kupon,
+        k.kendaraan_id,
+        k.jenis_bbm_id,
+        jb.nama_jenis_bbm AS jenis_bbm_name,
+        k.jenis_kupon_id,
+        jk.nama_jenis_kupon AS jenis_kupon_name,
+        k.bulan_terbit,
+        k.tahun_terbit,
+        k.tanggal_mulai,
+        k.tanggal_sampai,
+        k.kuota_awal,
+        (k.kuota_awal - COALESCE(tx_sum.total_used, 0)) as kuota_sisa,
+        k.satker_id,
+        s.nama_satker,
+        k.status,
+        k.created_at as created_at,
+        k.updated_at as updated_at,
+        k.is_deleted,
+        TRIM(COALESCE(k2.no_pol_kode, '') || ' ' || COALESCE(k2.no_pol_nomor, '')) AS nopol,
+        COALESCE(k2.jenis_ranmor, '') AS jenis_ranmor
+      FROM kupon k
+      LEFT JOIN satker s ON k.satker_id = s.satker_id
+      LEFT JOIN jenis_bbm jb ON k.jenis_bbm_id = jb.jenis_bbm_id
+      LEFT JOIN jenis_kupon jk ON k.jenis_kupon_id = jk.jenis_kupon_id
+      LEFT JOIN kendaraan k2 ON k.kendaraan_id = k2.kendaraan_id
       LEFT JOIN (
-        SELECT kupon_key, SUM(jumlah_liter) as total_used
-        FROM fact_transaksi
+        SELECT kupon_id, SUM(jumlah_liter) as total_used
+        FROM transaksi
         WHERE is_deleted = 0
-        GROUP BY kupon_key
-      ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
-      WHERE dk.nomor_kupon = ? AND dk.is_current = 1
+        GROUP BY kupon_id
+      ) tx_sum ON k.kupon_id = tx_sum.kupon_id
+      WHERE k.nomor_kupon = ? AND k.is_deleted = 0
     ''',
       [nomorKupon],
     );
@@ -226,11 +205,11 @@ class KuponRepositoryImpl implements KuponRepository {
   @override
   Future<void> deleteAllKupon() async {
     final db = await dbHelper.database;
-    // Expire all current records
-    await db.update('dim_kupon', {
-      'is_current': 0,
-      'valid_to': DateTime.now().toIso8601String(),
+    // Soft delete all kupon
+    await db.update('kupon', {
+      'is_deleted': 1,
+      'updated_at': DateTime.now().toIso8601String(),
       'status': 'Tidak Aktif',
-    }, where: 'is_current = 1');
+    });
   }
 }

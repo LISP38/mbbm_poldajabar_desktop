@@ -112,17 +112,17 @@ class ExportService {
     // Query untuk mendapatkan transaksi, group by kupon_key dan tanggal
     final result = await db.rawQuery('''
       SELECT 
-        t.kupon_key,
+        t.kupon_id as kupon_id,
         CAST(strftime('%d', t.tanggal_transaksi) AS INTEGER) as day_of_month,
         CAST(strftime('%m', t.tanggal_transaksi) AS INTEGER) as month,
         CAST(strftime('%Y', t.tanggal_transaksi) AS INTEGER) as year,
         SUM(t.jumlah_liter) as total_liter
-      FROM fact_transaksi t
-      WHERE t.kupon_key IN (${kuponIds.join(',')}) 
+      FROM transaksi t
+      WHERE t.kupon_id IN (${kuponIds.join(',')}) 
         AND t.is_deleted = 0
         $dateFilter
-      GROUP BY t.kupon_key, day_of_month, month, year
-      ORDER BY t.kupon_key, year, month, day_of_month
+      GROUP BY t.kupon_id, day_of_month, month, year
+      ORDER BY t.kupon_id, year, month, day_of_month
     ''');
 
     // Convert hasil query ke nested map
@@ -145,7 +145,7 @@ class ExportService {
 
     final Map<int, Map<int, int>> transaksiByDate = {};
     for (final row in result) {
-      final kuponId = row['kupon_key'] as int;
+      final kuponId = row['kupon_id'] as int;
       final dayOfMonth = row['day_of_month'] as int;
       final month = row['month'] as int;
       final year = row['year'] as int;
@@ -1040,21 +1040,21 @@ class ExportService {
 
       // Query untuk cek kupon yang punya transaksi di date range
       final result = await db.rawQuery('''
-        SELECT DISTINCT t.kupon_key
-        FROM fact_transaksi t
-        WHERE t.kupon_key IN (${kuponIds.join(',')})
+        SELECT DISTINCT t.kupon_id as kupon_id
+        FROM transaksi t
+        WHERE t.kupon_id IN (${kuponIds.join(',')})
           AND t.is_deleted = 0
           AND date(t.tanggal_transaksi) BETWEEN date('$start') AND date('$end')
       ''');
 
-      // Convert ke set of kupon_key yang punya transaksi
-      final kuponKeysWithTransaksi = result.map((row) {
-        return (row['kupon_key'] as int?);
+      // Convert ke set of kupon_id yang punya transaksi
+      final kuponIdsWithTransaksi = result.map((row) {
+        return (row['kupon_id'] as int?);
       }).toSet();
 
       // Filter hanya kupon yang punya transaksi di range
       return allKupons
-          .where((k) => kuponKeysWithTransaksi.contains(k.kuponId))
+          .where((k) => kuponIdsWithTransaksi.contains(k.kuponId))
           .toList();
     } catch (e) {
       // Fallback: return all kupons jika query error
@@ -4252,13 +4252,13 @@ class ExportService {
 
     final result = await db.rawQuery('''
       SELECT 
-        t.kupon_key,
+        t.kupon_id as kupon_id,
         CAST(strftime('%d', t.tanggal_transaksi) AS INTEGER) as day_of_month,
         CAST(strftime('%m', t.tanggal_transaksi) AS INTEGER) as month,
         CAST(strftime('%Y', t.tanggal_transaksi) AS INTEGER) as year,
         SUM(t.jumlah_liter) as total_liter
-      FROM fact_transaksi t
-      WHERE t.kupon_key IN (${kuponIds.join(',')}) 
+      FROM transaksi t
+      WHERE t.kupon_id IN (${kuponIds.join(',')}) 
         AND t.is_deleted = 0
         AND (
           (CAST(strftime('%Y', t.tanggal_transaksi) AS INTEGER) = $year1 
@@ -4267,13 +4267,13 @@ class ExportService {
           (CAST(strftime('%Y', t.tanggal_transaksi) AS INTEGER) = $year2 
            AND CAST(strftime('%m', t.tanggal_transaksi) AS INTEGER) = $month2)
         )
-      GROUP BY t.kupon_key, day_of_month, month, year
-      ORDER BY t.kupon_key, year, month, day_of_month
+      GROUP BY t.kupon_id, day_of_month, month, year
+      ORDER BY t.kupon_id, year, month, day_of_month
     ''');
 
     final Map<String, int> transaksiMap = {};
     for (final row in result) {
-      final kuponId = row['kupon_key'] as int;
+      final kuponId = row['kupon_id'] as int;
       final day = row['day_of_month'] as int;
       final month = row['month'] as int;
       final year = row['year'] as int;

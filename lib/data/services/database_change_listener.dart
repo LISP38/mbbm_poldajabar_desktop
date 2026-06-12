@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../core/utils/app_logger.dart';
 
 /// Enum untuk jenis perubahan database
 enum DatabaseChangeType {
@@ -72,7 +73,7 @@ class DatabaseChangeListener {
 
   /// Notify listener tentang perubahan
   void notifyChange(DatabaseChange change) {
-    print('[DatabaseChangeListener] Notifying: ${change.type}');
+    AppLogger.info('[DatabaseChangeListener] Notifying: ${change.type}');
     _changeStreamController.add(change);
   }
 

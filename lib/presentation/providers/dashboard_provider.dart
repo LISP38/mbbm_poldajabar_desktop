@@ -5,6 +5,7 @@ import 'package:kupon_bbm_app/domain/repositories/kupon_repository.dart';
 import 'package:kupon_bbm_app/domain/repositories/kupon_repository_impl.dart';
 import 'package:kupon_bbm_app/data/services/database_change_listener.dart';
 import 'dart:async';
+import '../../core/utils/app_logger.dart';
 
 class DashboardProvider extends ChangeNotifier {
   final KuponRepository _kuponRepository;
@@ -153,12 +154,12 @@ class DashboardProvider extends ChangeNotifier {
   void _initializeRealtimeListener() {
     final listener = DatabaseChangeListener();
     _databaseChangeSubscription = listener.kuponChangeStream.listen((change) {
-      print('[DashboardProvider] Received database change: ${change.type}');
+      AppLogger.info('[DashboardProvider] Received database change: ${change.type}');
 
       // Auto-refresh kupon dan filter options ketika ada perubahan
       if (change.type == DatabaseChangeType.bulkImport ||
           change.type == DatabaseChangeType.importCompleted) {
-        print('[DashboardProvider] Import detected, refreshing kupon data...');
+        AppLogger.info('[DashboardProvider] Import detected, refreshing kupon data...');
 
         // Refresh semua data async dengan proper await
         _handleImportedData();
@@ -172,7 +173,7 @@ class DashboardProvider extends ChangeNotifier {
     // Use Future.microtask untuk non-blocking async execution
     Future.microtask(() async {
       try {
-        print('[DashboardProvider] Starting import data refresh...');
+        AppLogger.info('[DashboardProvider] Starting import data refresh...');
 
         // Fetch KEDUA-DUA jenis kupon untuk memastikan keduanya update
         // PENTING: Fetch Dukungan DULU sebelum Ranjen
@@ -192,11 +193,9 @@ class DashboardProvider extends ChangeNotifier {
         _isRanjenMode = true;
         notifyListeners();
 
-        print(
-          '[DashboardProvider] Import refresh completed! Reset to Ranjen mode.',
-        );
+        AppLogger.info('[DashboardProvider] Import refresh completed! Reset to Ranjen mode.');
       } catch (e) {
-        print('[DashboardProvider] Error refreshing import data: $e');
+        AppLogger.error('[DashboardProvider] Error refreshing import data: $e');
         _errorMessage = e.toString();
         notifyListeners();
       }
@@ -217,7 +216,7 @@ class DashboardProvider extends ChangeNotifier {
 
     try {
       final results = await db.query(
-        'dim_satker',
+        'satker',
         columns: ['nama_satker'],
         orderBy: 'nama_satker ASC',
       );
@@ -238,34 +237,33 @@ class DashboardProvider extends ChangeNotifier {
     try {
       String query = '''
         SELECT 
-          dk.kupon_key as kupon_id,
-          dk.nomor_kupon,
-          dk.kendaraan_id,
-          dk.jenis_bbm_id,
-          dk.jenis_kupon_id,
-          dk.bulan_terbit,
-          dk.tahun_terbit,
-          dk.tanggal_mulai,
-          dk.tanggal_sampai,
-          dk.kuota_awal,
-          (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
-          dk.satker_id,
-          ds.nama_satker,
-          dk.status,
-          dk.valid_from as created_at,
-          CURRENT_TIMESTAMP as updated_at,
+          k.kupon_id as kupon_id,
+          k.nomor_kupon,
+          k.kendaraan_id,
+          k.jenis_bbm_id,
+          k.jenis_kupon_id,
+          k.bulan_terbit,
+          k.tahun_terbit,
+          k.tanggal_mulai,
+          k.tanggal_sampai,
+          k.kuota_awal,
+          (k.kuota_awal - COALESCE(tx_sum.total_used, 0)) as kuota_sisa,
+          k.satker_id,
+          s.nama_satker,
+          k.status,
+          k.created_at as created_at,
+          k.updated_at as updated_at,
           0 as is_deleted
-        FROM dim_kupon dk
-        LEFT JOIN dim_kendaraan ON dk.kendaraan_id = dim_kendaraan.kendaraan_id 
-        LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
+        FROM kupon k
+        LEFT JOIN kendaraan ON k.kendaraan_id = kendaraan.kendaraan_id 
+        LEFT JOIN satker s ON k.satker_id = s.satker_id
         LEFT JOIN (
-          SELECT kupon_key, SUM(jumlah_liter) as total_used
-          FROM fact_transaksi
+          SELECT kupon_id, SUM(jumlah_liter) as total_used
+          FROM transaksi
           WHERE is_deleted = 0
-          GROUP BY kupon_key
-        ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
-        WHERE dk.is_current = 1
-        ORDER BY CAST(dk.nomor_kupon AS INTEGER) ASC
+          GROUP BY kupon_id
+        ) tx_sum ON k.kupon_id = tx_sum.kupon_id
+        ORDER BY CAST(k.nomor_kupon AS INTEGER) ASC
       ''';
 
       final results = await db.rawQuery(query);
@@ -285,7 +283,7 @@ class DashboardProvider extends ChangeNotifier {
         await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
     try {
       final rows = await db.query(
-        'dim_jenis_bbm',
+        'jenis_bbm',
         orderBy: 'jenis_bbm_id ASC', // Order by ID to keep consistent mapping
       );
       final map = <int, String>{};
@@ -314,56 +312,25 @@ class DashboardProvider extends ChangeNotifier {
     }
   }
 
-  // Fetch bulan list from dim_bulan; fall back to 1..12 on error
+  // Fetch bulan list from kupon table; fall back to 1..12 on error
   Future<void> fetchBulans() async {
     final db =
         await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
     try {
-      // check if dim_bulan exists
-      final exists = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
-        ['dim_bulan'],
+      final rows = await db.rawQuery(
+        'SELECT DISTINCT bulan_terbit FROM kupon WHERE is_deleted = 0 AND bulan_terbit IS NOT NULL ORDER BY bulan_terbit ASC',
       );
-      List<int> months = [];
-      if (exists.isNotEmpty) {
-        final results = await db.query('dim_bulan');
-        months = results
-            .map<int>((row) {
-              final v =
-                  row['bulan_id'] ??
-                  row['bulan'] ??
-                  row['bulan_number'] ??
-                  row['id'];
-              if (v is int) return v;
-              if (v is String) return int.tryParse(v) ?? 0;
-              return 0;
-            })
-            .where((v) => v > 0)
-            .toList();
-      } else {
-        // fallback to dim_date if available
-        final dateExists = await db.rawQuery(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
-          ['dim_date'],
-        );
-        if (dateExists.isNotEmpty) {
-          final rows = await db.rawQuery(
-            'SELECT DISTINCT bulan_terbit FROM dim_date WHERE bulan_terbit IS NOT NULL ORDER BY bulan_terbit ASC',
-          );
-          months = rows
-              .map<int>((r) {
-                final v = r['bulan_terbit'];
-                if (v is int) return v;
-                if (v is String) return int.tryParse(v) ?? 0;
-                return 0;
-              })
-              .where((v) => v > 0)
-              .toList();
-        }
-      }
+      final months = rows
+          .map<int>((row) {
+            final v = row['bulan_terbit'];
+            if (v is int) return v;
+            if (v is String) return int.tryParse(v) ?? 0;
+            return 0;
+          })
+          .where((v) => v > 0)
+          .toList();
 
-      if (months.isEmpty) months = List.generate(12, (i) => i + 1);
-      _bulanList = months;
+      _bulanList = months.isNotEmpty ? months : List.generate(12, (i) => i + 1);
       notifyListeners();
     } catch (e) {
       _bulanList = List.generate(12, (i) => i + 1);
@@ -371,54 +338,30 @@ class DashboardProvider extends ChangeNotifier {
     }
   }
 
-  // Fetch tahun list from dim_tahun; fall back to current year +/- 1
+  // Fetch tahun list from kupon table; fall back to current year +/- 1
   Future<void> fetchTahuns() async {
     final db =
         await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
     try {
-      // check dim_tahun
-      final exists = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
-        ['dim_tahun'],
+      final rows = await db.rawQuery(
+        'SELECT DISTINCT tahun_terbit FROM kupon WHERE is_deleted = 0 AND tahun_terbit IS NOT NULL ORDER BY tahun_terbit ASC',
       );
-      List<int> years = [];
-      if (exists.isNotEmpty) {
-        final results = await db.query('dim_tahun');
-        years = results
-            .map<int>((row) {
-              final v = row['tahun'] ?? row['tahun_id'] ?? row['id'];
-              if (v is int) return v;
-              if (v is String) return int.tryParse(v) ?? 0;
-              return 0;
-            })
-            .where((v) => v > 0)
-            .toList();
-      } else {
-        final dateExists = await db.rawQuery(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
-          ['dim_date'],
-        );
-        if (dateExists.isNotEmpty) {
-          final rows = await db.rawQuery(
-            'SELECT DISTINCT tahun_terbit FROM dim_date WHERE tahun_terbit IS NOT NULL ORDER BY tahun_terbit ASC',
-          );
-          years = rows
-              .map<int>((r) {
-                final v = r['tahun_terbit'];
-                if (v is int) return v;
-                if (v is String) return int.tryParse(v) ?? 0;
-                return 0;
-              })
-              .where((v) => v > 0)
-              .toList();
-        }
-      }
+      final years = rows
+          .map<int>((row) {
+            final v = row['tahun_terbit'];
+            if (v is int) return v;
+            if (v is String) return int.tryParse(v) ?? 0;
+            return 0;
+          })
+          .where((v) => v > 0)
+          .toList();
 
       if (years.isEmpty) {
         final y = DateTime.now().year;
-        years = [y, y + 1];
+        _tahunList = [y, y + 1];
+      } else {
+        _tahunList = years;
       }
-      _tahunList = years;
       notifyListeners();
     } catch (e) {
       final y = DateTime.now().year;
@@ -434,12 +377,11 @@ class DashboardProvider extends ChangeNotifier {
     final db =
         await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
     try {
-      // Primary source: dim_kupon (more reliable than dim_date since we populate dim_kupon directly)
       final bulanRows = await db.rawQuery(
-        '''SELECT DISTINCT bulan_terbit FROM dim_kupon WHERE is_current = 1 AND bulan_terbit IS NOT NULL ORDER BY CAST(bulan_terbit AS INTEGER) ASC''',
+        '''SELECT DISTINCT bulan_terbit FROM kupon WHERE is_deleted = 0 AND bulan_terbit IS NOT NULL ORDER BY CAST(bulan_terbit AS INTEGER) ASC''',
       );
       final tahunRows = await db.rawQuery(
-        '''SELECT DISTINCT tahun_terbit FROM dim_kupon WHERE is_current = 1 AND tahun_terbit IS NOT NULL ORDER BY CAST(tahun_terbit AS INTEGER) ASC''',
+        '''SELECT DISTINCT tahun_terbit FROM kupon WHERE is_deleted = 0 AND tahun_terbit IS NOT NULL ORDER BY CAST(tahun_terbit AS INTEGER) ASC''',
       );
 
       _daftarBulan = bulanRows
@@ -451,32 +393,6 @@ class DashboardProvider extends ChangeNotifier {
           .where((s) => s.isNotEmpty)
           .toList();
 
-      // Fallback: try dim_date if dim_kupon returned no rows
-      if (_daftarBulan.isEmpty || _daftarTahun.isEmpty) {
-        final dateExists = await db.rawQuery(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name = 'dim_date'",
-        );
-        if (dateExists.isNotEmpty) {
-          final dB = await db.rawQuery(
-            '''SELECT DISTINCT bulan_terbit FROM dim_date WHERE bulan_terbit IS NOT NULL ORDER BY CAST(bulan_terbit AS INTEGER) ASC''',
-          );
-          final dT = await db.rawQuery(
-            '''SELECT DISTINCT tahun_terbit FROM dim_date WHERE tahun_terbit IS NOT NULL ORDER BY CAST(tahun_terbit AS INTEGER) ASC''',
-          );
-          if (_daftarBulan.isEmpty) {
-            _daftarBulan = dB
-                .map<String>((r) => (r['bulan_terbit']?.toString() ?? ''))
-                .where((s) => s.isNotEmpty)
-                .toList();
-          }
-          if (_daftarTahun.isEmpty) {
-            _daftarTahun = dT
-                .map<String>((r) => (r['tahun_terbit']?.toString() ?? ''))
-                .where((s) => s.isNotEmpty)
-                .toList();
-          }
-        }
-      }
       notifyListeners();
     } catch (e) {
       _daftarBulan = [];
@@ -498,78 +414,78 @@ class DashboardProvider extends ChangeNotifier {
         await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
 
     try {
-      List<String> whereConditions = ['dk.is_current = 1'];
+      List<String> whereConditions = ['k.is_deleted = 0'];
       List<dynamic> whereArgs = [];
 
       if (nomorKupon != null && nomorKupon!.isNotEmpty) {
-        whereConditions.add('dk.nomor_kupon = ?');
+        whereConditions.add('k.nomor_kupon = ?');
         whereArgs.add(nomorKupon!);
       }
       if (jenisBBM != null && jenisBBM!.isNotEmpty) {
-        whereConditions.add('dk.jenis_bbm_id = ?');
+        whereConditions.add('k.jenis_bbm_id = ?');
         whereArgs.add(int.tryParse(jenisBBM!) ?? jenisBBM);
       }
 
       // Filter berdasarkan bulan_terbit dan tahun_terbit LANGSUNG
       // (bukan berdasarkan tanggal berlaku)
       if (bulanTerbit != null && tahunTerbit != null) {
-        whereConditions.add('dk.bulan_terbit = ? AND dk.tahun_terbit = ?');
+        whereConditions.add('k.bulan_terbit = ? AND k.tahun_terbit = ?');
         whereArgs.addAll([bulanTerbit, tahunTerbit]);
       } else if (tahunTerbit != null && bulanTerbit == null) {
-        whereConditions.add('dk.tahun_terbit = ?');
+        whereConditions.add('k.tahun_terbit = ?');
         whereArgs.add(tahunTerbit);
       } else if (bulanTerbit != null && tahunTerbit == null) {
-        whereConditions.add('dk.bulan_terbit = ?');
+        whereConditions.add('k.bulan_terbit = ?');
         whereArgs.add(bulanTerbit);
       }
 
       String query =
           '''
         SELECT 
-          dk.kupon_key as kupon_id,
-          dk.nomor_kupon,
-          dk.kendaraan_id,
-          dk.jenis_bbm_id,
-          dk.jenis_kupon_id,
-          dk.bulan_terbit,
-          dk.tahun_terbit,
-          dk.tanggal_mulai,
-          dk.tanggal_sampai,
-          dk.kuota_awal,
-          (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
-          dk.satker_id,
-          ds.nama_satker,
-          dk.status,
-          dk.valid_from as created_at,
-          CURRENT_TIMESTAMP as updated_at,
-          0 as is_deleted
-        FROM dim_kupon dk
-        LEFT JOIN dim_kendaraan ON dk.kendaraan_id = dim_kendaraan.kendaraan_id 
-        LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
+          k.kupon_id as kupon_id,
+          k.nomor_kupon,
+          k.kendaraan_id,
+          k.jenis_bbm_id,
+          k.jenis_kupon_id,
+          k.bulan_terbit,
+          k.tahun_terbit,
+          k.tanggal_mulai,
+          k.tanggal_sampai,
+          k.kuota_awal,
+          (k.kuota_awal - COALESCE(tx_sum.total_used, 0)) as kuota_sisa,
+          k.satker_id,
+          s.nama_satker,
+          k.status,
+          k.created_at as created_at,
+          k.updated_at as updated_at,
+          k.is_deleted as is_deleted
+        FROM kupon k
+        LEFT JOIN kendaraan ON k.kendaraan_id = kendaraan.kendaraan_id 
+        LEFT JOIN satker s ON k.satker_id = s.satker_id
         LEFT JOIN (
-          SELECT kupon_key, SUM(jumlah_liter) as total_used
-          FROM fact_transaksi
+          SELECT kupon_id, SUM(jumlah_liter) as total_used
+          FROM transaksi
           WHERE is_deleted = 0
-          GROUP BY kupon_key
-        ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
+          GROUP BY kupon_id
+        ) tx_sum ON k.kupon_id = tx_sum.kupon_id
         WHERE ${whereConditions.join(' AND ')}
       ''';
 
       if (nopol != null && nopol!.isNotEmpty) {
         query +=
-            ' AND (LOWER(dim_kendaraan.no_pol_kode) || \'-\' || LOWER(dim_kendaraan.no_pol_nomor)) LIKE ?';
+            ' AND (LOWER(kendaraan.no_pol_kode) || \'-\' || LOWER(kendaraan.no_pol_nomor)) LIKE ?';
         whereArgs.add('%${nopol!.toLowerCase().trim()}%');
       }
       if (satker != null && satker!.isNotEmpty) {
-        query += ' AND LOWER(TRIM(ds.nama_satker)) LIKE ?';
+        query += ' AND LOWER(TRIM(s.nama_satker)) LIKE ?';
         whereArgs.add('%${satker!.toLowerCase().trim()}%');
       }
       if (jenisRanmor != null && jenisRanmor!.isNotEmpty) {
-        query += ' AND LOWER(TRIM(dim_kendaraan.jenis_ranmor)) LIKE ?';
+        query += ' AND LOWER(TRIM(kendaraan.jenis_ranmor)) LIKE ?';
         whereArgs.add('%${jenisRanmor!.toLowerCase().trim()}%');
       }
 
-      query += ' ORDER BY CAST(dk.nomor_kupon AS INTEGER) ASC';
+      query += ' ORDER BY CAST(k.nomor_kupon AS INTEGER) ASC';
 
       final results = await db.rawQuery(query, whereArgs);
       _allKupons = results.map((map) => KuponModel.fromMap(map)).toList();
@@ -604,80 +520,80 @@ class DashboardProvider extends ChangeNotifier {
 
     try {
       List<String> whereConditions = [
-        'dk.is_current = 1',
-        'dk.jenis_kupon_id = ?',
+        'k.is_deleted = 0',
+        'k.jenis_kupon_id = ?',
       ];
       List<dynamic> whereArgs = [jenisKuponId];
 
       if (nomorKupon != null && nomorKupon!.isNotEmpty) {
-        whereConditions.add('dk.nomor_kupon = ?');
+        whereConditions.add('k.nomor_kupon = ?');
         whereArgs.add(nomorKupon!);
       }
       if (jenisBBM != null && jenisBBM!.isNotEmpty) {
-        whereConditions.add('dk.jenis_bbm_id = ?');
+        whereConditions.add('k.jenis_bbm_id = ?');
         whereArgs.add(int.tryParse(jenisBBM!) ?? jenisBBM);
       }
 
       // Filter berdasarkan bulan_terbit dan tahun_terbit LANGSUNG
       // (bukan berdasarkan tanggal berlaku)
       if (bulanTerbit != null && tahunTerbit != null) {
-        whereConditions.add('dk.bulan_terbit = ? AND dk.tahun_terbit = ?');
+        whereConditions.add('k.bulan_terbit = ? AND k.tahun_terbit = ?');
         whereArgs.addAll([bulanTerbit, tahunTerbit]);
       } else if (tahunTerbit != null && bulanTerbit == null) {
-        whereConditions.add('dk.tahun_terbit = ?');
+        whereConditions.add('k.tahun_terbit = ?');
         whereArgs.add(tahunTerbit);
       } else if (bulanTerbit != null && tahunTerbit == null) {
-        whereConditions.add('dk.bulan_terbit = ?');
+        whereConditions.add('k.bulan_terbit = ?');
         whereArgs.add(bulanTerbit);
       }
 
       String query =
           '''
         SELECT 
-          dk.kupon_key as kupon_id,
-          dk.nomor_kupon,
-          dk.kendaraan_id,
-          dk.jenis_bbm_id,
-          dk.jenis_kupon_id,
-          dk.bulan_terbit,
-          dk.tahun_terbit,
-          dk.tanggal_mulai,
-          dk.tanggal_sampai,
-          dk.kuota_awal,
-          (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
-          dk.satker_id,
-          ds.nama_satker,
-          dk.status,
-          dk.valid_from as created_at,
-          CURRENT_TIMESTAMP as updated_at,
-          0 as is_deleted
-        FROM dim_kupon dk
-        LEFT JOIN dim_kendaraan ON dk.kendaraan_id = dim_kendaraan.kendaraan_id 
-        LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
+          k.kupon_id as kupon_id,
+          k.nomor_kupon,
+          k.kendaraan_id,
+          k.jenis_bbm_id,
+          k.jenis_kupon_id,
+          k.bulan_terbit,
+          k.tahun_terbit,
+          k.tanggal_mulai,
+          k.tanggal_sampai,
+          k.kuota_awal,
+          (k.kuota_awal - COALESCE(tx_sum.total_used, 0)) as kuota_sisa,
+          k.satker_id,
+          s.nama_satker,
+          k.status,
+          k.created_at as created_at,
+          k.updated_at as updated_at,
+          k.is_deleted as is_deleted
+        FROM kupon k
+        LEFT JOIN kendaraan ON k.kendaraan_id = kendaraan.kendaraan_id 
+        LEFT JOIN satker s ON k.satker_id = s.satker_id
         LEFT JOIN (
-          SELECT kupon_key, SUM(jumlah_liter) as total_used
-          FROM fact_transaksi
+          SELECT kupon_id, SUM(jumlah_liter) as total_used
+          FROM transaksi
           WHERE is_deleted = 0
-          GROUP BY kupon_key
-        ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
+          GROUP BY kupon_id
+        ) tx_sum ON k.kupon_id = tx_sum.kupon_id
         WHERE ${whereConditions.join(' AND ')}
       ''';
 
       if (nopol != null && nopol!.isNotEmpty) {
         query +=
-            ' AND (LOWER(dim_kendaraan.no_pol_kode) || \'-\' || LOWER(dim_kendaraan.no_pol_nomor)) LIKE ?';
+            ' AND (LOWER(kendaraan.no_pol_kode) || \'-\' || LOWER(kendaraan.no_pol_nomor)) LIKE ?';
         whereArgs.add('%${nopol!.toLowerCase().trim()}%');
       }
       if (satker != null && satker!.isNotEmpty) {
-        query += ' AND LOWER(TRIM(ds.nama_satker)) LIKE ?';
+        query += ' AND LOWER(TRIM(s.nama_satker)) LIKE ?';
         whereArgs.add('%${satker!.toLowerCase().trim()}%');
       }
       if (jenisRanmor != null && jenisRanmor!.isNotEmpty) {
-        query += ' AND LOWER(TRIM(dim_kendaraan.jenis_ranmor)) LIKE ?';
+        query += ' AND LOWER(TRIM(kendaraan.jenis_ranmor)) LIKE ?';
         whereArgs.add('%${jenisRanmor!.toLowerCase().trim()}%');
       }
 
-      query += ' ORDER BY CAST(dk.nomor_kupon AS INTEGER) ASC';
+      query += ' ORDER BY CAST(k.nomor_kupon AS INTEGER) ASC';
 
       debugPrint('🔍 _fetchKuponsByType SQL: $query | WhereArgs: $whereArgs');
 
@@ -733,31 +649,31 @@ class DashboardProvider extends ChangeNotifier {
 
     try {
       final duplicates = await db.rawQuery('''
-        SELECT f1.kupon_key
-        FROM dim_kupon f1
-        INNER JOIN dim_kupon f2 
-        WHERE f1.kupon_key > f2.kupon_key
-        AND f1.nomor_kupon = f2.nomor_kupon
-        AND f1.jenis_kupon_id = f2.jenis_kupon_id
-        AND f1.satker_id = f2.satker_id
-        AND f1.bulan_terbit = f2.bulan_terbit
-        AND f1.tahun_terbit = f2.tahun_terbit
-        AND f1.is_current = 1
-        AND f2.is_current = 1
+        SELECT k1.kupon_id
+        FROM kupon k1
+        INNER JOIN kupon k2
+          ON k1.nomor_kupon = k2.nomor_kupon
+          AND k1.jenis_kupon_id = k2.jenis_kupon_id
+          AND k1.satker_id = k2.satker_id
+          AND k1.bulan_terbit = k2.bulan_terbit
+          AND k1.tahun_terbit = k2.tahun_terbit
+        WHERE k1.kupon_id > k2.kupon_id
+          AND k1.is_deleted = 0
+          AND k2.is_deleted = 0
       ''');
 
       if (duplicates.isNotEmpty) {
         final batch = db.batch();
         for (final duplicate in duplicates) {
           batch.update(
-            'dim_kupon',
+            'kupon',
             {
-              'is_current': 0,
-              'valid_to': DateTime.now().toIso8601String(),
+              'is_deleted': 1,
+              'updated_at': DateTime.now().toIso8601String(),
               'status': 'Tidak Aktif',
             },
-            where: 'kupon_key = ?',
-            whereArgs: [duplicate['kupon_key']],
+            where: 'kupon_id = ?',
+            whereArgs: [duplicate['kupon_id']],
           );
         }
 

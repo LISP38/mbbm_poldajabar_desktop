@@ -195,16 +195,16 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
 
       // Query untuk cek kupon yang punya transaksi di date range
       final result = await db.rawQuery('''
-        SELECT DISTINCT t.kupon_key
-        FROM fact_transaksi t
-        WHERE t.kupon_key IN (${kuponIds.join(',')})
+        SELECT DISTINCT t.kupon_id as kupon_id
+        FROM transaksi t
+        WHERE t.kupon_id IN (${kuponIds.join(',')})
           AND t.is_deleted = 0
           AND date(t.tanggal_transaksi) BETWEEN date('$startDate') AND date('$endDate')
       ''');
 
       // Convert ke set of kupon_key yang punya transaksi
       final kuponKeysWithTransaksi = result.map((row) {
-        return (row['kupon_key'] as int?);
+        return (row['kupon_id'] as int?);
       }).toSet();
 
       // Filter hanya kupon yang punya transaksi di range

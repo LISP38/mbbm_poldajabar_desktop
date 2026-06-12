@@ -639,7 +639,7 @@ class ExcelDatasource {
     // Get satkerId from database
     final db = await _databaseDatasource.database;
     final satkerResult = await db.query(
-      'dim_satker',
+      'satker',
       where: 'UPPER(TRIM(nama_satker)) = ?',
       whereArgs: [satker.trim().toUpperCase()],
       limit: 1,
@@ -650,7 +650,7 @@ class ExcelDatasource {
       satkerId = satkerResult.first['satker_id'] as int;
     } else {
       // Jika satker tidak ditemukan, buat entry baru
-      satkerId = await db.insert('dim_satker', {'nama_satker': satker});
+      satkerId = await db.insert('satker', {'nama_satker': satker});
     }
 
     // Cari atau buat dimensi terkait: jenis_ranmor, dim_nopol, dim_kendaraan (no hardcode)
@@ -689,13 +689,13 @@ class ExcelDatasource {
     final jenisKuponName = isDukungan ? 'DUKUNGAN' : 'RANJEN';
 
     final jenisBbmId = await _databaseDatasource.getOrCreateDimId(
-      'dim_jenis_bbm',
+      'jenis_bbm',
       'nama_jenis_bbm',
       jenisBbmName,
     );
 
     final jenisKuponId = await _databaseDatasource.getOrCreateDimId(
-      'dim_jenis_kupon',
+      'jenis_kupon',
       'nama_jenis_kupon',
       jenisKuponName,
     );

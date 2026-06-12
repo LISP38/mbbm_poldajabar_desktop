@@ -6,6 +6,7 @@ import '../validators/enhanced_import_validator.dart';
 import '../../domain/repositories/kupon_repository.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'database_change_listener.dart';
+import '../../core/utils/app_logger.dart';
 
 enum ImportType { validateOnly, dryRun, validateAndSave }
 
@@ -44,6 +45,12 @@ class EnhancedImportService {
 
   // Method untuk mendapatkan preview data tanpa melakukan import
   Future<ExcelParseResult> getPreviewData({required String filePath}) async {
+    // Verify database schema exists before querying
+    final schemaValid = await _databaseDatasource.verifyDatabaseSchema();
+    if (!schemaValid) {
+      throw Exception('Database schema not initialized. Tables missing. Please restart the application.');
+    }
+
     final existingKupons = await _kuponRepository.getAllKupon();
     final existingKuponModels = existingKupons
         .map(
@@ -79,6 +86,18 @@ class EnhancedImportService {
     int? expectedYear,
   }) async {
     try {
+      // Verify database schema exists before querying
+      final schemaValid = await _databaseDatasource.verifyDatabaseSchema();
+      if (!schemaValid) {
+        return ImportResult(
+          success: false,
+          successCount: 0,
+          errorCount: 1,
+          duplicateCount: 0,
+          errors: ['Database schema not initialized. Tables missing. Please restart the application.'],
+        );
+      }
+
       final existingKupons = await _kuponRepository.getAllKupon();
       final existingKuponModels = existingKupons
           .map(
@@ -183,9 +202,7 @@ class EnhancedImportService {
       if (importResult.successCount > 0) {
         final listener = DatabaseChangeListener();
         listener.notifyBulkImport(importResult);
-        print(
-          '[EnhancedImportService] Notified listeners: ${importResult.successCount} kupons imported',
-        );
+        AppLogger.info('[EnhancedImportService] Notified listeners: ${importResult.successCount} kupons imported');
       }
 
       return importResult;
@@ -214,7 +231,7 @@ class EnhancedImportService {
     final db = await _databaseDatasource.database;
     final Map<String, int> kendaraanIdMap = {};
 
-    // Auto-insert master data (dim_jenis_bbm, dim_jenis_kupon, dim_satker) if not exist
+    // Auto-insert master data (jenis_bbm, jenis_kupon, satker) if not exist
     await _ensureMasterDataExists(db, newKupons, newKendaraans);
 
     for (final kendaraan in newKendaraans) {
@@ -259,7 +276,7 @@ class EnhancedImportService {
           kendaraanId = null;
         }
 
-        // Insert kupon ke dim_kupon (star schema) with SCD Type 2
+        // Insert or update kupon in domain `kupon` table
         final updatedKupon = kupon.copyWith(kendaraanId: kendaraanId);
 
         // Check if EXACT same kupon already exists (true duplicate check)
@@ -276,8 +293,7 @@ class EnhancedImportService {
             satker_id = ? AND 
             jenis_bbm_id = ? AND 
             jenis_kupon_id = ? AND 
-            kendaraan_id IS NULL AND
-            is_current = 1
+            kendaraan_id IS NULL
           ''';
           whereArgs = [
             updatedKupon.nomorKupon,
@@ -297,7 +313,7 @@ class EnhancedImportService {
             jenis_bbm_id = ? AND 
             jenis_kupon_id = ? AND 
             kendaraan_id = ? AND
-            is_current = 1
+            1=1
           ''';
           whereArgs = [
             updatedKupon.nomorKupon,
@@ -311,7 +327,7 @@ class EnhancedImportService {
         }
 
         final exactDuplicate = await db.query(
-          'dim_kupon',
+          'kupon',
           where: whereClause,
           whereArgs: whereArgs,
         );
@@ -328,14 +344,13 @@ class EnhancedImportService {
         // - same nomor_kupon can exist for different jenis (RANJEN vs DUKUNGAN) and BBM types
         // - same nomor_kupon can exist for different periods (Januari vs Februari)
         final existingVersion = await db.query(
-          'dim_kupon',
+          'kupon',
           where: '''
             nomor_kupon = ? AND 
             jenis_kupon_id = ? AND 
             jenis_bbm_id = ? AND 
             bulan_terbit = ? AND
-            tahun_terbit = ? AND
-            is_current = 1
+            tahun_terbit = ?
           ''',
           whereArgs: [
             updatedKupon.nomorKupon,
@@ -347,38 +362,36 @@ class EnhancedImportService {
         );
 
         if (existingVersion.isNotEmpty) {
-          // VERSION CHANGE - Expire old record (SCD Type 2)
-          // Only expire kupon with the same period (bulan_terbit & tahun_terbit)
+          // Update existing kupon record (no SCD versioning)
           versionedCount++;
-          await db.update(
-            'dim_kupon',
-            {'is_current': 0, 'valid_to': DateTime.now().toIso8601String()},
-            where:
-                'nomor_kupon = ? AND jenis_kupon_id = ? AND jenis_bbm_id = ? AND bulan_terbit = ? AND tahun_terbit = ? AND is_current = 1',
-            whereArgs: [
-              updatedKupon.nomorKupon,
-              updatedKupon.jenisKuponId,
-              updatedKupon.jenisBbmId,
-              updatedKupon.bulanTerbit,
-              updatedKupon.tahunTerbit,
-            ],
-          );
+          final existingId = existingVersion.first['kupon_id'] as int?;
+          if (existingId != null) {
+            final map = updatedKupon.toMap();
+            map.remove('kupon_id');
+            map.remove('kupon_key');
+            map.remove('valid_from');
+            map.remove('valid_to');
+            map.remove('is_current');
+            map.remove('kuota_sisa');
+            map.remove('nama_satker');
+            // ensure updated_at is set
+            map['updated_at'] = DateTime.now().toIso8601String();
+            await db.update('kupon', map, where: 'kupon_id = ?', whereArgs: [existingId]);
+            successCount++;
+            continue;
+          }
         }
 
-        // Insert new version
+        // Insert new kupon
         final map = updatedKupon.toMap();
-        map['valid_from'] = DateTime.now().toIso8601String();
-        map['is_current'] = 1;
-        map.remove('kupon_id'); // Auto-increment as kupon_key
-        map.remove('kupon_key'); // Auto-increment
-        map.remove('is_deleted'); // Not in dim_kupon
-        map.remove('updated_at'); // Not in dim_kupon
-        map.remove('created_at'); // Use valid_from
-        map.remove('kuota_sisa'); // Calculated real-time from fact_transaksi
-        map.remove('nama_satker'); // Denormalized from dim_satker
-
-        await db.insert('dim_kupon', map);
-
+        map.remove('kupon_id');
+        map.remove('kupon_key');
+        map.remove('valid_from');
+        map.remove('valid_to');
+        map.remove('is_current');
+        map.remove('kuota_sisa');
+        map.remove('nama_satker');
+        await db.insert('kupon', map);
         successCount++;
       } catch (e) {
         errorCount++;
@@ -409,25 +422,25 @@ class EnhancedImportService {
       ...kendaraans.map((k) => k.satkerId),
     }.toSet();
 
-    // Insert dim_jenis_bbm if not exist
+    // Insert jenis_bbm if not exist
     for (final jenisBbmId in jenisBbmIds) {
       final existing = await db.query(
-        'dim_jenis_bbm',
+        'jenis_bbm',
         where: 'jenis_bbm_id = ?',
         whereArgs: [jenisBbmId],
       );
       if (existing.isEmpty) {
-        await db.insert('dim_jenis_bbm', {
+        await db.insert('jenis_bbm', {
           'jenis_bbm_id': jenisBbmId,
           'nama_jenis_bbm': 'Jenis BBM $jenisBbmId', // Default name
         });
       }
     }
 
-    // Insert dim_jenis_kupon if not exist
+    // Insert jenis_kupon if not exist
     for (final jenisKuponId in jenisKuponIds) {
       final existing = await db.query(
-        'dim_jenis_kupon',
+        'jenis_kupon',
         where: 'jenis_kupon_id = ?',
         whereArgs: [jenisKuponId],
       );
@@ -437,17 +450,17 @@ class EnhancedImportService {
             : jenisKuponId == 2
             ? 'Dukungan'
             : 'Jenis Kupon $jenisKuponId';
-        await db.insert('dim_jenis_kupon', {
+        await db.insert('jenis_kupon', {
           'jenis_kupon_id': jenisKuponId,
           'nama_jenis_kupon': namaJenis,
         });
       }
     }
 
-    // Insert dim_satker if not exist
+    // Insert satker if not exist
     for (final satkerId in satkerIds) {
       final existing = await db.query(
-        'dim_satker',
+        'satker',
         where: 'satker_id = ?',
         whereArgs: [satkerId],
       );
@@ -458,7 +471,7 @@ class EnhancedImportService {
           orElse: () => kupons.first,
         );
         final satkerName = kuponWithSatker.namaSatker;
-        await db.insert('dim_satker', {
+        await db.insert('satker', {
           'satker_id': satkerId,
           'nama_satker': satkerName,
         });

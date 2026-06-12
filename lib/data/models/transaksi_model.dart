@@ -47,11 +47,11 @@ class TransaksiModel extends TransaksiEntity {
   factory TransaksiModel.fromMap(Map<String, dynamic> map) {
     return TransaksiModel(
       transaksiId: map['transaksi_id'] as int,
-      kuponId: (map['kupon_key'] ?? map['kupon_id']) as int,
-      nomorKupon: (map['kupon_nomor'] ?? map['nomor_kupon']) as String,
-      namaSatker: (map['kupon_satker'] ?? map['nama_satker']) as String,
-      jenisBbmId: (map['kupon_jenis_bbm'] ?? map['jenis_bbm_id']) as int,
-      jenisKuponId: (map['kupon_jenis_kupon'] ?? map['jenis_kupon_id']) as int,
+      kuponId: map['kupon_id'] as int,
+      nomorKupon: (map['nomor_kupon'] ?? map['kupon_nomor']) as String,
+      namaSatker: (map['nama_satker'] ?? map['kupon_satker']) as String,
+      jenisBbmId: (map['jenis_bbm_id'] ?? map['kupon_jenis_bbm']) as int,
+      jenisKuponId: (map['jenis_kupon_id'] ?? map['kupon_jenis_kupon']) as int,
       tanggalTransaksi: map['tanggal_transaksi'] as String,
       jumlahLiter: (map['jumlah_liter'] as num).toDouble(),
       createdAt: map['created_at'] as String,
@@ -65,9 +65,7 @@ class TransaksiModel extends TransaksiEntity {
 
   Map<String, dynamic> toMap() {
     final map = {
-      'kupon_key': kuponId,
-      'jenis_bbm_id': jenisBbmId,
-      'jenis_kupon_id': jenisKuponId,
+      'kupon_id': kuponId,
       'jumlah_liter': jumlahLiter,
       'tanggal_transaksi': tanggalTransaksi,
       'created_at': createdAt,

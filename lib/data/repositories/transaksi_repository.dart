@@ -1,17 +1,17 @@
-import 'package:kupon_bbm_app/data/models/transaksi_bbm_model.dart';
+import 'package:kupon_bbm_app/data/models/transaksi_model.dart';
 import 'base_repository.dart';
 
-class TransaksiRepository extends BaseRepository<TransaksiBbm> {
+class TransaksiRepository extends BaseRepository<TransaksiModel> {
   @override
   String get tableName => 'transaksi_bbm';
 
   @override
-  TransaksiBbm fromMap(Map<String, dynamic> m) => TransaksiBbm.fromMap(m);
+  TransaksiModel fromMap(Map<String, dynamic> m) => TransaksiModel.fromMap(m);
 
   @override
-  Map<String, dynamic> toMap(TransaksiBbm model) => model.toMap();
+  Map<String, dynamic> toMap(TransaksiModel model) => model.toMap();
 
-  Future<List<TransaksiBbm>> findByKupon(int kuponId) async {
+  Future<List<TransaksiModel>> findByKupon(int kuponId) async {
     return await getAll(where: 'kupon_id = ? AND is_deleted = 0', whereArgs: [kuponId]);
   }
 

@@ -20,7 +20,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
         COALESCE(dk.no_pol_kode, '') AS no_pol_kode,
         COALESCE(dk.no_pol_nomor, '') AS no_pol_nomor,
         dk.status_aktif
-      FROM dim_kendaraan dk
+      FROM kendaraan dk
     ''');
     return result.map((map) => KendaraanModel.fromMap(map)).toList();
   }
@@ -37,7 +37,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
         COALESCE(dk.no_pol_kode, '') AS no_pol_kode,
         COALESCE(dk.no_pol_nomor, '') AS no_pol_nomor,
         dk.status_aktif
-      FROM dim_kendaraan dk
+      FROM kendaraan dk
       WHERE dk.kendaraan_id = ?
     ''',
       [kendaraanId],
@@ -52,7 +52,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
   Future<int> insertKendaraan(KendaraanEntity kendaraan) async {
     final db = await dbHelper.database;
     return await db.insert(
-      'dim_kendaraan',
+      'kendaraan',
       (kendaraan as KendaraanModel).toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -62,7 +62,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
   Future<void> updateKendaraan(KendaraanEntity kendaraan) async {
     final db = await dbHelper.database;
     await db.update(
-      'dim_kendaraan',
+      'kendaraan',
       (kendaraan as KendaraanModel).toMap(),
       where: 'kendaraan_id = ?',
       whereArgs: [kendaraan.kendaraanId],
@@ -73,7 +73,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
   Future<void> deleteKendaraan(int kendaraanId) async {
     final db = await dbHelper.database;
     await db.delete(
-      'dim_kendaraan',
+      'kendaraan',
       where: 'kendaraan_id = ?',
       whereArgs: [kendaraanId],
     );
@@ -94,7 +94,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
         COALESCE(dk.no_pol_kode, '') AS no_pol_kode,
         COALESCE(dk.no_pol_nomor, '') AS no_pol_nomor,
         dk.status_aktif
-      FROM dim_kendaraan dk
+      FROM kendaraan dk
       WHERE (dk.no_pol_kode = ? AND dk.no_pol_nomor = ?) OR (dk.no_pol_kode = ? AND dk.no_pol_nomor = ?)
       LIMIT 1
     ''',
@@ -115,7 +115,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
 
     for (var kendaraan in kendaraans) {
       batch.insert(
-        'dim_kendaraan',
+        'kendaraan',
         (kendaraan as KendaraanModel).toMap(),
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
