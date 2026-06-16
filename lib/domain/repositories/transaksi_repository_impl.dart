@@ -1,13 +1,17 @@
-import 'package:kupon_bbm_app/data/datasources/database_datasource.dart';
+import 'package:drift/drift.dart' hide Column;
 import 'package:kupon_bbm_app/data/models/transaksi_model.dart';
 import 'package:kupon_bbm_app/domain/entities/transaksi_entity.dart';
 import 'package:kupon_bbm_app/domain/repositories/transaksi_repository.dart';
-// sqflite import not required here; Database access via DatabaseDatasource
+import 'package:kupon_bbm_app/data/database/app_database.dart';
+import 'package:kupon_bbm_app/data/database/daos/transaksi_dao.dart';
 
 class TransaksiRepositoryImpl implements TransaksiRepository {
-  final DatabaseDatasource dbHelper;
+  final AppDatabase _db;
+  late final TransaksiDao _dao;
 
-  TransaksiRepositoryImpl(this.dbHelper);
+  TransaksiRepositoryImpl(this._db) {
+    _dao = _db.transaksiDao;
+  }
 
   @override
   Future<List<TransaksiEntity>> getAllTransaksi({
@@ -17,34 +21,30 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
     String? satker,
   }) async {
     try {
-      final db = await dbHelper.database;
-
-      // Build dynamic WHERE clauses based on provided filters
       final where = <String>[];
-      final args = <dynamic>[];
+      final args = <Variable>[];
 
       if (isDeleted != null) {
         where.add('t.is_deleted = ?');
-        args.add(isDeleted);
+        args.add(Variable.withInt(isDeleted));
       } else {
         where.add('t.is_deleted = 0');
       }
 
       if (bulan != null) {
-        // tanggal_transaksi stored as 'YYYY-MM-DD'
         final bulanStr = bulan.toString().padLeft(2, '0');
         where.add("substr(t.tanggal_transaksi,6,2) = ?");
-        args.add(bulanStr);
+        args.add(Variable.withString(bulanStr));
       }
 
       if (tahun != null) {
         where.add("substr(t.tanggal_transaksi,1,4) = ?");
-        args.add(tahun.toString());
+        args.add(Variable.withString(tahun.toString()));
       }
 
       if (satker != null && satker.isNotEmpty) {
         where.add('ds.nama_satker = ?');
-        args.add(satker);
+        args.add(Variable.withString(satker));
       }
 
       final whereClause = where.isNotEmpty
@@ -54,8 +54,6 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
       final sql =
           '''
         SELECT 
-          t.transaksi_id,
-          t.kupon_key,
           t.transaksi_id,
           t.kupon_key,
           dk.nomor_kupon as kupon_nomor,
@@ -83,15 +81,13 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         LEFT JOIN dim_jenis_bbm dbb ON t.jenis_bbm_id = dbb.jenis_bbm_id
         LEFT JOIN dim_jenis_kupon dku ON t.jenis_kupon_id = dku.jenis_kupon_id
         LEFT JOIN dim_kendaraan dk2 ON t.kendaraan_id = dk2.kendaraan_id
-        
-        -- Note: additional labels available: nopol (dn.nomor-dn.kode or dk2.no_pol_nomor-dk2.no_pol_kode) and jenis_ranmor
         $whereClause
         ORDER BY t.tanggal_transaksi DESC, t.created_at DESC
       ''';
 
-      final result = await db.rawQuery(sql, args);
+      final result = await _db.customSelect(sql, variables: args).get();
 
-      return result.map((map) => TransaksiModel.fromMap(map)).toList();
+      return result.map((row) => TransaksiModel.fromMap(row.data)).toList();
     } catch (e) {
       throw Exception('Failed to get all transaksi: $e');
     }
@@ -100,8 +96,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   @override
   Future<TransaksiEntity?> getTransaksiById(int transaksiId) async {
     try {
-      final db = await dbHelper.database;
-      final result = await db.rawQuery(
+      final result = await _db.customSelect(
         '''
         SELECT
           t.transaksi_id,
@@ -133,14 +128,14 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         LEFT JOIN dim_kendaraan dk2 ON t.kendaraan_id = dk2.kendaraan_id
         WHERE t.transaksi_id = ?
       ''',
-        [transaksiId],
-      );
+        variables: [Variable.withInt(transaksiId)],
+      ).getSingleOrNull();
 
-      if (result.isEmpty) {
+      if (result == null) {
         return null;
       }
 
-      return TransaksiModel.fromMap(result.first);
+      return TransaksiModel.fromMap(result.data);
     } catch (e) {
       throw Exception('Failed to get transaksi by id: $e');
     }
@@ -149,32 +144,40 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   @override
   Future<void> insertTransaksi(TransaksiEntity transaksi) async {
     try {
-      final db = await dbHelper.database;
-      await db.transaction((txn) async {
+      await _db.transaction(() async {
         final t = transaksi as TransaksiModel;
 
-        // Lookup satker_id and kendaraan_id from dim_kupon
-        final kuponInfo = await txn.rawQuery(
+        final kuponInfo = await _db.customSelect(
           '''
           SELECT satker_id, kendaraan_id
           FROM dim_kupon
           WHERE kupon_key = ? AND is_current = 1
           LIMIT 1
         ''',
-          [transaksi.kuponId],
-        );
+          variables: [Variable.withInt(transaksi.kuponId)],
+        ).get();
 
         if (kuponInfo.isEmpty) {
           throw Exception('Kupon not found: ${transaksi.kuponId}');
         }
 
-        // Insert into fact_transaksi with denormalized dimensions
-        final map = t.toMap();
-        map.remove('transaksi_id'); // Auto-increment
-        map['satker_id'] = kuponInfo.first['satker_id'];
-        map['kendaraan_id'] = kuponInfo.first['kendaraan_id'];
-        await txn.insert('fact_transaksi', map);
-        // kuota_sisa is now calculated real-time from fact_transaksi
+        await _dao.into(_dao.factTransaksi).insert(FactTransaksiCompanion.insert(
+          kuponKey: Value(t.kuponId),
+          satkerId: Value(kuponInfo.first.read<int>('satker_id')),
+          kendaraanId: Value(kuponInfo.first.read<int?>('kendaraan_id')), // kendaraan_id is nullable in db? wait, is it? yes, dim_kupon kendaraan_id is nullable
+          jenisBbmId: Value(t.jenisBbmId),
+          jenisKuponId: Value(t.jenisKuponId),
+          tanggalTransaksi: t.tanggalTransaksi,
+          jumlahLiter: t.jumlahLiter,
+          jenisTransaksi: Value(t.jenisTransaksi),
+          namaPetugas: Value(t.namaPetugas),
+          namaKonsumen: Value(t.namaKonsumen),
+          satkerText: Value(t.satkerText),
+          nomorKendaraanText: Value(t.nomorKendaraanText),
+          isDeleted: const Value(0),
+          createdAt: Value(DateTime.now().toIso8601String()),
+          updatedAt: Value(DateTime.now().toIso8601String()),
+        ));
       });
     } catch (e) {
       throw Exception('Failed to insert transaksi: $e');
@@ -184,27 +187,32 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   @override
   Future<void> updateTransaksi(TransaksiEntity transaksi) async {
     try {
-      final db = await dbHelper.database;
-      await db.transaction((txn) async {
-        // Get old transaksi data
-        final oldTransaksi = await txn.query(
-          'fact_transaksi',
-          where: 'transaksi_id = ?',
-          whereArgs: [transaksi.transaksiId],
-        );
+      await _db.transaction(() async {
+        final existing = await (_dao.select(_dao.factTransaksi)
+              ..where((t) => t.transaksiId.equals(transaksi.transaksiId)))
+            .getSingleOrNull();
 
-        if (oldTransaksi.isEmpty) {
+        if (existing == null) {
           throw Exception('Transaksi not found');
         }
 
-        // Update fact_transaksi
-        await txn.update(
-          'fact_transaksi',
-          (transaksi as TransaksiModel).toMap(),
-          where: 'transaksi_id = ?',
-          whereArgs: [transaksi.transaksiId],
-        );
-        // kuota_sisa is now calculated real-time from fact_transaksi
+        final t = transaksi as TransaksiModel;
+
+        await (_dao.update(_dao.factTransaksi)
+              ..where((t) => t.transaksiId.equals(transaksi.transaksiId)))
+            .write(FactTransaksiCompanion(
+          kuponKey: Value(t.kuponId),
+          jenisBbmId: Value(t.jenisBbmId),
+          jenisKuponId: Value(t.jenisKuponId),
+          tanggalTransaksi: Value(t.tanggalTransaksi),
+          jumlahLiter: Value(t.jumlahLiter),
+          jenisTransaksi: Value(t.jenisTransaksi),
+          namaPetugas: Value(t.namaPetugas),
+          namaKonsumen: Value(t.namaKonsumen),
+          satkerText: Value(t.satkerText),
+          nomorKendaraanText: Value(t.nomorKendaraanText),
+          updatedAt: Value(DateTime.now().toIso8601String()),
+        ));
       });
     } catch (e) {
       throw Exception('Failed to update transaksi: $e');
@@ -225,37 +233,29 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
     required bool isDelete,
   }) async {
     try {
-      final db = await dbHelper.database;
-      await db.transaction((txn) async {
-        // Get transaksi data
-        final transaksi = await txn.query(
-          'fact_transaksi',
-          where: 'transaksi_id = ?',
-          whereArgs: [transaksiId],
-        );
+      await _db.transaction(() async {
+        final existing = await (_dao.select(_dao.factTransaksi)
+              ..where((t) => t.transaksiId.equals(transaksiId)))
+            .getSingleOrNull();
 
-        if (transaksi.isEmpty) {
+        if (existing == null) {
           throw Exception('Transaksi not found');
         }
 
         if (isDelete) {
-          // Soft delete - set is_deleted = 1
-          await txn.update(
-            'fact_transaksi',
-            {'is_deleted': 1},
-            where: 'transaksi_id = ?',
-            whereArgs: [transaksiId],
-          );
-          // kuota_sisa is now calculated real-time from fact_transaksi
+          await (_dao.update(_dao.factTransaksi)
+                ..where((t) => t.transaksiId.equals(transaksiId)))
+              .write(FactTransaksiCompanion(
+            isDeleted: const Value(1),
+            updatedAt: Value(DateTime.now().toIso8601String()),
+          ));
         } else {
-          // Restore - set is_deleted = 0
-          await txn.update(
-            'fact_transaksi',
-            {'is_deleted': 0, 'updated_at': DateTime.now().toIso8601String()},
-            where: 'transaksi_id = ?',
-            whereArgs: [transaksiId],
-          );
-          // kuota_sisa is now calculated real-time from fact_transaksi
+          await (_dao.update(_dao.factTransaksi)
+                ..where((t) => t.transaksiId.equals(transaksiId)))
+              .write(FactTransaksiCompanion(
+            isDeleted: const Value(0),
+            updatedAt: Value(DateTime.now().toIso8601String()),
+          ));
         }
       });
     } catch (e) {
@@ -274,27 +274,24 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
     DateTime? filterTanggalSelesai,
   }) async {
     try {
-      final db = await dbHelper.database;
-
       final where = <String>[];
-      final args = <dynamic>[];
-      // Only kupon with actual minus (kuota_sisa < 0)
+      final args = <Variable>[];
+
       where.add('(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) < 0');
       where.add('dk.is_current = 1');
       if (satker != null && satker.isNotEmpty) {
         where.add('ds.nama_satker = ?');
-        args.add(satker);
+        args.add(Variable.withString(satker));
       }
       if (bulan != null) {
         where.add('dk.bulan_terbit = ?');
-        args.add(bulan);
+        args.add(Variable.withInt(bulan));
       }
       if (tahun != null) {
         where.add('dk.tahun_terbit = ?');
-        args.add(tahun);
+        args.add(Variable.withInt(tahun));
       }
 
-      // Filter berdasarkan range tanggal transaksi
       String transaksiFilter = '';
       if (filterTanggalMulai != null && filterTanggalSelesai != null) {
         final startDate = filterTanggalMulai.toIso8601String().split('T')[0];
@@ -340,8 +337,8 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         AND ft_sum.transaksi_count > 0
       ''';
 
-      final result = await db.rawQuery(sql, args);
-      return result;
+      final result = await _db.customSelect(sql, variables: args).get();
+      return result.map((row) => row.data).toList();
     } catch (e) {
       throw Exception('Failed to get kupon minus: $e');
     }
@@ -350,15 +347,14 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   @override
   Future<List<String>> getDistinctTahunTerbit() async {
     try {
-      final db = await dbHelper.database;
-      final rows = await db.rawQuery('''
+      final rows = await _db.customSelect('''
         SELECT DISTINCT tahun_terbit AS tahun_terbit FROM dim_kupon
         WHERE tahun_terbit IS NOT NULL
         ORDER BY CAST(tahun_terbit AS INTEGER) ASC
-      ''');
+      ''').get();
 
       return rows
-          .map<String>((r) => (r['tahun_terbit']?.toString() ?? ''))
+          .map<String>((r) => (r.data['tahun_terbit']?.toString() ?? ''))
           .where((s) => s.isNotEmpty)
           .toList();
     } catch (e) {
@@ -369,15 +365,14 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   @override
   Future<List<String>> getDistinctBulanTerbit() async {
     try {
-      final db = await dbHelper.database;
-      final rows = await db.rawQuery('''
+      final rows = await _db.customSelect('''
         SELECT DISTINCT bulan_terbit AS bulan_terbit FROM dim_kupon
         WHERE bulan_terbit IS NOT NULL
         ORDER BY CAST(bulan_terbit AS INTEGER) ASC
-      ''');
+      ''').get();
 
       return rows
-          .map<String>((r) => (r['bulan_terbit']?.toString() ?? ''))
+          .map<String>((r) => (r.data['bulan_terbit']?.toString() ?? ''))
           .where((s) => s.isNotEmpty)
           .toList();
     } catch (e) {
@@ -388,18 +383,16 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   @override
   Future<List<String>> getDistinctJenisBbm() async {
     try {
-      final db = await dbHelper.database;
-      final rows = await db.rawQuery('''
+      final rows = await _db.customSelect('''
         SELECT DISTINCT nama_jenis_bbm AS nama FROM dim_jenis_bbm
         WHERE nama_jenis_bbm IS NOT NULL
         ORDER BY nama_jenis_bbm COLLATE NOCASE ASC
-      ''');
+      ''').get();
 
-      // Filter case-insensitive duplicates
       final seen = <String>{};
       final result = <String>[];
       for (final r in rows) {
-        final name = (r['nama']?.toString() ?? '').trim();
+        final name = (r.data['nama']?.toString() ?? '').trim();
         if (name.isEmpty) continue;
         final lowerName = name.toLowerCase();
         if (seen.contains(lowerName)) continue;
@@ -415,60 +408,25 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   @override
   Future<String?> getLastTransaksiDate() async {
     try {
-      final db = await dbHelper.database;
-      final result = await db.rawQuery('''
+      final result = await _db.customSelect('''
         SELECT tanggal_transaksi FROM fact_transaksi
         WHERE is_deleted = 0 AND tanggal_transaksi IS NOT NULL AND tanggal_transaksi != ''
         ORDER BY created_at DESC
         LIMIT 1
-      ''');
-      if (result.isNotEmpty) {
-        return result.first['tanggal_transaksi'] as String?;
+      ''').getSingleOrNull();
+      
+      if (result != null) {
+        return result.data['tanggal_transaksi'] as String?;
       }
-
-      // Fallback: if star-schema fact_purchasing + dim_date used
-      final result2 = await db.rawQuery('''
-        SELECT dd.date_value as tanggal FROM fact_purchasing fp
-        LEFT JOIN dim_date dd ON fp.date_key = dd.date_key
-        WHERE dd.date_value IS NOT NULL
-        ORDER BY dd.date_value DESC LIMIT 1
-      ''');
-      if (result2.isNotEmpty) return result2.first['tanggal'] as String?;
 
       return null;
     } catch (e) {
-      // Silently return null on failure, UI will fallback to today
       return null;
     }
   }
 
   @override
   Future<void> restoreTransaksi(int transaksiId) async {
-    try {
-      final db = await dbHelper.database;
-      await db.transaction((txn) async {
-        // Get transaksi data
-        final transaksi = await txn.query(
-          'fact_transaksi',
-          where: 'transaksi_id = ?',
-          whereArgs: [transaksiId],
-        );
-
-        if (transaksi.isEmpty) {
-          throw Exception('Transaksi not found');
-        }
-
-        // Restore transaksi
-        await txn.update(
-          'fact_transaksi',
-          {'is_deleted': 0, 'updated_at': DateTime.now().toIso8601String()},
-          where: 'transaksi_id = ?',
-          whereArgs: [transaksiId],
-        );
-        // kuota_sisa is now calculated real-time from fact_transaksi
-      });
-    } catch (e) {
-      throw Exception('Failed to restore transaksi: $e');
-    }
+    await _hardDeleteOrRestore(transaksiId, isDelete: false);
   }
 }

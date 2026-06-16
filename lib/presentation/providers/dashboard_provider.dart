@@ -5,6 +5,7 @@ import 'package:kupon_bbm_app/domain/repositories/kupon_repository.dart';
 import 'package:kupon_bbm_app/domain/repositories/kupon_repository_impl.dart';
 import 'package:kupon_bbm_app/data/services/database_change_listener.dart';
 import 'dart:async';
+import 'package:drift/drift.dart' hide Column;
 
 class DashboardProvider extends ChangeNotifier {
   final KuponRepository _kuponRepository;
@@ -215,7 +216,7 @@ class DashboardProvider extends ChangeNotifier {
   /// Dipanggil setiap kali fetch kupon untuk memastikan status selalu akurat
   Future<void> _updateExpiredKuponStatus() async {
     final db =
-        await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
 
     try {
       // Update semua kupon yang tanggal_sampainya sudah lewat
@@ -237,7 +238,7 @@ class DashboardProvider extends ChangeNotifier {
 
   Future<void> fetchSatkers() async {
     final db =
-        await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
 
     try {
       final results = await db.query(
@@ -257,7 +258,7 @@ class DashboardProvider extends ChangeNotifier {
   /// Fetch semua kupon tanpa filter untuk dropdown di halaman transaksi
   Future<void> fetchAllKuponsUnfiltered() async {
     final db =
-        await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
 
     try {
       String query = '''
@@ -309,7 +310,7 @@ class DashboardProvider extends ChangeNotifier {
 
   Future<void> fetchJenisBbm() async {
     final db =
-        await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
     try {
       final rows = await db.query(
         'dim_jenis_bbm',
@@ -344,7 +345,7 @@ class DashboardProvider extends ChangeNotifier {
   // Fetch bulan list from dim_bulan; fall back to 1..12 on error
   Future<void> fetchBulans() async {
     final db =
-        await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
     try {
       // check if dim_bulan exists
       final exists = await db.rawQuery(
@@ -401,7 +402,7 @@ class DashboardProvider extends ChangeNotifier {
   // Fetch tahun list from dim_tahun; fall back to current year +/- 1
   Future<void> fetchTahuns() async {
     final db =
-        await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
     try {
       // check dim_tahun
       final exists = await db.rawQuery(
@@ -459,7 +460,7 @@ class DashboardProvider extends ChangeNotifier {
   /// (numeric or textual). UI will map numeric month strings to month names.
   Future<void> loadFilterOptions() async {
     final db =
-        await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
     try {
       // Primary source: dim_kupon (more reliable than dim_date since we populate dim_kupon directly)
       final bulanRows = await db.rawQuery(
@@ -522,7 +523,7 @@ class DashboardProvider extends ChangeNotifier {
     notifyListeners();
 
     final db =
-        await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
 
     try {
       List<String> whereConditions = ['dk.is_current = 1'];
@@ -627,7 +628,7 @@ class DashboardProvider extends ChangeNotifier {
     notifyListeners();
 
     final db =
-        await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
 
     try {
       List<String> whereConditions = [
@@ -759,7 +760,7 @@ class DashboardProvider extends ChangeNotifier {
 
   Future<void> cleanDuplicateData() async {
     final db =
-        await (_kuponRepository as KuponRepositoryImpl).dbHelper.database;
+        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
 
     try {
       final duplicates = await db.rawQuery('''

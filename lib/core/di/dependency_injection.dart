@@ -13,39 +13,65 @@ import 'package:kupon_bbm_app/domain/repositories/transaksi_repository_impl.dart
 import 'package:kupon_bbm_app/presentation/providers/enhanced_import_provider.dart';
 import 'package:kupon_bbm_app/domain/repositories/alokasi_repository.dart';
 import 'package:kupon_bbm_app/domain/repositories/alokasi_repository_impl.dart';
+import 'package:kupon_bbm_app/domain/repositories/analysis_repository_impl.dart';
+import 'package:kupon_bbm_app/domain/repositories/jenis_bbm_repository.dart';
+import 'package:kupon_bbm_app/domain/repositories/jenis_bbm_repository_impl.dart';
+import 'package:kupon_bbm_app/data/database/app_database.dart';
+import 'package:kupon_bbm_app/core/di/drift_sqflite_adapter.dart';
 
 final getIt = GetIt.instance;
 
 Future<void> initializeDependencies() async {
-  getIt.registerLazySingleton<TransaksiRepositoryImpl>(
-    () => TransaksiRepositoryImpl(getIt<DatabaseDatasource>()),
-  );
-  // Datasources
-  getIt.registerLazySingleton<DatabaseDatasource>(() => DatabaseDatasource());
+  // Drift Database & DAOs
+  getIt.registerLazySingleton<AppDatabase>(() => AppDatabase());
+  getIt.registerLazySingleton(() => getIt<AppDatabase>().masterDao);
+  getIt.registerLazySingleton(() => getIt<AppDatabase>().kuponDao);
+  getIt.registerLazySingleton(() => getIt<AppDatabase>().transaksiDao);
+  getIt.registerLazySingleton(() => getIt<AppDatabase>().reportingDao);
+  getIt.registerLazySingleton(() => getIt<AppDatabase>().alokasiDao);
 
-  // Repositories - harus didaftarkan sebelum validator karena digunakan oleh validator
+  // Drift Sqflite Adapter
+
+  // Drift Sqflite Adapter
+  getIt.registerLazySingleton<DriftSqfliteAdapter>(
+    () => DriftSqfliteAdapter(getIt<AppDatabase>()),
+  );
+
+  // Repositories
+  getIt.registerLazySingleton<TransaksiRepositoryImpl>(
+    () => TransaksiRepositoryImpl(getIt<AppDatabase>()), 
+  );
+
   getIt.registerLazySingleton<KendaraanRepository>(
-    () => KendaraanRepositoryImpl(getIt<DatabaseDatasource>()),
+    () => KendaraanRepositoryImpl(getIt<AppDatabase>()), 
   );
 
   getIt.registerLazySingleton<KuponRepository>(
-    () => KuponRepositoryImpl(getIt<DatabaseDatasource>()),
+    () => KuponRepositoryImpl(getIt<AppDatabase>()), 
   );
 
   getIt.registerLazySingleton<MasterDataRepository>(
-    () => MasterDataRepositoryImpl(getIt<DatabaseDatasource>()),
+    () => MasterDataRepositoryImpl(getIt<AppDatabase>()), 
   );
 
   getIt.registerLazySingleton<AlokasiRepository>(
-    () => AlokasiRepositoryImpl(getIt<DatabaseDatasource>()),
+    () => AlokasiRepositoryImpl(getIt<AppDatabase>()), 
+  );
+
+  getIt.registerLazySingleton<AnalysisRepositoryImpl>(
+    () => AnalysisRepositoryImpl(getIt<AppDatabase>()),
+  );
+
+  getIt.registerLazySingleton<JenisBbmRepository>(
+    () => JenisBbmRepositoryImpl(getIt<AppDatabase>()),
   );
 
   // Validators
   getIt.registerLazySingleton<KuponValidator>(() => KuponValidator());
 
-  // Excel datasource - harus didaftarkan setelah validator
+  // Excel datasource
   getIt.registerLazySingleton<ExcelDatasource>(
-    () => ExcelDatasource(getIt<KuponValidator>(), getIt<DatabaseDatasource>()),
+    () => ExcelDatasource(getIt<KuponValidator>(), getIt<AppDatabase>()),
   );
 
   // Enhanced Import Service
@@ -53,7 +79,7 @@ Future<void> initializeDependencies() async {
     () => EnhancedImportService(
       excelDatasource: getIt<ExcelDatasource>(),
       kuponRepository: getIt<KuponRepository>(),
-      databaseDatasource: getIt<DatabaseDatasource>(),
+      db: getIt<AppDatabase>(),
     ),
   );
 

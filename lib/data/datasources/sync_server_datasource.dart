@@ -3,11 +3,12 @@ import 'dart:io';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
-import '../../data/datasources/database_datasource.dart';
+import 'package:get_it/get_it.dart';
+import '../../core/di/drift_sqflite_adapter.dart';
 
 class SyncServerDatasource {
   HttpServer? _server;
-  final DatabaseDatasource _db = DatabaseDatasource();
+  final DriftSqfliteAdapter _db = GetIt.I<DriftSqfliteAdapter>();
 
   // START SERVER
   Future<String> startServer() async {

@@ -50,7 +50,7 @@ class ExportService {
   // Helper function to get transaksi data grouped by date
   // Returns Map<kuponId, Map<dayOfMonth, totalLiter>>
   static Future<Map<int, Map<int, int>>> _getTransaksiByDate(
-    DatabaseDatasource dbDatasource,
+    DriftSqfliteAdapter dbDatasource,
     List<int> kuponIds,
     int currentMonth,
     int currentYear,
@@ -275,7 +275,7 @@ class ExportService {
     required List<KuponEntity> allKupons,
     required Future<String?> Function(int?) getNopolByKendaraanId,
     required Future<String?> Function(int?) getJenisRanmorByKendaraanId,
-    required DatabaseDatasource dbDatasource,
+    required DriftSqfliteAdapter dbDatasource,
     int? filterBulan,
     int? filterTahun,
     DateTime? filterTanggalMulai,
@@ -428,7 +428,7 @@ class ExportService {
     required Map<int, String> jenisBBMMap,
     required Future<String?> Function(int?) getNopolByKendaraanId,
     required Future<String?> Function(int?) getJenisRanmorByKendaraanId,
-    required DatabaseDatasource dbDatasource,
+    required DriftSqfliteAdapter dbDatasource,
     bool fillTransaksiData = false,
     int? filterBulan,
     int? filterTahun,
@@ -611,7 +611,7 @@ class ExportService {
     required Map<int, String> jenisBBMMap,
     required Future<String?> Function(int?) getNopolByKendaraanId,
     required Future<String?> Function(int?) getJenisRanmorByKendaraanId,
-    required DatabaseDatasource dbDatasource,
+    required DriftSqfliteAdapter dbDatasource,
     bool fillTransaksiData = false,
     int? filterBulan,
     int? filterTahun,
@@ -776,7 +776,7 @@ class ExportService {
   static Future<bool> exportDataSatker({
     required List<KuponEntity> allKupons,
     required Map<int, String> jenisBBMMap,
-    required DatabaseDatasource dbDatasource,
+    required DriftSqfliteAdapter dbDatasource,
     int? filterBulan,
     int? filterTahun,
     DateTime? filterTanggalMulai,
@@ -937,7 +937,7 @@ class ExportService {
   static Future<bool> exportTransaksiRekap({
     required List<KuponEntity> allKupons,
     required Map<int, String> jenisBBMMap,
-    required DatabaseDatasource dbDatasource,
+    required DriftSqfliteAdapter dbDatasource,
     int? filterBulan,
     int? filterTahun,
     DateTime? filterTanggalMulai,
@@ -1048,7 +1048,7 @@ class ExportService {
   /// Filter kupon berdasarkan apakah punya transaksi di date range
   /// Ini untuk memastikan export hanya menampilkan kupon yang punya transaksi di range
   static Future<List<KuponEntity>> _filterKuponByDateRangeTransaksiForExport(
-    DatabaseDatasource dbDatasource,
+    DriftSqfliteAdapter dbDatasource,
     List<KuponEntity> allKupons,
     DateTime startDate,
     DateTime endDate,
@@ -1094,7 +1094,7 @@ class ExportService {
     required Map<int, String> jenisBBMMap,
     required Future<String?> Function(int?) getNopolByKendaraanId,
     required Future<String?> Function(int?) getJenisRanmorByKendaraanId,
-    required DatabaseDatasource dbDatasource,
+    required DriftSqfliteAdapter dbDatasource,
     int? filterBulan,
     int? filterTahun,
     DateTime? filterTanggalMulai,
@@ -1236,7 +1236,7 @@ class ExportService {
     String sheetName,
     List<KuponEntity> kupons,
     String title,
-    DatabaseDatasource dbDatasource,
+    DriftSqfliteAdapter dbDatasource,
     int? filterBulan,
     int? filterTahun,
     DateTime? filterTanggalMulai,
@@ -1846,7 +1846,7 @@ class ExportService {
     List<KuponEntity> kupons,
     Future<String?> Function(int?) getNopolByKendaraanId,
     Future<String?> Function(int?) getJenisRanmorByKendaraanId,
-    DatabaseDatasource dbDatasource,
+    DriftSqfliteAdapter dbDatasource,
     bool fillTransaksiData,
     int? filterBulan,
     int? filterTahun,
@@ -2432,7 +2432,7 @@ class ExportService {
     Excel excel,
     String sheetName,
     List<KuponEntity> kupons,
-    DatabaseDatasource dbDatasource,
+    DriftSqfliteAdapter dbDatasource,
     bool fillTransaksiData,
     int? filterBulan,
     int? filterTahun,
@@ -3697,7 +3697,7 @@ class ExportService {
   /// Setiap blok: RANJEN, DUK, TOTAL dengan kolom KUOTA, PAKAI, SISA, + tanggal 2 bulan
   static Future<bool> exportRekapHarian({
     required List<KuponEntity> allKupons,
-    required DatabaseDatasource dbDatasource,
+    required DriftSqfliteAdapter dbDatasource,
   }) async {
     try {
       final excel = Excel.createExcel();
@@ -4249,7 +4249,7 @@ class ExportService {
   /// Helper: Query aggregated transaksi per tanggal per kupon
   /// Returns Map dengan key: "kuponId_month_year_day" dan value: total liter
   static Future<Map<String, int>> _getAggregatedDailyTransaksi(
-    DatabaseDatasource dbDatasource,
+    DriftSqfliteAdapter dbDatasource,
     List<int> kuponIds,
     int month1,
     int year1,
@@ -4304,7 +4304,7 @@ class ExportService {
     required Excel excel,
     required String sheetName,
     required List<KuponEntity> allKupons,
-    required DatabaseDatasource dbDatasource,
+    required DriftSqfliteAdapter dbDatasource,
     int? filterBulan,
     int? filterTahun,
     DateTime? filterTanggalMulai,
@@ -4402,7 +4402,7 @@ class ExportService {
     required Excel excel,
     required String sheetName,
     required List<KuponEntity> allKupons,
-    required DatabaseDatasource dbDatasource,
+    required DriftSqfliteAdapter dbDatasource,
     int? filterBulan,
     int? filterTahun,
     DateTime? filterTanggalMulai,

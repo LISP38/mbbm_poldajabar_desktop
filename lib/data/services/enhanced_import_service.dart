@@ -1,10 +1,10 @@
 import '../models/kupon_model.dart';
 import '../models/kendaraan_model.dart';
 import '../datasources/excel_datasource.dart';
-import '../datasources/database_datasource.dart';
+import '../../data/database/app_database.dart';
 import '../validators/enhanced_import_validator.dart';
 import '../../domain/repositories/kupon_repository.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:drift/drift.dart' as drift;
 import 'database_change_listener.dart';
 
 enum ImportType { validateOnly, dryRun, validateAndSave }
@@ -32,15 +32,15 @@ class ImportResult {
 class EnhancedImportService {
   final ExcelDatasource _excelDatasource;
   final KuponRepository _kuponRepository;
-  final DatabaseDatasource _databaseDatasource;
+  final AppDatabase _db;
 
   EnhancedImportService({
     required ExcelDatasource excelDatasource,
     required KuponRepository kuponRepository,
-    required DatabaseDatasource databaseDatasource,
+    required AppDatabase db,
   }) : _excelDatasource = excelDatasource,
        _kuponRepository = kuponRepository,
-       _databaseDatasource = databaseDatasource;
+       _db = db;
 
   // Method untuk mendapatkan preview data tanpa melakukan import
   Future<ExcelParseResult> getPreviewData({required String filePath}) async {
@@ -211,38 +211,45 @@ class EnhancedImportService {
     int errorCount = 0;
     List<String> errorMessages = [];
 
-    final db = await _databaseDatasource.database;
     final Map<String, int> kendaraanIdMap = {};
 
     // Auto-insert master data (dim_jenis_bbm, dim_jenis_kupon, dim_satker) if not exist
-    await _ensureMasterDataExists(db, newKupons, newKendaraans);
+    await _ensureMasterDataExists(newKupons, newKendaraans);
 
     for (final kendaraan in newKendaraans) {
       final key =
           '${kendaraan.satkerId}_${kendaraan.jenisRanmor}_${kendaraan.noPolKode}_${kendaraan.noPolNomor}';
 
-      // Cek apakah kendaraan dengan kunci ini sudah diproses sebelumnya (menghindari duplikat internal kendaraan)
-      if (kendaraanIdMap.containsKey(key)) {
-        continue;
-      }
+      if (kendaraanIdMap.containsKey(key)) continue;
 
       try {
-        // Use schema-aware helper to get or create kendaraan row using textual fields.
-        // We removed dim_nopol and dim_jenis_ranmor in v9; kendaraan should store
-        // jenis_ranmor, no_pol_kode, and no_pol_nomor directly.
-        int kendaraanId = await _databaseDatasource.getOrCreateKendaraan(
-          satkerId: kendaraan.satkerId,
-          jenisRanmorText: kendaraan.jenisRanmor,
-          nopolKode: kendaraan.noPolKode,
-          nopolNomor: kendaraan.noPolNomor,
-        );
+        final kendaraanResult = await (_db.select(_db.dimKendaraan)
+              ..where((t) =>
+                  t.satkerId.equals(kendaraan.satkerId) &
+                  t.noPolKode.equals(kendaraan.noPolKode) &
+                  t.noPolNomor.equals(kendaraan.noPolNomor))
+              ..limit(1))
+            .getSingleOrNull();
 
-        // Simpan mapping
+        int kendaraanId;
+        if (kendaraanResult != null) {
+          kendaraanId = kendaraanResult.kendaraanId;
+        } else {
+          kendaraanId = await _db.into(_db.dimKendaraan).insert(
+                drift.DimKendaraanCompanion.insert(
+                  satkerId: kendaraan.satkerId,
+                  jenisRanmor: drift.Value(kendaraan.jenisRanmor.trim().toUpperCase()),
+                  noPolKode: drift.Value(kendaraan.noPolKode),
+                  noPolNomor: drift.Value(kendaraan.noPolNomor),
+                  statusAktif: const drift.Value(1),
+                ),
+              );
+        }
+
         kendaraanIdMap[key] = kendaraanId;
       } catch (e) {
         errorCount++;
         errorMessages.add('Failed to insert/update kendaraan $key: $e');
-        // Lanjutkan ke kendaraan berikutnya
       }
     }
 
@@ -262,59 +269,24 @@ class EnhancedImportService {
         // Insert kupon ke dim_kupon (star schema) with SCD Type 2
         final updatedKupon = kupon.copyWith(kendaraanId: kendaraanId);
 
-        // Check if EXACT same kupon already exists (true duplicate check)
-        // Handle NULL kendaraan_id properly for DUKUNGAN kupons
-        String whereClause;
-        List<dynamic> whereArgs;
+        // Build exact duplicate condition
+        var query = _db.select(_db.dimKupon)
+          ..where((t) =>
+              t.nomorKupon.equals(updatedKupon.nomorKupon) &
+              t.bulanTerbit.equals(updatedKupon.bulanTerbit) &
+              t.tahunTerbit.equals(updatedKupon.tahunTerbit) &
+              t.satkerId.equals(updatedKupon.satkerId) &
+              t.jenisBbmId.equals(updatedKupon.jenisBbmId) &
+              t.jenisKuponId.equals(updatedKupon.jenisKuponId) &
+              t.isCurrent.equals(1));
 
         if (updatedKupon.kendaraanId == null) {
-          // For DUKUNGAN or RANJEN without kendaraan_id
-          whereClause = '''
-            nomor_kupon = ? AND 
-            bulan_terbit = ? AND 
-            tahun_terbit = ? AND 
-            satker_id = ? AND 
-            jenis_bbm_id = ? AND 
-            jenis_kupon_id = ? AND 
-            kendaraan_id IS NULL AND
-            is_current = 1
-          ''';
-          whereArgs = [
-            updatedKupon.nomorKupon,
-            updatedKupon.bulanTerbit,
-            updatedKupon.tahunTerbit,
-            updatedKupon.satkerId,
-            updatedKupon.jenisBbmId,
-            updatedKupon.jenisKuponId,
-          ];
+          query.where((t) => t.kendaraanId.isNull());
         } else {
-          // For RANJEN with kendaraan_id
-          whereClause = '''
-            nomor_kupon = ? AND 
-            bulan_terbit = ? AND 
-            tahun_terbit = ? AND 
-            satker_id = ? AND 
-            jenis_bbm_id = ? AND 
-            jenis_kupon_id = ? AND 
-            kendaraan_id = ? AND
-            is_current = 1
-          ''';
-          whereArgs = [
-            updatedKupon.nomorKupon,
-            updatedKupon.bulanTerbit,
-            updatedKupon.tahunTerbit,
-            updatedKupon.satkerId,
-            updatedKupon.jenisBbmId,
-            updatedKupon.jenisKuponId,
-            updatedKupon.kendaraanId,
-          ];
+          query.where((t) => t.kendaraanId.equals(updatedKupon.kendaraanId));
         }
 
-        final exactDuplicate = await db.query(
-          'dim_kupon',
-          where: whereClause,
-          whereArgs: whereArgs,
-        );
+        final exactDuplicate = await query.get();
 
         if (exactDuplicate.isNotEmpty) {
           // TRUE DUPLICATE - skip insert
@@ -323,61 +295,48 @@ class EnhancedImportService {
         }
 
         // Check if kupon with same nomor exists but different attributes (version change)
-        // IMPORTANT: Must include jenis_kupon_id, jenis_bbm_id, bulan_terbit, dan tahun_terbit
-        // to identify the correct kupon because:
-        // - same nomor_kupon can exist for different jenis (RANJEN vs DUKUNGAN) and BBM types
-        // - same nomor_kupon can exist for different periods (Januari vs Februari)
-        final existingVersion = await db.query(
-          'dim_kupon',
-          where: '''
-            nomor_kupon = ? AND 
-            jenis_kupon_id = ? AND 
-            jenis_bbm_id = ? AND 
-            bulan_terbit = ? AND
-            tahun_terbit = ? AND
-            is_current = 1
-          ''',
-          whereArgs: [
-            updatedKupon.nomorKupon,
-            updatedKupon.jenisKuponId,
-            updatedKupon.jenisBbmId,
-            updatedKupon.bulanTerbit,
-            updatedKupon.tahunTerbit,
-          ],
-        );
+        final existingVersion = await (_db.select(_db.dimKupon)
+              ..where((t) =>
+                  t.nomorKupon.equals(updatedKupon.nomorKupon) &
+                  t.jenisKuponId.equals(updatedKupon.jenisKuponId) &
+                  t.jenisBbmId.equals(updatedKupon.jenisBbmId) &
+                  t.bulanTerbit.equals(updatedKupon.bulanTerbit) &
+                  t.tahunTerbit.equals(updatedKupon.tahunTerbit) &
+                  t.isCurrent.equals(1)))
+            .get();
 
         if (existingVersion.isNotEmpty) {
           // VERSION CHANGE - Expire old record (SCD Type 2)
-          // Only expire kupon with the same period (bulan_terbit & tahun_terbit)
           versionedCount++;
-          await db.update(
-            'dim_kupon',
-            {'is_current': 0, 'valid_to': DateTime.now().toIso8601String()},
-            where:
-                'nomor_kupon = ? AND jenis_kupon_id = ? AND jenis_bbm_id = ? AND bulan_terbit = ? AND tahun_terbit = ? AND is_current = 1',
-            whereArgs: [
-              updatedKupon.nomorKupon,
-              updatedKupon.jenisKuponId,
-              updatedKupon.jenisBbmId,
-              updatedKupon.bulanTerbit,
-              updatedKupon.tahunTerbit,
-            ],
-          );
+          await (_db.update(_db.dimKupon)
+                ..where((t) =>
+                    t.nomorKupon.equals(updatedKupon.nomorKupon) &
+                    t.jenisKuponId.equals(updatedKupon.jenisKuponId) &
+                    t.jenisBbmId.equals(updatedKupon.jenisBbmId) &
+                    t.bulanTerbit.equals(updatedKupon.bulanTerbit) &
+                    t.tahunTerbit.equals(updatedKupon.tahunTerbit) &
+                    t.isCurrent.equals(1)))
+              .write(drift.DimKuponCompanion(
+            isCurrent: const drift.Value(0),
+            validTo: drift.Value(DateTime.now().toIso8601String()),
+          ));
         }
 
         // Insert new version
-        final map = updatedKupon.toMap();
-        map['valid_from'] = DateTime.now().toIso8601String();
-        map['is_current'] = 1;
-        map.remove('kupon_id'); // Auto-increment as kupon_key
-        map.remove('kupon_key'); // Auto-increment
-        map.remove('is_deleted'); // Not in dim_kupon
-        map.remove('updated_at'); // Not in dim_kupon
-        map.remove('created_at'); // Use valid_from
-        map.remove('kuota_sisa'); // Calculated real-time from fact_transaksi
-        map.remove('nama_satker'); // Denormalized from dim_satker
-
-        await db.insert('dim_kupon', map);
+        await _db.into(_db.dimKupon).insert(drift.DimKuponCompanion.insert(
+              nomorKupon: updatedKupon.nomorKupon,
+              satkerId: updatedKupon.satkerId,
+              kendaraanId: drift.Value(updatedKupon.kendaraanId),
+              jenisBbmId: updatedKupon.jenisBbmId,
+              jenisKuponId: updatedKupon.jenisKuponId,
+              kuotaAwal: updatedKupon.kuotaAwal.toDouble(),
+              bulanTerbit: updatedKupon.bulanTerbit,
+              tahunTerbit: updatedKupon.tahunTerbit,
+              tanggalMulai: updatedKupon.tanggalMulai,
+              tanggalSampai: updatedKupon.tanggalSampai,
+              validFrom: drift.Value(DateTime.now().toIso8601String()),
+              isCurrent: const drift.Value(1),
+            ));
 
         successCount++;
       } catch (e) {
@@ -397,7 +356,6 @@ class EnhancedImportService {
   /// Ensure master data exists before importing kupons
   /// Auto-insert dim_jenis_bbm, dim_jenis_kupon, and dim_satker if not exist
   Future<void> _ensureMasterDataExists(
-    Database db,
     List<KuponModel> kupons,
     List<KendaraanModel> kendaraans,
   ) async {
@@ -411,57 +369,41 @@ class EnhancedImportService {
 
     // Insert dim_jenis_bbm if not exist
     for (final jenisBbmId in jenisBbmIds) {
-      final existing = await db.query(
-        'dim_jenis_bbm',
-        where: 'jenis_bbm_id = ?',
-        whereArgs: [jenisBbmId],
-      );
-      if (existing.isEmpty) {
-        await db.insert('dim_jenis_bbm', {
-          'jenis_bbm_id': jenisBbmId,
-          'nama_jenis_bbm': 'Jenis BBM $jenisBbmId', // Default name
-        });
+      final existing = await (_db.select(_db.dimJenisBbm)..where((t) => t.jenisBbmId.equals(jenisBbmId))).getSingleOrNull();
+      if (existing == null) {
+        await _db.into(_db.dimJenisBbm).insert(drift.DimJenisBbmCompanion.insert(
+          namaJenisBbm: 'Jenis BBM $jenisBbmId',
+        ));
       }
     }
 
     // Insert dim_jenis_kupon if not exist
     for (final jenisKuponId in jenisKuponIds) {
-      final existing = await db.query(
-        'dim_jenis_kupon',
-        where: 'jenis_kupon_id = ?',
-        whereArgs: [jenisKuponId],
-      );
-      if (existing.isEmpty) {
+      final existing = await (_db.select(_db.dimJenisKupon)..where((t) => t.jenisKuponId.equals(jenisKuponId))).getSingleOrNull();
+      if (existing == null) {
         final namaJenis = jenisKuponId == 1
             ? 'Ranjen'
             : jenisKuponId == 2
             ? 'Dukungan'
             : 'Jenis Kupon $jenisKuponId';
-        await db.insert('dim_jenis_kupon', {
-          'jenis_kupon_id': jenisKuponId,
-          'nama_jenis_kupon': namaJenis,
-        });
+        await _db.into(_db.dimJenisKupon).insert(drift.DimJenisKuponCompanion.insert(
+          namaJenisKupon: namaJenis,
+        ));
       }
     }
 
     // Insert dim_satker if not exist
     for (final satkerId in satkerIds) {
-      final existing = await db.query(
-        'dim_satker',
-        where: 'satker_id = ?',
-        whereArgs: [satkerId],
-      );
-      if (existing.isEmpty) {
-        // Find satker name from kupons
+      final existing = await (_db.select(_db.dimSatker)..where((t) => t.satkerId.equals(satkerId))).getSingleOrNull();
+      if (existing == null) {
         final kuponWithSatker = kupons.firstWhere(
           (k) => k.satkerId == satkerId,
           orElse: () => kupons.first,
         );
         final satkerName = kuponWithSatker.namaSatker;
-        await db.insert('dim_satker', {
-          'satker_id': satkerId,
-          'nama_satker': satkerName,
-        });
+        await _db.into(_db.dimSatker).insert(drift.DimSatkerCompanion.insert(
+          namaSatker: satkerName,
+        ));
       }
     }
   }

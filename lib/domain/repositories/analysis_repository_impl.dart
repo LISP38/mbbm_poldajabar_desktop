@@ -1,17 +1,17 @@
-import 'package:kupon_bbm_app/data/datasources/database_datasource.dart';
+import 'package:kupon_bbm_app/data/database/app_database.dart';
 import 'package:kupon_bbm_app/domain/models/rekap_satker_model.dart';
 import 'package:kupon_bbm_app/domain/models/kendaraan_rekap_model.dart';
 import 'package:kupon_bbm_app/domain/repositories/analysis_repository.dart';
+import 'package:drift/drift.dart';
 
 class AnalysisRepositoryImpl implements AnalysisRepository {
-  final DatabaseDatasource dbHelper;
+  final AppDatabase _db;
 
-  AnalysisRepositoryImpl(this.dbHelper);
+  AnalysisRepositoryImpl(this._db);
 
   @override
   Future<List<RekapSatkerModel>> getRekapSatker() async {
-    final db = await dbHelper.database;
-    final result = await db.rawQuery('''
+    final result = await _db.customSelect('''
       SELECT
         ds.nama_satker AS nama_satker,
         COALESCE(SUM(dk.kuota_awal), 0) AS kuota_awal,
@@ -26,15 +26,13 @@ class AnalysisRepositoryImpl implements AnalysisRepository {
         SELECT SUM(jumlah_liter) FROM fact_transaksi ft
         WHERE ft.satker_id = ds.satker_id AND ft.is_deleted = 0
       ), 0) > 0
-    ''');
+    ''').get();
 
-    return result.map((m) => RekapSatkerModel.fromMap(m)).toList();
+    return result.map((m) => RekapSatkerModel.fromMap(m.data)).toList();
   }
 
   Future<List<RekapSatkerModel>> getKuponMinusPerSatker() async {
-    final db = await dbHelper.database;
-
-    final result = await db.rawQuery('''
+    final result = await _db.customSelect('''
       WITH kendaraan_minus AS (
         SELECT 
           dk.satker_id,
@@ -55,13 +53,13 @@ class AnalysisRepositoryImpl implements AnalysisRepository {
       INNER JOIN kendaraan_minus km ON ds.satker_id = km.satker_id
       GROUP BY ds.satker_id, ds.nama_satker
       ORDER BY (SUM(km.kuota_terpakai) - SUM(km.kuota_awal)) DESC
-    ''');
+    ''').get();
 
     return result.map((e) {
       return RekapSatkerModel(
-        namaSatker: e['nama_satker'] as String,
-        kuotaAwal: (e['kuota_awal'] as num).toDouble(),
-        kuotaTerpakai: (e['kuota_terpakai'] as num).toDouble(),
+        namaSatker: e.data['nama_satker'] as String,
+        kuotaAwal: (e.data['kuota_awal'] as num).toDouble(),
+        kuotaTerpakai: (e.data['kuota_terpakai'] as num).toDouble(),
       );
     }).toList();
   }
@@ -70,9 +68,7 @@ class AnalysisRepositoryImpl implements AnalysisRepository {
   Future<List<KendaraanRekapModel>> getKendaraanBySatker(
     String namaSatker,
   ) async {
-    final db = await dbHelper.database;
-
-    final result = await db.rawQuery(
+    final result = await _db.customSelect(
       '''
       SELECT 
         dk.kendaraan_id,
@@ -87,19 +83,17 @@ class AnalysisRepositoryImpl implements AnalysisRepository {
       GROUP BY dk.kendaraan_id, dk.jenis_ranmor, dk.no_pol_kode, dk.no_pol_nomor
       ORDER BY kuota_terpakai DESC
     ''',
-      [namaSatker],
-    );
+      variables: [Variable.withString(namaSatker)],
+    ).get();
 
-    return result.map((m) => KendaraanRekapModel.fromMap(m)).toList();
+    return result.map((m) => KendaraanRekapModel.fromMap(m.data)).toList();
   }
 
   /// Get daftar kendaraan dengan kuota minus per satker
   Future<List<KendaraanRekapModel>> getKendaraanMinusBySatker(
     String namaSatker,
   ) async {
-    final db = await dbHelper.database;
-
-    final result = await db.rawQuery(
+    final result = await _db.customSelect(
       '''
       SELECT 
         dk.kendaraan_id,
@@ -116,9 +110,9 @@ class AnalysisRepositoryImpl implements AnalysisRepository {
       HAVING kuota_terpakai > 0
       ORDER BY kuota_terpakai DESC
     ''',
-      [namaSatker],
-    );
+      variables: [Variable.withString(namaSatker)],
+    ).get();
 
-    return result.map((m) => KendaraanRekapModel.fromMap(m)).toList();
+    return result.map((m) => KendaraanRekapModel.fromMap(m.data)).toList();
   }
 }
