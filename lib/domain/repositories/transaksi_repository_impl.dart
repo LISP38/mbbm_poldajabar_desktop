@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart' hide Column;
+import 'package:get_it/get_it.dart';
 import 'package:kupon_bbm_app/data/models/transaksi_model.dart';
 import 'package:kupon_bbm_app/domain/entities/transaksi_entity.dart';
+import 'package:kupon_bbm_app/domain/repositories/kupon_repository.dart';
 import 'package:kupon_bbm_app/domain/repositories/transaksi_repository.dart';
 import 'package:kupon_bbm_app/data/database/app_database.dart';
 import 'package:kupon_bbm_app/data/database/daos/transaksi_dao.dart';
@@ -47,9 +49,10 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         args.add(Variable.withString(satker));
       }
 
-      final whereClause = where.isNotEmpty
-          ? 'WHERE ${where.join(' AND ')}'
-          : '';
+      // Exclude Hutang from main transaksi list by default (allow Reimburse to appear)
+      where.add("LOWER(TRIM(COALESCE(t.jenis_transaksi, ''))) != 'hutang'");
+
+      final whereClause = where.isNotEmpty ? 'WHERE ${where.join(' AND ')}' : '';
 
       final sql =
           '''
@@ -164,7 +167,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         await _dao.into(_dao.transaksi).insert(TransaksiCompanion.insert(
           kuponKey: Value(t.kuponId),
           satkerId: Value(kuponInfo.first.read<int>('satker_id')),
-          kendaraanId: Value(kuponInfo.first.read<int?>('kendaraan_id')), // kendaraan_id is nullable in db? wait, is it? yes, kupon kendaraan_id is nullable
+          kendaraanId: Value(kuponInfo.first.read<int?>('kendaraan_id')),
           jenisBbmId: Value(t.jenisBbmId),
           jenisKuponId: Value(t.jenisKuponId),
           tanggalTransaksi: t.tanggalTransaksi,
@@ -216,6 +219,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
       });
     } catch (e) {
       throw Exception('Failed to update transaksi: $e');
+
     }
   }
 
@@ -297,7 +301,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         final startDate = filterTanggalMulai.toIso8601String().split('T')[0];
         final endDate = filterTanggalSelesai.toIso8601String().split('T')[0];
         transaksiFilter =
-            'AND date(ft.tanggal_transaksi) BETWEEN date(\'$startDate\') AND date(\'$endDate\')';
+            "AND date(ft.tanggal_transaksi) BETWEEN date('$startDate') AND date('$endDate')";
       }
 
       final whereClause = 'WHERE ${where.join(' AND ')}';
@@ -428,5 +432,80 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   @override
   Future<void> restoreTransaksi(int transaksiId) async {
     await _hardDeleteOrRestore(transaksiId, isDelete: false);
+  }
+
+  @override
+  Future<List<TransaksiEntity>> getTransaksiHutang() async {
+    final result = await _db.customSelect('''
+      SELECT
+        t.transaksi_id,
+        t.kupon_key,
+        dk.nomor_kupon as kupon_nomor,
+        ds.nama_satker as kupon_satker,
+        t.jenis_bbm_id,
+        t.jenis_kupon_id,
+        t.tanggal_transaksi,
+        t.jumlah_liter,
+        t.jenis_transaksi,
+        t.nama_petugas,
+        t.nama_konsumen,
+        t.satker_text,
+        t.nomor_kendaraan_text,
+        t.created_at,
+        t.updated_at,
+        t.is_deleted
+      FROM transaksi t
+      LEFT JOIN kupon dk ON t.kupon_key = dk.kupon_key
+      LEFT JOIN satker ds ON t.satker_id = ds.satker_id
+      WHERE t.is_deleted=0
+      AND LOWER(TRIM(COALESCE(t.jenis_transaksi, ''))) IN ('hutang','reimburse')
+      ORDER BY t.tanggal_transaksi DESC
+    ''').get();
+
+    return result
+        .map((e) => TransaksiModel.fromMap(e.data))
+        .toList();
+  }
+
+  @override
+  Future<void> reimburseTransaksi({
+    required int transaksiId,
+    required int kuponId,
+  }) async {
+    final kupon = await GetIt.I<KuponRepository>().getKuponById(kuponId);
+
+    if (kupon == null) {
+      throw Exception('Kupon tidak ditemukan');
+    }
+
+    final variables = <Variable>[];
+    variables.add(Variable.withInt(kupon.kuponId));
+    variables.add(Variable.withInt(kupon.satkerId));
+    if (kupon.kendaraanId != null) {
+      variables.add(Variable.withInt(kupon.kendaraanId!));
+    }
+    variables.add(Variable.withInt(kupon.jenisBbmId));
+    variables.add(Variable.withInt(kupon.jenisKuponId));
+    variables.add(Variable.withString(DateTime.now().toIso8601String()));
+    variables.add(Variable.withInt(transaksiId));
+
+    final kendaraanSql = kupon.kendaraanId != null ? 'kendaraan_id = ?,' : 'kendaraan_id = NULL,';
+    final sql = '''
+      UPDATE transaksi
+      SET
+        kupon_key = ?,
+        satker_id = ?,
+        $kendaraanSql
+        jenis_bbm_id = ?,
+        jenis_kupon_id = ?,
+        jenis_transaksi = 'Reimburse',
+        updated_at = ?
+      WHERE transaksi_id = ?
+      ''';
+
+    await _db.customUpdate(
+      sql,
+      variables: variables,
+    );
   }
 }

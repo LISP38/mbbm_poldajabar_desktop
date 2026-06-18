@@ -10,6 +10,8 @@ class TransaksiProvider extends ChangeNotifier {
   List<TransaksiEntity> _transaksiList = [];
   List<TransaksiEntity> _deletedTransaksiList = [];
   List<Map<String, dynamic>> _kuponMinusList = [];
+  List<TransaksiEntity> _transaksiHutang = [];
+  List<TransaksiEntity> get transaksiHutang => _transaksiHutang;
   bool _showDeleted = false;
 
   int? filterBulan;
@@ -98,16 +100,26 @@ class TransaksiProvider extends ChangeNotifier {
   }
 
   Future<void> fetchTransaksi() async {
-    _transaksiList = await _transaksiRepository.getAllTransaksi();
+    final all = await _transaksiRepository.getAllTransaksi();
+    // Exclude only Hutang from main transaksi list (allow Reimburse to appear)
+    _transaksiList = all.where((t) {
+      final jenis = t.jenisTransaksi?.trim().toLowerCase() ?? '';
+      return jenis != 'hutang';
+    }).toList();
     notifyListeners();
   }
 
   Future<void> fetchTransaksiFiltered() async {
-    _transaksiList = await _transaksiRepository.getAllTransaksi(
+    final all = await _transaksiRepository.getAllTransaksi(
       bulan: filterBulan,
       tahun: filterTahun,
       satker: filterSatker,
     );
+    // Exclude only Hutang from main transaksi list (allow Reimburse to appear)
+    _transaksiList = all.where((t) {
+      final jenis = t.jenisTransaksi?.trim().toLowerCase() ?? '';
+      return jenis != 'hutang';
+    }).toList();
     notifyListeners();
   }
 
@@ -187,5 +199,25 @@ class TransaksiProvider extends ChangeNotifier {
     fetchTransaksiFiltered();
     fetchKuponMinus();
     notifyListeners();
+  }
+
+  Future<void> fetchTransaksiHutang() async {
+    _transaksiHutang = await _transaksiRepository.getTransaksiHutang();
+    notifyListeners();
+  }
+
+  Future<void> reimburseTransaksi({
+    required int transaksiId,
+    required int kuponId,
+  }) async {
+    await _transaksiRepository.reimburseTransaksi(
+      transaksiId: transaksiId,
+      kuponId: kuponId,
+    );
+
+    // Refresh lists in proper order
+    await fetchTransaksi();
+    await fetchTransaksiHutang();
+    await fetchKuponMinus();
   }
 }
