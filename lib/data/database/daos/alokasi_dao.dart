@@ -15,14 +15,25 @@ class AlokasiDao extends DatabaseAccessor<AppDatabase> with _$AlokasiDaoMixin {
 
   // Kategori
   Future<List<AlokasiKendaraanKategoriData>> getKategoris() => select(alokasiKendaraanKategori).get();
+  Future<int> insertKategori(AlokasiKendaraanKategoriCompanion entry) => into(alokasiKendaraanKategori).insert(entry);
+  Future<bool> updateKategori(AlokasiKendaraanKategoriCompanion entry) => update(alokasiKendaraanKategori).replace(entry);
+  Future<int> deleteKategori(int kategoriId) => (delete(alokasiKendaraanKategori)..where((t) => t.kategoriId.equals(kategoriId))).go();
 
   // Index Norma
   Future<List<IndexNormaData>> getIndexNormaByKategori(int kategoriId) =>
       (select(indexNorma)..where((t) => t.kategoriId.equals(kategoriId))).get();
+  Future<int> insertIndexNorma(IndexNormaCompanion entry) => into(indexNorma).insert(entry);
+  Future<bool> updateIndexNorma(IndexNormaCompanion entry) => update(indexNorma).replace(entry);
+  Future<int> deleteIndexNorma(int normaId) => (delete(indexNorma)..where((t) => t.normaId.equals(normaId))).go();
 
   // Hari Kerja
   Future<HariKerjaData?> getHariKerja(int tahun, int bulan) =>
       (select(hariKerja)..where((t) => t.tahun.equals(tahun) & t.bulan.equals(bulan))).getSingleOrNull();
+  Future<List<HariKerjaData>> getHariKerjaByTahun(int tahun) =>
+      (select(hariKerja)..where((t) => t.tahun.equals(tahun))..orderBy([(t) => OrderingTerm(expression: t.bulan, mode: OrderingMode.asc)])).get();
+  Future<int> insertHariKerja(HariKerjaCompanion entry) => into(hariKerja).insert(entry);
+  Future<bool> updateHariKerjaRow(HariKerjaCompanion entry) => update(hariKerja).replace(entry);
+  Future<int> deleteHariKerjaByTahun(int tahun) => (delete(hariKerja)..where((t) => t.tahun.equals(tahun))).go();
 
   // Config
   Future<AlokasiConfigData?> getConfig(String key) =>
