@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:excel/excel.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../domain/entities/kupon_entity.dart';
-import '../datasources/database_datasource.dart';
+import '../../core/di/drift_sqflite_adapter.dart';
 
 class ExportService {
   /// Smart period selection helper based on filters
@@ -117,7 +117,7 @@ class ExportService {
         CAST(strftime('%m', t.tanggal_transaksi) AS INTEGER) as month,
         CAST(strftime('%Y', t.tanggal_transaksi) AS INTEGER) as year,
         SUM(t.jumlah_liter) as total_liter
-      FROM fact_transaksi t
+      FROM transaksi t
       WHERE t.kupon_key IN (${kuponIds.join(',')}) 
         AND t.is_deleted = 0
         $dateFilter
@@ -1065,7 +1065,7 @@ class ExportService {
       // Query untuk cek kupon yang punya transaksi di date range
       final result = await db.rawQuery('''
         SELECT DISTINCT t.kupon_key
-        FROM fact_transaksi t
+        FROM transaksi t
         WHERE t.kupon_key IN (${kuponIds.join(',')})
           AND t.is_deleted = 0
           AND date(t.tanggal_transaksi) BETWEEN date('$start') AND date('$end')
@@ -4267,7 +4267,7 @@ class ExportService {
         CAST(strftime('%m', t.tanggal_transaksi) AS INTEGER) as month,
         CAST(strftime('%Y', t.tanggal_transaksi) AS INTEGER) as year,
         SUM(t.jumlah_liter) as total_liter
-      FROM fact_transaksi t
+      FROM transaksi t
       WHERE t.kupon_key IN (${kuponIds.join(',')}) 
         AND t.is_deleted = 0
         AND (

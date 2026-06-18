@@ -25,10 +25,21 @@ class DriftSqfliteConnection {
     return results.map((r) => r.data).toList();
   }
 
-  Future<List<Map<String, Object?>>> query(String table, {List<String>? columns, String? orderBy}) async {
+  Future<List<Map<String, Object?>>> query(String table, {List<String>? columns, String? orderBy, String? where, List<Object?>? whereArgs, int? limit}) async {
     final cols = columns != null ? columns.join(', ') : '*';
     final order = orderBy != null ? ' ORDER BY $orderBy' : '';
-    final results = await _db.customSelect('SELECT $cols FROM $table$order').get();
+    final whereSql = where != null ? ' WHERE $where' : '';
+    final limitSql = limit != null ? ' LIMIT $limit' : '';
+    
+    final vars = whereArgs?.map((a) {
+      if (a is int) return Variable.withInt(a);
+      if (a is double) return Variable.withReal(a);
+      if (a is String) return Variable.withString(a);
+      if (a is bool) return Variable.withBool(a);
+      return Variable.withString(a?.toString() ?? '');
+    }).toList();
+
+    final results = await _db.customSelect('SELECT $cols FROM $table$whereSql$order$limitSql', variables: vars ?? []).get();
     return results.map((r) => r.data).toList();
   }
 

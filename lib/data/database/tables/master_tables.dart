@@ -1,36 +1,36 @@
 import 'package:drift/drift.dart';
 
 @DataClassName('SatkerData')
-class DimSatker extends Table {
+class Satker extends Table {
   @override
-  String get tableName => 'dim_satker';
+  String get tableName => 'satker';
 
   IntColumn get satkerId => integer().autoIncrement()();
   TextColumn get namaSatker => text().unique()();
 }
 
 @DataClassName('JenisBbmData')
-class DimJenisBbm extends Table {
+class JenisBbm extends Table {
   @override
-  String get tableName => 'dim_jenis_bbm';
+  String get tableName => 'jenis_bbm';
 
   IntColumn get jenisBbmId => integer().autoIncrement()();
   TextColumn get namaJenisBbm => text().unique()();
 }
 
 @DataClassName('JenisKuponData')
-class DimJenisKupon extends Table {
+class JenisKupon extends Table {
   @override
-  String get tableName => 'dim_jenis_kupon';
+  String get tableName => 'jenis_kupon';
 
   IntColumn get jenisKuponId => integer().autoIncrement()();
   TextColumn get namaJenisKupon => text().unique()();
 }
 
 @DataClassName('KendaraanData')
-class DimKendaraan extends Table {
+class Kendaraan extends Table {
   @override
-  String get tableName => 'dim_kendaraan';
+  String get tableName => 'kendaraan';
 
   IntColumn get kendaraanId => integer().autoIncrement()();
   IntColumn get satkerId => integer().nullable()();
@@ -42,9 +42,9 @@ class DimKendaraan extends Table {
 }
 
 @DataClassName('DateData')
-class DimDate extends Table {
+class DateTable extends Table {
   @override
-  String get tableName => 'dim_date';
+  String get tableName => 'date_table';
 
   IntColumn get dateKey => integer().autoIncrement()();
   TextColumn get dateValue => text().unique()();

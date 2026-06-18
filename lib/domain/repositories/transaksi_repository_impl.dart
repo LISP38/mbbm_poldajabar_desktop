@@ -75,12 +75,12 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           'Aktif' as status,
           dk.valid_from as kupon_created_at,
           CURRENT_TIMESTAMP as kupon_updated_at
-        FROM fact_transaksi t
-        LEFT JOIN dim_kupon dk ON t.kupon_key = dk.kupon_key AND dk.is_current = 1
-        LEFT JOIN dim_satker ds ON t.satker_id = ds.satker_id
-        LEFT JOIN dim_jenis_bbm dbb ON t.jenis_bbm_id = dbb.jenis_bbm_id
-        LEFT JOIN dim_jenis_kupon dku ON t.jenis_kupon_id = dku.jenis_kupon_id
-        LEFT JOIN dim_kendaraan dk2 ON t.kendaraan_id = dk2.kendaraan_id
+        FROM transaksi t
+        LEFT JOIN kupon dk ON t.kupon_key = dk.kupon_key AND dk.is_current = 1
+        LEFT JOIN satker ds ON t.satker_id = ds.satker_id
+        LEFT JOIN jenis_bbm dbb ON t.jenis_bbm_id = dbb.jenis_bbm_id
+        LEFT JOIN jenis_kupon dku ON t.jenis_kupon_id = dku.jenis_kupon_id
+        LEFT JOIN kendaraan dk2 ON t.kendaraan_id = dk2.kendaraan_id
         $whereClause
         ORDER BY t.tanggal_transaksi DESC, t.created_at DESC
       ''';
@@ -120,12 +120,12 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           'Aktif' as status,
           dk.valid_from as kupon_created_at,
           CURRENT_TIMESTAMP as kupon_updated_at
-        FROM fact_transaksi t
-        LEFT JOIN dim_kupon dk ON t.kupon_key = dk.kupon_key AND dk.is_current = 1
-        LEFT JOIN dim_satker ds ON t.satker_id = ds.satker_id
-        LEFT JOIN dim_jenis_bbm dbb ON t.jenis_bbm_id = dbb.jenis_bbm_id
-        LEFT JOIN dim_jenis_kupon dku ON t.jenis_kupon_id = dku.jenis_kupon_id
-        LEFT JOIN dim_kendaraan dk2 ON t.kendaraan_id = dk2.kendaraan_id
+        FROM transaksi t
+        LEFT JOIN kupon dk ON t.kupon_key = dk.kupon_key AND dk.is_current = 1
+        LEFT JOIN satker ds ON t.satker_id = ds.satker_id
+        LEFT JOIN jenis_bbm dbb ON t.jenis_bbm_id = dbb.jenis_bbm_id
+        LEFT JOIN jenis_kupon dku ON t.jenis_kupon_id = dku.jenis_kupon_id
+        LEFT JOIN kendaraan dk2 ON t.kendaraan_id = dk2.kendaraan_id
         WHERE t.transaksi_id = ?
       ''',
         variables: [Variable.withInt(transaksiId)],
@@ -150,7 +150,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         final kuponInfo = await _db.customSelect(
           '''
           SELECT satker_id, kendaraan_id
-          FROM dim_kupon
+          FROM kupon
           WHERE kupon_key = ? AND is_current = 1
           LIMIT 1
         ''',
@@ -161,10 +161,10 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           throw Exception('Kupon not found: ${transaksi.kuponId}');
         }
 
-        await _dao.into(_dao.factTransaksi).insert(FactTransaksiCompanion.insert(
+        await _dao.into(_dao.transaksi).insert(TransaksiCompanion.insert(
           kuponKey: Value(t.kuponId),
           satkerId: Value(kuponInfo.first.read<int>('satker_id')),
-          kendaraanId: Value(kuponInfo.first.read<int?>('kendaraan_id')), // kendaraan_id is nullable in db? wait, is it? yes, dim_kupon kendaraan_id is nullable
+          kendaraanId: Value(kuponInfo.first.read<int?>('kendaraan_id')), // kendaraan_id is nullable in db? wait, is it? yes, kupon kendaraan_id is nullable
           jenisBbmId: Value(t.jenisBbmId),
           jenisKuponId: Value(t.jenisKuponId),
           tanggalTransaksi: t.tanggalTransaksi,
@@ -188,7 +188,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   Future<void> updateTransaksi(TransaksiEntity transaksi) async {
     try {
       await _db.transaction(() async {
-        final existing = await (_dao.select(_dao.factTransaksi)
+        final existing = await (_dao.select(_dao.transaksi)
               ..where((t) => t.transaksiId.equals(transaksi.transaksiId)))
             .getSingleOrNull();
 
@@ -198,9 +198,9 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
 
         final t = transaksi as TransaksiModel;
 
-        await (_dao.update(_dao.factTransaksi)
+        await (_dao.update(_dao.transaksi)
               ..where((t) => t.transaksiId.equals(transaksi.transaksiId)))
-            .write(FactTransaksiCompanion(
+            .write(TransaksiCompanion(
           kuponKey: Value(t.kuponId),
           jenisBbmId: Value(t.jenisBbmId),
           jenisKuponId: Value(t.jenisKuponId),
@@ -234,7 +234,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   }) async {
     try {
       await _db.transaction(() async {
-        final existing = await (_dao.select(_dao.factTransaksi)
+        final existing = await (_dao.select(_dao.transaksi)
               ..where((t) => t.transaksiId.equals(transaksiId)))
             .getSingleOrNull();
 
@@ -243,16 +243,16 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         }
 
         if (isDelete) {
-          await (_dao.update(_dao.factTransaksi)
+          await (_dao.update(_dao.transaksi)
                 ..where((t) => t.transaksiId.equals(transaksiId)))
-              .write(FactTransaksiCompanion(
+              .write(TransaksiCompanion(
             isDeleted: const Value(1),
             updatedAt: Value(DateTime.now().toIso8601String()),
           ));
         } else {
-          await (_dao.update(_dao.factTransaksi)
+          await (_dao.update(_dao.transaksi)
                 ..where((t) => t.transaksiId.equals(transaksiId)))
-              .write(FactTransaksiCompanion(
+              .write(TransaksiCompanion(
             isDeleted: const Value(0),
             updatedAt: Value(DateTime.now().toIso8601String()),
           ));
@@ -322,13 +322,13 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           COALESCE(ft_sum.tanggal_transaksi_terakhir, dk.tanggal_mulai) as tanggal_transaksi,
           dk.tanggal_mulai,
           dk.tanggal_sampai
-        FROM dim_kupon dk
-        LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
-        LEFT JOIN dim_jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
-        LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
+        FROM kupon dk
+        LEFT JOIN satker ds ON dk.satker_id = ds.satker_id
+        LEFT JOIN jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
+        LEFT JOIN jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
         LEFT JOIN (
           SELECT kupon_key, SUM(jumlah_liter) as total_used, MAX(tanggal_transaksi) as tanggal_transaksi_terakhir, COUNT(*) as transaksi_count
-          FROM fact_transaksi ft
+          FROM transaksi ft
           WHERE ft.is_deleted = 0
           $transaksiFilter
           GROUP BY kupon_key
@@ -348,7 +348,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   Future<List<String>> getDistinctTahunTerbit() async {
     try {
       final rows = await _db.customSelect('''
-        SELECT DISTINCT tahun_terbit AS tahun_terbit FROM dim_kupon
+        SELECT DISTINCT tahun_terbit AS tahun_terbit FROM kupon
         WHERE tahun_terbit IS NOT NULL
         ORDER BY CAST(tahun_terbit AS INTEGER) ASC
       ''').get();
@@ -366,7 +366,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   Future<List<String>> getDistinctBulanTerbit() async {
     try {
       final rows = await _db.customSelect('''
-        SELECT DISTINCT bulan_terbit AS bulan_terbit FROM dim_kupon
+        SELECT DISTINCT bulan_terbit AS bulan_terbit FROM kupon
         WHERE bulan_terbit IS NOT NULL
         ORDER BY CAST(bulan_terbit AS INTEGER) ASC
       ''').get();
@@ -384,7 +384,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   Future<List<String>> getDistinctJenisBbm() async {
     try {
       final rows = await _db.customSelect('''
-        SELECT DISTINCT nama_jenis_bbm AS nama FROM dim_jenis_bbm
+        SELECT DISTINCT nama_jenis_bbm AS nama FROM jenis_bbm
         WHERE nama_jenis_bbm IS NOT NULL
         ORDER BY nama_jenis_bbm COLLATE NOCASE ASC
       ''').get();
@@ -409,7 +409,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   Future<String?> getLastTransaksiDate() async {
     try {
       final result = await _db.customSelect('''
-        SELECT tanggal_transaksi FROM fact_transaksi
+        SELECT tanggal_transaksi FROM transaksi
         WHERE is_deleted = 0 AND tanggal_transaksi IS NOT NULL AND tanggal_transaksi != ''
         ORDER BY created_at DESC
         LIMIT 1

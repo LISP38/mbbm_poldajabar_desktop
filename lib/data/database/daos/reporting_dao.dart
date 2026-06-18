@@ -11,10 +11,10 @@ class ReportingDao extends DatabaseAccessor<AppDatabase> with _$ReportingDaoMixi
 
   // This DAO will handle complex reporting queries (like joining Kupon and Transaksi)
   Future<List<TypedResult>> getRekapSatker() {
-    final sisaKuota = Kupon.kuotaAwal - transaksi.jumlahLiter;
-    return select(Satker).join([
-      leftOuterJoin(Kupon, Kupon.satkerId.equalsExp(Satker.satkerId)),
-      leftOuterJoin(Transaksi, transaksi.kuponKey.equalsExp(Kupon.kuponKey))
+    final sisaKuota = this.kupon.kuotaAwal - this.transaksi.jumlahLiter;
+    return select(this.satker).join([
+      leftOuterJoin(this.kupon, this.kupon.satkerId.equalsExp(this.satker.satkerId)),
+      leftOuterJoin(this.transaksi, this.transaksi.kuponKey.equalsExp(this.kupon.kuponKey))
     ]).get();
   }
 }

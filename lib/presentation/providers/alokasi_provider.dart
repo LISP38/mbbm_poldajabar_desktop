@@ -144,7 +144,7 @@ class AlokasiProvider extends ChangeNotifier {
       _hariKerjaList = futures[3] as List<HariKerjaEntity>;
       _dipa = futures[4] as double;
 
-      // Auto-count vehicles from dim_kendaraan on first load
+      // Auto-count vehicles from kendaraan on first load
       if (_kategoriList.every((k) => k.jumlahKendaraan == 0)) {
         await _repository.autoCountKendaraan();
         _kategoriList = await _repository.getKendaraanKategori();

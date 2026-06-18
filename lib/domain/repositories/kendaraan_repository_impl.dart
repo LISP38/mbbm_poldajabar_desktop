@@ -15,7 +15,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
 
   @override
   Future<List<KendaraanEntity>> getAllKendaraan() async {
-    final results = await _dao.select(_dao.dimKendaraan).get();
+    final results = await _dao.select(_dao.kendaraan).get();
     return results.map((row) => KendaraanModel(
       kendaraanId: row.kendaraanId,
       satkerId: row.satkerId ?? 0,
@@ -28,7 +28,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
 
   @override
   Future<KendaraanEntity?> getKendaraanById(int kendaraanId) async {
-    final result = await (_dao.select(_dao.dimKendaraan)
+    final result = await (_dao.select(_dao.kendaraan)
           ..where((t) => t.kendaraanId.equals(kendaraanId)))
         .getSingleOrNull();
 
@@ -47,8 +47,8 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
 
   @override
   Future<int> insertKendaraan(KendaraanEntity kendaraan) async {
-    return await _dao.into(_dao.dimKendaraan).insert(
-      DimKendaraanCompanion.insert(
+    return await _dao.into(_dao.kendaraan).insert(
+      KendaraanCompanion.insert(
         satkerId: Value(kendaraan.satkerId),
         jenisRanmor: Value(kendaraan.jenisRanmor),
         noPolKode: Value(kendaraan.noPolKode),
@@ -61,9 +61,9 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
 
   @override
   Future<void> updateKendaraan(KendaraanEntity kendaraan) async {
-    await (_dao.update(_dao.dimKendaraan)
+    await (_dao.update(_dao.kendaraan)
           ..where((t) => t.kendaraanId.equals(kendaraan.kendaraanId)))
-        .write(DimKendaraanCompanion(
+        .write(KendaraanCompanion(
       satkerId: Value(kendaraan.satkerId),
       jenisRanmor: Value(kendaraan.jenisRanmor),
       noPolKode: Value(kendaraan.noPolKode),
@@ -74,7 +74,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
 
   @override
   Future<void> deleteKendaraan(int kendaraanId) async {
-    await (_dao.delete(_dao.dimKendaraan)
+    await (_dao.delete(_dao.kendaraan)
           ..where((t) => t.kendaraanId.equals(kendaraanId)))
         .go();
   }
@@ -84,7 +84,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
     String noPolKode,
     String noPolNomor,
   ) async {
-    final result = await (_dao.select(_dao.dimKendaraan)
+    final result = await (_dao.select(_dao.kendaraan)
           ..where((t) =>
               t.noPolKode.equals(noPolKode) &
               t.noPolNomor.equals(noPolNomor))
@@ -112,8 +112,8 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
     await _db.transaction(() async {
       await _dao.batch((batch) {
         batch.insertAll(
-          _dao.dimKendaraan,
-          kendaraans.map((kendaraan) => DimKendaraanCompanion.insert(
+          _dao.kendaraan,
+          kendaraans.map((kendaraan) => KendaraanCompanion.insert(
                 satkerId: Value(kendaraan.satkerId),
                 jenisRanmor: Value(kendaraan.jenisRanmor),
                 noPolKode: Value(kendaraan.noPolKode),

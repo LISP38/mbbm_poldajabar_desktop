@@ -639,22 +639,23 @@ class ExcelDatasource {
 
     // Get satkerId from database
     final satkerUpper = satker.trim().toUpperCase();
-    final satkerResult = await (_db.select(_db.dimSatker)
-          ..where((t) => t.namaSatker.upper().trim().equals(satkerUpper))
-          ..limit(1))
-        .getSingleOrNull();
+    final satkerResult =
+        await (_db.select(_db.satker)
+              ..where((t) => t.namaSatker.upper().trim().equals(satkerUpper))
+              ..limit(1))
+            .getSingleOrNull();
 
     int satkerId;
     if (satkerResult != null) {
       satkerId = satkerResult.satkerId;
     } else {
       // Jika satker tidak ditemukan, buat entry baru
-      satkerId = await _db.into(_db.dimSatker).insert(
-            drift.DimSatkerCompanion.insert(namaSatker: satker),
-          );
+      satkerId = await _db
+          .into(_db.satker)
+          .insert(SatkerCompanion.insert(namaSatker: satker));
     }
 
-    // Cari atau buat dimensi terkait: jenis_ranmor, dim_nopol, dim_kendaraan (no hardcode)
+    // Cari atau buat dimensi terkait: jenis_ranmor, dim_nopol, kendaraan (no hardcode)
     KendaraanModel? kendaraan;
     int? kendaraanId;
     if (!isDukungan) {
@@ -664,20 +665,25 @@ class ExcelDatasource {
 
       // Create or get kendaraan using textual fields
       final jenisRanmorUpper = finalJenisRanmor.trim().toUpperCase();
-      final kendaraanResult = await (_db.select(_db.dimKendaraan)
-            ..where((t) =>
-                t.satkerId.equals(satkerId) &
-                t.noPolKode.equals(finalKodeNopol) &
-                t.noPolNomor.equals(noPol))
-            ..limit(1))
-          .getSingleOrNull();
+      final kendaraanResult =
+          await (_db.select(_db.kendaraan)
+                ..where(
+                  (t) =>
+                      t.satkerId.equals(satkerId) &
+                      t.noPolKode.equals(finalKodeNopol) &
+                      t.noPolNomor.equals(noPol ?? ''),
+                )
+                ..limit(1))
+              .getSingleOrNull();
 
       if (kendaraanResult != null) {
         kendaraanId = kendaraanResult.kendaraanId;
       } else {
-        kendaraanId = await _db.into(_db.dimKendaraan).insert(
-              drift.DimKendaraanCompanion.insert(
-                satkerId: satkerId,
+        kendaraanId = await _db
+            .into(_db.kendaraan)
+            .insert(
+              KendaraanCompanion.insert(
+                satkerId: drift.Value(satkerId),
                 jenisRanmor: drift.Value(jenisRanmorUpper),
                 noPolKode: drift.Value(finalKodeNopol),
                 noPolNomor: drift.Value(noPol),
@@ -706,24 +712,28 @@ class ExcelDatasource {
     final jenisKuponName = isDukungan ? 'DUKUNGAN' : 'RANJEN';
 
     // Get or Create Jenis BBM
-    final jenisBbmResult = await (_db.select(_db.dimJenisBbm)
-          ..where((t) => t.namaJenisBbm.equals(jenisBbmName))
-          ..limit(1))
-        .getSingleOrNull();
-    final jenisBbmId = jenisBbmResult?.jenisBbmId ??
-        await _db.into(_db.dimJenisBbm).insert(
-              drift.DimJenisBbmCompanion.insert(namaJenisBbm: jenisBbmName),
-            );
+    final jenisBbmResult =
+        await (_db.select(_db.jenisBbm)
+              ..where((t) => t.namaJenisBbm.equals(jenisBbmName))
+              ..limit(1))
+            .getSingleOrNull();
+    final jenisBbmId =
+        jenisBbmResult?.jenisBbmId ??
+        await _db
+            .into(_db.jenisBbm)
+            .insert(JenisBbmCompanion.insert(namaJenisBbm: jenisBbmName));
 
     // Get or Create Jenis Kupon
-    final jenisKuponResult = await (_db.select(_db.dimJenisKupon)
-          ..where((t) => t.namaJenisKupon.equals(jenisKuponName))
-          ..limit(1))
-        .getSingleOrNull();
-    final jenisKuponId = jenisKuponResult?.jenisKuponId ??
-        await _db.into(_db.dimJenisKupon).insert(
-              drift.DimJenisKuponCompanion.insert(namaJenisKupon: jenisKuponName),
-            );
+    final jenisKuponResult =
+        await (_db.select(_db.jenisKupon)
+              ..where((t) => t.namaJenisKupon.equals(jenisKuponName))
+              ..limit(1))
+            .getSingleOrNull();
+    final jenisKuponId =
+        jenisKuponResult?.jenisKuponId ??
+        await _db
+            .into(_db.jenisKupon)
+            .insert(JenisKuponCompanion.insert(namaJenisKupon: jenisKuponName));
 
     final kupon = KuponModel(
       kuponId: 0,

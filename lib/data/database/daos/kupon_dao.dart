@@ -8,14 +8,14 @@ part 'kupon_dao.g.dart';
 class KuponDao extends DatabaseAccessor<AppDatabase> with _$KuponDaoMixin {
   KuponDao(AppDatabase db) : super(db);
 
-  Future<List<KuponData>> getAllKupon() => select(Kupon).get();
+  Future<List<KuponData>> getAllKupon() => select(this.kupon).get();
 
   Future<KuponData?> getKuponByNomor(String nomor) =>
-      (select(Kupon)..where((t) => t.nomorKupon.equals(nomor))).getSingleOrNull();
+      (select(this.kupon)..where((t) => t.nomorKupon.equals(nomor))).getSingleOrNull();
 
-  Future<int> insertKupon(KuponCompanion entry) => into(Kupon).insert(entry, mode: InsertMode.insertOrIgnore);
+  Future<int> insertKupon(KuponCompanion entry) => into(kupon).insert(entry, mode: InsertMode.insertOrIgnore);
 
-  Future<int> deleteAllKupon() => delete(Kupon).go();
+  Future<int> deleteAllKupon() => delete(kupon).go();
 
-  Future<bool> updateKupon(KuponData kupon) => update(Kupon).replace(kupon);
+  Future<bool> updateKupon(KuponData data) => update(kupon).replace(data);
 }

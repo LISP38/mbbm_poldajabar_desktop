@@ -42,7 +42,7 @@ abstract class AlokasiRepository {
   /// Update the vehicle count for a specific category.
   Future<void> updateKendaraanKategoriCount(int kategoriId, int jumlah);
 
-  /// Auto-count vehicles from dim_kendaraan and update category counts.
+  /// Auto-count vehicles from kendaraan and update category counts.
   Future<void> autoCountKendaraan();
 
   // ── Index Norma ───────────────────────────────────────────────────────

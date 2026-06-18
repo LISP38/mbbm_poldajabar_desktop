@@ -21,18 +21,12 @@ class SyncServerDatasource {
         try {
           final db = await _db.database;
 
-          final satker = await db.query('dim_satker');
-          final jenisBbm = await db.query('dim_jenis_bbm');
-          final jenisKupon = await db.query('dim_jenis_kupon');
-          final kendaraan = await db.query(
-            'dim_kendaraan',
-            where: 'status_aktif = 1',
-          );
+          final satker = await db.query('satker');
+          final jenisBbm = await db.query('jenis_bbm');
+          final jenisKupon = await db.query('jenis_kupon');
+          final kendaraan = await db.query('kendaraan', where: 'status_aktif = 1');
           // Only active/current coupons
-          final kupon = await db.query(
-            'dim_kupon',
-            where: 'is_current = 1',
-          );
+          final kupon = await db.query('kupon', where: 'is_current = 1');
 
           final responseData = {
             'satker': satker,
@@ -74,7 +68,7 @@ class SyncServerDatasource {
                final satkerText = t['satker'];
                final nopolText = t['nomor_kendaraan'];
                
-               batch.insert('fact_transaksi', {
+               batch.insert('transaksi', {
                  'jumlah_liter': jumlahLiter,
                  'tanggal_transaksi': tanggalTransaksi,
                  'jenis_transaksi': jenisTransaksi,
@@ -86,18 +80,15 @@ class SyncServerDatasource {
                });
             } else {
                // Non-Hutang
-               final nomorKupon = t['nomor_kupon'];
+               final noPolKode = t['no_pol_kode'];
+               final noPolNomor = t['no_pol_nomor'];
                
-               // Look up dim_kupon
-               final kuponRes = await db.query('dim_kupon', where: 'nomor_kupon = ? AND is_current = 1', whereArgs: [nomorKupon], limit: 1);
-               if (kuponRes.isNotEmpty) {
-                 final kupon = kuponRes.first;
-                 batch.insert('fact_transaksi', {
-                   'kupon_key': kupon['kupon_key'],
-                   'satker_id': kupon['satker_id'],
-                   'kendaraan_id': kupon['kendaraan_id'],
-                   'jenis_bbm_id': kupon['jenis_bbm_id'],
-                   'jenis_kupon_id': kupon['jenis_kupon_id'],
+               // Look up kupon
+               final kendRes = await db.query('kendaraan', where: 'no_pol_kode = ? AND no_pol_nomor = ?', whereArgs: [noPolKode, noPolNomor]);
+               if (kendRes.isNotEmpty) {
+                 final kendaraan = kendRes.first;
+                 batch.insert('transaksi', {
+                   'kendaraan_id': kendaraan['kendaraan_id'],
                    'jumlah_liter': jumlahLiter,
                    'tanggal_transaksi': tanggalTransaksi,
                    'jenis_transaksi': jenisTransaksi,
@@ -106,7 +97,7 @@ class SyncServerDatasource {
                  });
                } else {
                  // Fallback if kupon not found (should rarely happen if synced)
-                 batch.insert('fact_transaksi', {
+                 batch.insert('transaksi', {
                    'jumlah_liter': jumlahLiter,
                    'tanggal_transaksi': tanggalTransaksi,
                    'jenis_transaksi': jenisTransaksi,

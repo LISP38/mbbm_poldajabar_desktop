@@ -1,9 +1,9 @@
 import 'package:drift/drift.dart';
 
 @DataClassName('KuponData')
-class DimKupon extends Table {
+class Kupon extends Table {
   @override
-  String get tableName => 'dim_kupon';
+  String get tableName => 'kupon';
 
   IntColumn get kuponKey => integer().autoIncrement()();
   TextColumn get nomorKupon => text()();
@@ -27,9 +27,9 @@ class DimKupon extends Table {
 }
 
 @DataClassName('TransaksiData')
-class FactTransaksi extends Table {
+class Transaksi extends Table {
   @override
-  String get tableName => 'fact_transaksi';
+  String get tableName => 'transaksi';
 
   IntColumn get transaksiId => integer().autoIncrement()();
   IntColumn get kuponKey => integer().nullable()();

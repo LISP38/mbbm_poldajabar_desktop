@@ -43,14 +43,14 @@ class KuponRepositoryImpl implements KuponRepository {
         0 as is_deleted,
         TRIM(COALESCE(dk2.no_pol_kode, '') || ' ' || COALESCE(dk2.no_pol_nomor, '')) AS nopol,
         COALESCE(dk2.jenis_ranmor, '') AS jenis_ranmor
-      FROM dim_kupon dk
-      LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
-      LEFT JOIN dim_jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
-      LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
-      LEFT JOIN dim_kendaraan dk2 ON dk.kendaraan_id = dk2.kendaraan_id
+      FROM kupon dk
+      LEFT JOIN satker ds ON dk.satker_id = ds.satker_id
+      LEFT JOIN jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
+      LEFT JOIN jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
+      LEFT JOIN kendaraan dk2 ON dk.kendaraan_id = dk2.kendaraan_id
       LEFT JOIN (
         SELECT kupon_key, SUM(jumlah_liter) as total_used
-        FROM fact_transaksi
+        FROM transaksi
         WHERE is_deleted = 0
         GROUP BY kupon_key
       ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
@@ -85,14 +85,14 @@ class KuponRepositoryImpl implements KuponRepository {
         0 as is_deleted,
         TRIM(COALESCE(dk2.no_pol_kode, '') || ' ' || COALESCE(dk2.no_pol_nomor, '')) AS nopol,
         COALESCE(dk2.jenis_ranmor, '') AS jenis_ranmor
-      FROM dim_kupon dk
-      LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
-      LEFT JOIN dim_jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
-      LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
-      LEFT JOIN dim_kendaraan dk2 ON dk.kendaraan_id = dk2.kendaraan_id
+      FROM kupon dk
+      LEFT JOIN satker ds ON dk.satker_id = ds.satker_id
+      LEFT JOIN jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
+      LEFT JOIN jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
+      LEFT JOIN kendaraan dk2 ON dk.kendaraan_id = dk2.kendaraan_id
       LEFT JOIN (
         SELECT kupon_key, SUM(jumlah_liter) as total_used
-        FROM fact_transaksi
+        FROM transaksi
         WHERE is_deleted = 0
         GROUP BY kupon_key
       ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
@@ -111,13 +111,13 @@ class KuponRepositoryImpl implements KuponRepository {
   Future<void> insertKupon(KuponEntity kupon) async {
     await _db.transaction(() async {
       final existing = await _db.customSelect(
-        'SELECT * FROM dim_kupon WHERE nomor_kupon = ? AND is_current = 1',
+        'SELECT * FROM kupon WHERE nomor_kupon = ? AND is_current = 1',
         variables: [Variable.withString(kupon.nomorKupon)],
       ).get();
 
       if (existing.isNotEmpty) {
         await _db.customUpdate(
-          'UPDATE dim_kupon SET is_current = 0, valid_to = ? WHERE nomor_kupon = ? AND is_current = 1',
+          'UPDATE kupon SET is_current = 0, valid_to = ? WHERE nomor_kupon = ? AND is_current = 1',
           variables: [
             Variable.withString(DateTime.now().toIso8601String()),
             Variable.withString(kupon.nomorKupon),
@@ -125,7 +125,7 @@ class KuponRepositoryImpl implements KuponRepository {
         );
       }
 
-      await _dao.into(_dao.dimKupon).insert(DimKuponCompanion.insert(
+      await _dao.into(_dao.kupon).insert(KuponCompanion.insert(
         nomorKupon: kupon.nomorKupon,
         kendaraanId: Value(kupon.kendaraanId),
         jenisBbmId: kupon.jenisBbmId,
@@ -148,14 +148,14 @@ class KuponRepositoryImpl implements KuponRepository {
   Future<void> updateKupon(KuponEntity kupon) async {
     await _db.transaction(() async {
       await _db.customUpdate(
-        'UPDATE dim_kupon SET is_current = 0, valid_to = ? WHERE kupon_key = ? AND is_current = 1',
+        'UPDATE kupon SET is_current = 0, valid_to = ? WHERE kupon_key = ? AND is_current = 1',
         variables: [
           Variable.withString(DateTime.now().toIso8601String()),
           Variable.withInt(kupon.kuponId),
         ],
       );
 
-      await _dao.into(_dao.dimKupon).insert(DimKuponCompanion.insert(
+      await _dao.into(_dao.kupon).insert(KuponCompanion.insert(
         nomorKupon: kupon.nomorKupon,
         kendaraanId: Value(kupon.kendaraanId),
         jenisBbmId: kupon.jenisBbmId,
@@ -177,7 +177,7 @@ class KuponRepositoryImpl implements KuponRepository {
   @override
   Future<void> deleteKupon(int kuponId) async {
     await _db.customUpdate(
-      'UPDATE dim_kupon SET is_current = 0, valid_to = ?, status = ? WHERE kupon_key = ? AND is_current = 1',
+      'UPDATE kupon SET is_current = 0, valid_to = ?, status = ? WHERE kupon_key = ? AND is_current = 1',
       variables: [
         Variable.withString(DateTime.now().toIso8601String()),
         Variable.withString('Tidak Aktif'),
@@ -212,14 +212,14 @@ class KuponRepositoryImpl implements KuponRepository {
         0 as is_deleted,
         TRIM(COALESCE(dk2.no_pol_kode, '') || ' ' || COALESCE(dk2.no_pol_nomor, '')) AS nopol,
         COALESCE(dk2.jenis_ranmor, '') AS jenis_ranmor
-      FROM dim_kupon dk
-      LEFT JOIN dim_satker ds ON dk.satker_id = ds.satker_id
-      LEFT JOIN dim_jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
-      LEFT JOIN dim_jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
-      LEFT JOIN dim_kendaraan dk2 ON dk.kendaraan_id = dk2.kendaraan_id
+      FROM kupon dk
+      LEFT JOIN satker ds ON dk.satker_id = ds.satker_id
+      LEFT JOIN jenis_bbm dbb ON dk.jenis_bbm_id = dbb.jenis_bbm_id
+      LEFT JOIN jenis_kupon dku ON dk.jenis_kupon_id = dku.jenis_kupon_id
+      LEFT JOIN kendaraan dk2 ON dk.kendaraan_id = dk2.kendaraan_id
       LEFT JOIN (
         SELECT kupon_key, SUM(jumlah_liter) as total_used
-        FROM fact_transaksi
+        FROM transaksi
         WHERE is_deleted = 0
         GROUP BY kupon_key
       ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
@@ -237,7 +237,7 @@ class KuponRepositoryImpl implements KuponRepository {
   @override
   Future<void> deleteAllKupon() async {
     await _db.customUpdate(
-      'UPDATE dim_kupon SET is_current = 0, valid_to = ?, status = ? WHERE is_current = 1',
+      'UPDATE kupon SET is_current = 0, valid_to = ?, status = ? WHERE is_current = 1',
       variables: [
         Variable.withString(DateTime.now().toIso8601String()),
         Variable.withString('Tidak Aktif'),

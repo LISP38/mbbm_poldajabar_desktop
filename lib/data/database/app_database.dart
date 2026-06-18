@@ -40,10 +40,10 @@ part 'app_database.g.dart';
   ],
 )
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(_openConnection());
+  AppDatabase({QueryExecutor? e}) : super(e ?? _openConnection());
 
   @override
-  int get schemaVersion => 13; // Keep the same version to avoid migration unless needed
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration {
@@ -52,8 +52,16 @@ class AppDatabase extends _$AppDatabase {
         await m.createAll();
       },
       onUpgrade: (Migrator m, int from, int to) async {
-        // Handle future migrations here if needed.
-        // For now, since we match the old schema exactly, no destructive drift migrations are needed.
+        if (from < 14) {
+          // Migrate away from star schema prefixes
+          await m.issueCustomQuery('ALTER TABLE dim_satker RENAME TO satker;');
+          await m.issueCustomQuery('ALTER TABLE dim_jenis_bbm RENAME TO jenis_bbm;');
+          await m.issueCustomQuery('ALTER TABLE dim_jenis_kupon RENAME TO jenis_kupon;');
+          await m.issueCustomQuery('ALTER TABLE dim_kendaraan RENAME TO kendaraan;');
+          await m.issueCustomQuery('ALTER TABLE dim_date RENAME TO date_table;');
+          await m.issueCustomQuery('ALTER TABLE dim_kupon RENAME TO kupon;');
+          await m.issueCustomQuery('ALTER TABLE fact_transaksi RENAME TO transaksi;');
+        }
       },
     );
   }
