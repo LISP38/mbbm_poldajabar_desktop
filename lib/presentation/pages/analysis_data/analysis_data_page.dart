@@ -4,7 +4,7 @@ import 'package:kupon_bbm_app/presentation/widgets/minus_chart_widget.dart';
 import 'package:kupon_bbm_app/domain/models/rekap_satker_model.dart';
 import 'package:kupon_bbm_app/domain/models/kendaraan_rekap_model.dart';
 import 'package:kupon_bbm_app/domain/repositories/analysis_repository_impl.dart';
-import 'package:kupon_bbm_app/data/datasources/database_datasource.dart';
+import 'package:kupon_bbm_app/core/di/dependency_injection.dart';
 
 class AnalysisDataPage extends StatefulWidget {
   final AnalysisRepositoryImpl? repository;
@@ -18,7 +18,7 @@ class AnalysisDataPage extends StatefulWidget {
 class _AnalysisDataPageState extends State<AnalysisDataPage>
     with SingleTickerProviderStateMixin {
   AnalysisRepositoryImpl get _repo =>
-      widget.repository ?? AnalysisRepositoryImpl(DatabaseDatasource());
+      widget.repository ?? getIt<AnalysisRepositoryImpl>();
 
   late TabController _tabController;
 

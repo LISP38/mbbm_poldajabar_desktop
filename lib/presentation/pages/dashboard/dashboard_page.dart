@@ -8,7 +8,7 @@ import '../../../domain/entities/kendaraan_entity.dart';
 import '../../../domain/entities/kupon_entity.dart';
 import '../../../data/models/kendaraan_model.dart';
 import '../../../data/services/export_service.dart';
-import '../../../data/datasources/database_datasource.dart';
+import '../../../core/di/drift_sqflite_adapter.dart';
 import '../../../domain/repositories/kendaraan_repository.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../providers/master_data_provider.dart';
@@ -538,7 +538,7 @@ class _DashboardPageState extends State<DashboardPage>
       );
 
       final provider = Provider.of<DashboardProvider>(context, listen: false);
-      final dbDatasource = getIt<DatabaseDatasource>();
+      final dbDatasource = getIt<DriftSqfliteAdapter>();
 
       // Pastikan data dari kedua tab sudah dimuat
       if (provider.ranjenKupons.isEmpty) {

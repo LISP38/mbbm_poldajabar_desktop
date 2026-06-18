@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../domain/entities/kupon_entity.dart';
 import '../../../data/services/export_service.dart';
-import '../../../data/datasources/database_datasource.dart';
+import '../../../core/di/drift_sqflite_adapter.dart';
 import '../../../core/di/dependency_injection.dart';
 
 class ExportPreviewPage extends StatefulWidget {
@@ -180,7 +180,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
     List<KuponEntity> allKupons,
   ) async {
     try {
-      final dbDatasource = getIt<DatabaseDatasource>();
+      final dbDatasource = getIt<DriftSqfliteAdapter>();
       final db = await dbDatasource.database;
 
       if (allKupons.isEmpty) return [];
@@ -557,7 +557,7 @@ class _ExportPreviewPageState extends State<ExportPreviewPage>
 
     try {
       // Get database datasource dari dependency injection
-      final dbDatasource = getIt<DatabaseDatasource>();
+      final dbDatasource = getIt<DriftSqfliteAdapter>();
 
       bool success;
       if (widget.exportType == 'satker') {

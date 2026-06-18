@@ -1,10 +1,11 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:excel/excel.dart';
-import 'package:kupon_bbm_app/data/datasources/database_datasource.dart';
+import 'package:kupon_bbm_app/data/database/app_database.dart';
 import 'package:kupon_bbm_app/data/models/kupon_model.dart';
 import 'package:kupon_bbm_app/data/models/kendaraan_model.dart';
 import 'package:kupon_bbm_app/data/validators/kupon_validator.dart';
+import 'package:drift/drift.dart' as drift;
 
 class ExcelParseResult {
   final List<KuponModel> kupons;
@@ -24,10 +25,10 @@ class ExcelParseResult {
 
 class ExcelDatasource {
   final KuponValidator _kuponValidator;
-  final DatabaseDatasource _databaseDatasource;
+  final AppDatabase _db;
   static const String _defaultKodeNopol = 'VIII';
 
-  ExcelDatasource(this._kuponValidator, this._databaseDatasource);
+  ExcelDatasource(this._kuponValidator, this._db);
 
   // Helper untuk konversi angka romawi ke integer
   int? _parseRomanNumeral(String roman) {
@@ -637,23 +638,24 @@ class ExcelDatasource {
     final finalKodeNopol = kodeNopol.isNotEmpty ? kodeNopol : _defaultKodeNopol;
 
     // Get satkerId from database
-    final db = await _databaseDatasource.database;
-    final satkerResult = await db.query(
-      'dim_satker',
-      where: 'UPPER(TRIM(nama_satker)) = ?',
-      whereArgs: [satker.trim().toUpperCase()],
-      limit: 1,
-    );
+    final satkerUpper = satker.trim().toUpperCase();
+    final satkerResult =
+        await (_db.select(_db.satker)
+              ..where((t) => t.namaSatker.upper().trim().equals(satkerUpper))
+              ..limit(1))
+            .getSingleOrNull();
 
     int satkerId;
-    if (satkerResult.isNotEmpty) {
-      satkerId = satkerResult.first['satker_id'] as int;
+    if (satkerResult != null) {
+      satkerId = satkerResult.satkerId;
     } else {
       // Jika satker tidak ditemukan, buat entry baru
-      satkerId = await db.insert('dim_satker', {'nama_satker': satker});
+      satkerId = await _db
+          .into(_db.satker)
+          .insert(SatkerCompanion.insert(namaSatker: satker));
     }
 
-    // Cari atau buat dimensi terkait: jenis_ranmor, dim_nopol, dim_kendaraan (no hardcode)
+    // Cari atau buat dimensi terkait: jenis_ranmor, dim_nopol, kendaraan (no hardcode)
     KendaraanModel? kendaraan;
     int? kendaraanId;
     if (!isDukungan) {
@@ -661,13 +663,34 @@ class ExcelDatasource {
         throw Exception('Nomor Polisi tidak boleh kosong untuk kupon RANJEN');
       }
 
-      // Create or get kendaraan using textual fields (v9 schema: no dim_nopol/dim_jenis_ranmor)
-      kendaraanId = await _databaseDatasource.getOrCreateKendaraan(
-        satkerId: satkerId,
-        jenisRanmorText: finalJenisRanmor.trim().toUpperCase(),
-        nopolKode: finalKodeNopol,
-        nopolNomor: noPol,
-      );
+      // Create or get kendaraan using textual fields
+      final jenisRanmorUpper = finalJenisRanmor.trim().toUpperCase();
+      final kendaraanResult =
+          await (_db.select(_db.kendaraan)
+                ..where(
+                  (t) =>
+                      t.satkerId.equals(satkerId) &
+                      t.noPolKode.equals(finalKodeNopol) &
+                      t.noPolNomor.equals(noPol ?? ''),
+                )
+                ..limit(1))
+              .getSingleOrNull();
+
+      if (kendaraanResult != null) {
+        kendaraanId = kendaraanResult.kendaraanId;
+      } else {
+        kendaraanId = await _db
+            .into(_db.kendaraan)
+            .insert(
+              KendaraanCompanion.insert(
+                satkerId: drift.Value(satkerId),
+                jenisRanmor: drift.Value(jenisRanmorUpper),
+                noPolKode: drift.Value(finalKodeNopol),
+                noPolNomor: drift.Value(noPol),
+                statusAktif: const drift.Value(1),
+              ),
+            );
+      }
 
       if (kendaraanId > 0) {
         kendaraan = KendaraanModel(
@@ -688,17 +711,29 @@ class ExcelDatasource {
         : jenisBBM.trim().toUpperCase();
     final jenisKuponName = isDukungan ? 'DUKUNGAN' : 'RANJEN';
 
-    final jenisBbmId = await _databaseDatasource.getOrCreateDimId(
-      'dim_jenis_bbm',
-      'nama_jenis_bbm',
-      jenisBbmName,
-    );
+    // Get or Create Jenis BBM
+    final jenisBbmResult =
+        await (_db.select(_db.jenisBbm)
+              ..where((t) => t.namaJenisBbm.equals(jenisBbmName))
+              ..limit(1))
+            .getSingleOrNull();
+    final jenisBbmId =
+        jenisBbmResult?.jenisBbmId ??
+        await _db
+            .into(_db.jenisBbm)
+            .insert(JenisBbmCompanion.insert(namaJenisBbm: jenisBbmName));
 
-    final jenisKuponId = await _databaseDatasource.getOrCreateDimId(
-      'dim_jenis_kupon',
-      'nama_jenis_kupon',
-      jenisKuponName,
-    );
+    // Get or Create Jenis Kupon
+    final jenisKuponResult =
+        await (_db.select(_db.jenisKupon)
+              ..where((t) => t.namaJenisKupon.equals(jenisKuponName))
+              ..limit(1))
+            .getSingleOrNull();
+    final jenisKuponId =
+        jenisKuponResult?.jenisKuponId ??
+        await _db
+            .into(_db.jenisKupon)
+            .insert(JenisKuponCompanion.insert(namaJenisKupon: jenisKuponName));
 
     final kupon = KuponModel(
       kuponId: 0,

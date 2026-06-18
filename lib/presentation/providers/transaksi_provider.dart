@@ -50,7 +50,7 @@ class TransaksiProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  // --- Filter dropdown options (from dim_kupon and dim_date)
+  // --- Filter dropdown options (from kupon and dates)
   List<String> daftarTahun = [];
   List<String> daftarBulan = [];
 

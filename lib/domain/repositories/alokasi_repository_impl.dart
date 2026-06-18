@@ -3,8 +3,10 @@ import 'package:excel/excel.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
+import 'package:drift/drift.dart' hide Column;
 
-import '../../data/datasources/database_datasource.dart';
+import '../../data/database/app_database.dart';
+import '../../data/database/daos/alokasi_dao.dart';
 import '../entities/rpd_entity.dart';
 import '../entities/kendaraan_kategori_entity.dart';
 import '../entities/index_norma_entity.dart';
@@ -13,42 +15,55 @@ import '../models/alokasi_result_model.dart';
 import 'alokasi_repository.dart';
 
 class AlokasiRepositoryImpl implements AlokasiRepository {
-  final DatabaseDatasource _dbHelper;
+  final AppDatabase _db;
+  late final AlokasiDao _dao;
 
-  AlokasiRepositoryImpl(this._dbHelper);
+  AlokasiRepositoryImpl(this._db) {
+    _dao = _db.alokasiDao;
+  }
 
   // ── RPD ──────────────────────────────────────────────────────────────
 
   @override
   Future<List<RpdEntity>> getRpdAcuan(int tahun) async {
-    final db = await _dbHelper.database;
-    final results = await db.query(
-      'rpd_acuan',
-      where: 'tahun = ?',
-      whereArgs: [tahun],
-      orderBy: 'bulan ASC, jenis_bbm ASC',
-    );
-    return results.map((row) => RpdEntity.fromMap(row)).toList();
+    final results = await (_dao.select(_dao.rpdAcuan)
+          ..where((t) => t.tahun.equals(tahun))
+          ..orderBy([
+            (t) => OrderingTerm(expression: t.bulan, mode: OrderingMode.asc),
+            (t) => OrderingTerm(expression: t.jenisBbm, mode: OrderingMode.asc),
+          ]))
+        .get();
+        
+    return results.map((row) => RpdEntity(
+      rpdId: row.rpdId,
+      tahun: row.tahun,
+      bulan: row.bulan,
+      jenisBbm: row.jenisBbm,
+      kuantitasLiter: row.kuantitasLiter,
+      estimasiHarga: row.estimasiHarga,
+      jumlahHarga: row.jumlahHarga,
+    )).toList();
   }
 
   @override
   Future<void> saveRpdAcuan(List<RpdEntity> data, int tahun) async {
-    final db = await _dbHelper.database;
-    // Delete existing data for this year first
-    await db.delete('rpd_acuan', where: 'tahun = ?', whereArgs: [tahun]);
+    await _db.transaction(() async {
+      await (_dao.delete(_dao.rpdAcuan)..where((t) => t.tahun.equals(tahun))).go();
 
-    final batch = db.batch();
-    for (final rpd in data) {
-      batch.insert('rpd_acuan', {
-        'tahun': rpd.tahun,
-        'bulan': rpd.bulan,
-        'jenis_bbm': rpd.jenisBbm,
-        'kuantitas_liter': rpd.kuantitasLiter,
-        'estimasi_harga': rpd.estimasiHarga,
-        'jumlah_harga': rpd.jumlahHarga,
+      await _dao.batch((batch) {
+        batch.insertAll(
+          _dao.rpdAcuan,
+          data.map((rpd) => RpdAcuanCompanion.insert(
+                tahun: rpd.tahun,
+                bulan: rpd.bulan,
+                jenisBbm: rpd.jenisBbm,
+                kuantitasLiter: rpd.kuantitasLiter,
+                estimasiHarga: rpd.estimasiHarga,
+                jumlahHarga: rpd.jumlahHarga,
+              )).toList(),
+        );
       });
-    }
-    await batch.commit(noResult: true);
+    });
   }
 
   @override
@@ -60,7 +75,6 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
   ) async {
     final rpdList = <RpdEntity>[];
     for (final result in results) {
-      // Add Pertamax entry
       if (result.totalLiterPx > 0) {
         rpdList.add(
           RpdEntity(
@@ -74,7 +88,6 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
           ),
         );
       }
-      // Add Dexlite entry
       if (result.totalLiterPdx > 0) {
         rpdList.add(
           RpdEntity(
@@ -90,14 +103,12 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
       }
     }
 
-    // Get existing RPD for months before the recommendation range
     final existingRpd = await getRpdAcuan(tahun);
     final firstRecommendedMonth = results.isNotEmpty ? results.first.bulan : 13;
     final preservedRpd = existingRpd
         .where((r) => r.bulan < firstRecommendedMonth)
         .toList();
 
-    // Combine preserved + new
     final combinedRpd = [...preservedRpd, ...rpdList];
     await saveRpdAcuan(combinedRpd, tahun);
   }
@@ -132,13 +143,10 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
     }
 
     final rpdList = <RpdEntity>[];
-
-    // Try the first sheet
     final sheetName = excel.tables.keys.first;
     final sheet = excel.tables[sheetName];
     if (sheet == null) throw Exception('Sheet tidak ditemukan');
 
-    // Find header row
     int headerRow = -1;
     for (int i = 0; i < sheet.maxRows && i < 10; i++) {
       final row = sheet.row(i);
@@ -158,7 +166,6 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
       );
     }
 
-    // Map column indices
     final headerRowData = sheet.row(headerRow);
     int colBulan = -1, colJenisBbm = -1, colKuantitas = -1;
     int colEstimasiHarga = -1, colJumlahHarga = -1;
@@ -183,7 +190,6 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
       );
     }
 
-    // Parse data rows
     int lastBulan = 0;
     for (int i = headerRow + 1; i < sheet.maxRows; i++) {
       final row = sheet.row(i);
@@ -250,69 +256,69 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
 
   @override
   Future<bool> hasRpdData(int tahun) async {
-    final db = await _dbHelper.database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as cnt FROM rpd_acuan WHERE tahun = ?',
-      [tahun],
-    );
-    return (result.first['cnt'] as int) > 0;
+    final countExp = _dao.rpdAcuan.rpdId.count();
+    final query = _dao.selectOnly(_dao.rpdAcuan)
+      ..addColumns([countExp])
+      ..where(_dao.rpdAcuan.tahun.equals(tahun));
+    final result = await query.map((row) => row.read(countExp)).getSingle();
+    return (result ?? 0) > 0;
   }
 
   @override
   Future<double> getDipa(int tahun) async {
-    final db = await _dbHelper.database;
-    final result = await db.rawQuery(
-      'SELECT SUM(jumlah_harga) as total FROM rpd_acuan WHERE tahun = ?',
-      [tahun],
-    );
-    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
+    final sumExp = _dao.rpdAcuan.jumlahHarga.sum();
+    final query = _dao.selectOnly(_dao.rpdAcuan)
+      ..addColumns([sumExp])
+      ..where(_dao.rpdAcuan.tahun.equals(tahun));
+    final result = await query.map((row) => row.read(sumExp)).getSingle();
+    return result ?? 0.0;
   }
 
   // ── Vehicle Categories ────────────────────────────────────────────────
 
   @override
   Future<List<KendaraanKategoriEntity>> getKendaraanKategori() async {
-    final db = await _dbHelper.database;
-    final results = await db.query(
-      'alokasi_kendaraan_kategori',
-      orderBy: 'jenis_bbm ASC, nama_kategori ASC',
-    );
-    return results.map((row) => KendaraanKategoriEntity.fromMap(row)).toList();
+    final results = await (_dao.select(_dao.alokasiKendaraanKategori)
+          ..orderBy([
+            (t) => OrderingTerm(expression: t.jenisBbm, mode: OrderingMode.asc),
+            (t) => OrderingTerm(expression: t.namaKategori, mode: OrderingMode.asc),
+          ]))
+        .get();
+        
+    return results.map((row) => KendaraanKategoriEntity(
+      kategoriId: row.kategoriId,
+      namaKategori: row.namaKategori,
+      jenisBbm: row.jenisBbm,
+      isPju: row.isPju == 1,
+      jumlahKendaraan: row.jumlahKendaraan ?? 0,
+    )).toList();
   }
 
   @override
   Future<void> updateKendaraanKategoriCount(int kategoriId, int jumlah) async {
-    final db = await _dbHelper.database;
-    await db.update(
-      'alokasi_kendaraan_kategori',
-      {
-        'jumlah_kendaraan': jumlah,
-        'updated_at': DateTime.now().toIso8601String(),
-      },
-      where: 'kategori_id = ?',
-      whereArgs: [kategoriId],
-    );
+    await (_dao.update(_dao.alokasiKendaraanKategori)
+          ..where((t) => t.kategoriId.equals(kategoriId)))
+        .write(AlokasiKendaraanKategoriCompanion(
+      jumlahKendaraan: Value(jumlah),
+      updatedAt: Value(DateTime.now().toIso8601String()),
+    ));
   }
 
   @override
   Future<void> autoCountKendaraan() async {
-    final db = await _dbHelper.database;
-
-    // Get all categories
     final categories = await getKendaraanKategori();
 
     for (final cat in categories) {
       int count = 0;
-
-      // Map category to dim_kendaraan jenis_ranmor patterns
       final patterns = _getCategoryPatterns(cat.namaKategori);
 
       for (final pattern in patterns) {
-        final result = await db.rawQuery(
-          'SELECT COUNT(*) as cnt FROM dim_kendaraan WHERE LOWER(jenis_ranmor) LIKE ? AND status_aktif = 1',
-          ['%${pattern.toLowerCase()}%'],
-        );
-        count += (result.first['cnt'] as int? ?? 0);
+        // Fallback to raw query for the LIKE lookup across kendaraan
+        final result = await _db.customSelect(
+          'SELECT COUNT(*) as cnt FROM kendaraan WHERE LOWER(jenis_ranmor) LIKE ? AND status_aktif = 1',
+          variables: [Variable.withString('%${pattern.toLowerCase()}%')],
+        ).getSingle();
+        count += (result.read<int>('cnt'));
       }
 
       if (count > 0) {
@@ -321,7 +327,6 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
     }
   }
 
-  /// Maps category names to dim_kendaraan jenis_ranmor search patterns
   List<String> _getCategoryPatterns(String namaKategori) {
     switch (namaKategori.toUpperCase()) {
       case 'R2 MOTOR':
@@ -347,81 +352,81 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
 
   @override
   Future<List<IndexNormaEntity>> getIndexNorma() async {
-    final db = await _dbHelper.database;
-    final results = await db.rawQuery('''
-      SELECT n.norma_id, n.kategori_id, n.jumlah_liter_per_hari,
-             k.nama_kategori
-      FROM index_norma n
-      JOIN alokasi_kendaraan_kategori k ON n.kategori_id = k.kategori_id
-      ORDER BY k.jenis_bbm ASC, k.nama_kategori ASC
-    ''');
-    return results.map((row) => IndexNormaEntity.fromMap(row)).toList();
+    final query = _dao.select(_dao.indexNorma).join([
+      innerJoin(
+        _dao.alokasiKendaraanKategori,
+        _dao.alokasiKendaraanKategori.kategoriId.equalsExp(_dao.indexNorma.kategoriId),
+      )
+    ])..orderBy([
+      OrderingTerm(expression: _dao.alokasiKendaraanKategori.jenisBbm, mode: OrderingMode.asc),
+      OrderingTerm(expression: _dao.alokasiKendaraanKategori.namaKategori, mode: OrderingMode.asc),
+    ]);
+
+    final results = await query.get();
+    
+    return results.map((row) {
+      final norma = row.readTable(_dao.indexNorma);
+      final kategori = row.readTable(_dao.alokasiKendaraanKategori);
+      return IndexNormaEntity(
+        normaId: norma.normaId,
+        kategoriId: norma.kategoriId,
+        namaKategori: kategori.namaKategori,
+        jumlahLiterPerHari: norma.jumlahLiterPerHari,
+      );
+    }).toList();
   }
 
   // ── Hari Kerja ────────────────────────────────────────────────────────
 
   @override
   Future<List<HariKerjaEntity>> getHariKerja(int tahun) async {
-    final db = await _dbHelper.database;
-    final results = await db.query(
-      'hari_kerja',
-      where: 'tahun = ?',
-      whereArgs: [tahun],
-      orderBy: 'bulan ASC',
-    );
-    return results.map((row) => HariKerjaEntity.fromMap(row)).toList();
+    final results = await (_dao.select(_dao.hariKerja)
+          ..where((t) => t.tahun.equals(tahun))
+          ..orderBy([(t) => OrderingTerm(expression: t.bulan, mode: OrderingMode.asc)]))
+        .get();
+        
+    return results.map((row) => HariKerjaEntity(
+      hariKerjaId: row.hariKerjaId,
+      tahun: row.tahun,
+      bulan: row.bulan,
+      hariKalender: row.hariKalender,
+      hariKerja: row.hariKerja,
+    )).toList();
   }
 
   @override
   Future<void> updateHariKerja(HariKerjaEntity data) async {
-    final db = await _dbHelper.database;
-    await db.update(
-      'hari_kerja',
-      {
-        'hari_kalender': data.hariKalender,
-        'hari_kerja': data.hariKerja,
-        'updated_at': DateTime.now().toIso8601String(),
-      },
-      where: 'hari_kerja_id = ?',
-      whereArgs: [data.hariKerjaId],
-    );
+    await (_dao.update(_dao.hariKerja)
+          ..where((t) => t.hariKerjaId.equals(data.hariKerjaId)))
+        .write(HariKerjaCompanion(
+      hariKalender: Value(data.hariKalender),
+      hariKerja: Value(data.hariKerja),
+      updatedAt: Value(DateTime.now().toIso8601String()),
+    ));
   }
 
   // ── Configuration ─────────────────────────────────────────────────────
 
   @override
   Future<Map<String, String>> getAlokasiConfig() async {
-    final db = await _dbHelper.database;
-    final results = await db.query('alokasi_config');
+    final results = await _dao.select(_dao.alokasiConfig).get();
     final map = <String, String>{};
     for (final row in results) {
-      map[row['config_key'] as String] = row['config_value'] as String;
+      map[row.configKey] = row.configValue;
     }
     return map;
   }
 
   @override
   Future<void> saveAlokasiConfig(String key, String value) async {
-    final db = await _dbHelper.database;
-    // Upsert: try update first, insert if not exists
-    final existing = await db.query(
-      'alokasi_config',
-      where: 'config_key = ?',
-      whereArgs: [key],
+    await _dao.into(_dao.alokasiConfig).insert(
+      AlokasiConfigCompanion.insert(
+        configKey: key,
+        configValue: value,
+        updatedAt: Value(DateTime.now().toIso8601String()),
+      ),
+      mode: InsertMode.insertOrReplace,
     );
-    if (existing.isNotEmpty) {
-      await db.update(
-        'alokasi_config',
-        {'config_value': value, 'updated_at': DateTime.now().toIso8601String()},
-        where: 'config_key = ?',
-        whereArgs: [key],
-      );
-    } else {
-      await db.insert('alokasi_config', {
-        'config_key': key,
-        'config_value': value,
-      });
-    }
   }
 
   @override
