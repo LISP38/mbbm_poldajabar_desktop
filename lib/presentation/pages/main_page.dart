@@ -39,7 +39,7 @@ class _MainPageState extends State<MainPage> {
         return const RekomendasiAlokasiPage();
       case 2:
         return const Center(
-          child: Text('Generate Kupon dan Laporan (Coming Soon)'),
+          child: Text('Generate Kupon dan Laporan juga Belum Ada'),
         );
       case 3:
         return ImportPage(
