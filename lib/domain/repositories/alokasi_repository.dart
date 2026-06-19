@@ -42,6 +42,15 @@ abstract class AlokasiRepository {
   /// Update the vehicle count for a specific category.
   Future<void> updateKendaraanKategoriCount(int kategoriId, int jumlah);
 
+  /// Add a new vehicle category.
+  Future<void> addKendaraanKategori(KendaraanKategoriEntity entity);
+
+  /// Update an existing vehicle category.
+  Future<void> updateKendaraanKategori(KendaraanKategoriEntity entity);
+
+  /// Delete a vehicle category by ID.
+  Future<void> deleteKendaraanKategori(int kategoriId);
+
   /// Auto-count vehicles from kendaraan and update category counts.
   Future<void> autoCountKendaraan();
 
@@ -50,6 +59,15 @@ abstract class AlokasiRepository {
   /// Get all index norma entries (joined with category names).
   Future<List<IndexNormaEntity>> getIndexNorma();
 
+  /// Add a new index norma.
+  Future<void> addIndexNorma(IndexNormaEntity entity);
+
+  /// Update an existing index norma.
+  Future<void> updateIndexNorma(IndexNormaEntity entity);
+
+  /// Delete an index norma by ID.
+  Future<void> deleteIndexNorma(int normaId);
+
   // ── Hari Kerja ────────────────────────────────────────────────────────
 
   /// Get working days configuration for a given year.
@@ -57,6 +75,9 @@ abstract class AlokasiRepository {
 
   /// Update a specific month's working days.
   Future<void> updateHariKerja(HariKerjaEntity data);
+
+  /// Generate working days for a full year based on calendar days.
+  Future<void> generateHariKerja(int tahun, int offset);
 
   // ── Configuration ─────────────────────────────────────────────────────
 
