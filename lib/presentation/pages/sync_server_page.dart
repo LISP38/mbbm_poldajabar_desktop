@@ -42,60 +42,155 @@ class _SyncServerPageState extends State<SyncServerPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Mobile Sync Server')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_serverUrl != null) ...[
-              const Text(
-                'Mobile App Sync Active',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Page Header
+        Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Sinkronisasi Data',
+                style: const TextStyle(
+                  fontFamily: 'Mazzard',
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
+                ),
               ),
               const SizedBox(height: 8),
-              const Text('Scan this QR code with the Mobile App'),
-              const SizedBox(height: 24),
-
-              // QR Code
-              QrImageView(
-                data: _serverUrl!,
-                version: QrVersions.auto,
-                size: 250.0,
-                backgroundColor: Colors.white,
+              Text(
+                'Mulai server untuk sinkronisasi data dengan aplikasi mobile',
+                style: TextStyle(
+                  fontFamily: 'Mazzard',
+                  fontSize: 16,
+                  color: Colors.grey.shade600,
+                ),
               ),
+            ],
+          ),
+        ),
 
-              const SizedBox(height: 16),
-              SelectableText(
-                _serverUrl!,
-                style: const TextStyle(fontSize: 18, color: Colors.blue),
-              ),
-            ] else
-              const Text(
-                'Server is Offline',
-                style: TextStyle(fontSize: 24, color: Colors.grey),
-              ),
+        // Content
+        Expanded(
+          child: Center(
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(48.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (_serverUrl != null) ...[
+                      const Text(
+                        'Server Sinkronisasi Aktif',
+                        style: TextStyle(
+                          fontFamily: 'Mazzard',
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Scan QR Code ini menggunakan Aplikasi Mobile',
+                        style: TextStyle(fontFamily: 'Mazzard', fontSize: 16),
+                      ),
+                      const SizedBox(height: 32),
 
-            const SizedBox(height: 48),
+                      // QR Code
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.shade200, width: 2),
+                        ),
+                        child: QrImageView(
+                          data: _serverUrl!,
+                          version: QrVersions.auto,
+                          size: 250.0,
+                          backgroundColor: Colors.white,
+                        ),
+                      ),
 
-            SizedBox(
-              width: 200,
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : _toggleServer,
-                icon: Icon(_server.isRunning ? Icons.stop : Icons.play_arrow),
-                label: Text(_server.isRunning ? 'STOP SERVER' : 'START SERVER'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _server.isRunning
-                      ? Colors.red
-                      : Colors.green,
-                  foregroundColor: Colors.white,
+                      const SizedBox(height: 24),
+                      SelectableText(
+                        _serverUrl!,
+                        style: const TextStyle(
+                          fontFamily: 'Mazzard',
+                          fontSize: 18,
+                          color: Colors.blue,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ] else ...[
+                      Icon(
+                        Icons.sync_disabled,
+                        size: 80,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Server Offline',
+                        style: TextStyle(
+                          fontFamily: 'Mazzard',
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 48),
+
+                    SizedBox(
+                      width: 240,
+                      height: 56,
+                      child: ElevatedButton.icon(
+                        onPressed: _isLoading ? null : _toggleServer,
+                        icon: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Icon(_server.isRunning ? Icons.stop : Icons.play_arrow),
+                        label: Text(
+                          _isLoading
+                              ? 'Memproses...'
+                              : (_server.isRunning ? 'HENTIKAN SERVER' : 'MULAI SERVER'),
+                          style: const TextStyle(
+                            fontFamily: 'Mazzard',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _server.isRunning
+                              ? Colors.red
+                              : const Color(0xFFF28C28), // AppTheme.primaryOrange
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

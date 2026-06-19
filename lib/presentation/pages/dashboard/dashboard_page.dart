@@ -625,31 +625,72 @@ class _DashboardPageState extends State<DashboardPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Dashboard Kupon',
-          style: GoogleFonts.stardosStencil(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Page Header
+        Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Data Kupon',
+                style: GoogleFonts.stardosStencil(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Kelola dan pantau data kupon BBM',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Styled TabBar
+              Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: TabBar(
+                  controller: _tabController,
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.grey.shade600,
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  dividerColor: Colors.transparent,
+                  indicator: BoxDecoration(
+                    color: const Color(0xFFF28C28), // AppTheme.primaryOrange
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  indicatorPadding: const EdgeInsets.all(4),
+                  labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                  tabs: const [
+                    Tab(text: 'Data Ranjen'),
+                    Tab(text: 'Data Dukungan'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-        actions: const [],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.directions_car), text: 'Data Ranjen'),
-            Tab(icon: Icon(Icons.support), text: 'Data Dukungan'),
-          ],
+        // TabBarView
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildRanjenContent(context),
+              _buildDukunganContent(context),
+            ],
+          ),
         ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildRanjenContent(context),
-          _buildDukunganContent(context),
-        ],
-      ),
+      ],
     );
   }
 
@@ -1267,75 +1308,28 @@ class _DashboardPageState extends State<DashboardPage>
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
                     columnSpacing: 24,
-                    headingRowColor: WidgetStateProperty.all(
-                      Colors.blue.shade50,
-                    ),
                     columns: const [
-                      DataColumn(
-                        label: Text(
-                          'Nomor',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Nomor Kupon',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Satuan Kerja',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Jenis BBM',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Nomor Polisi',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Jenis Kendaraan',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Bulan/Tahun',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Kuota Sisa',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Status',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Aksi',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
+                      DataColumn(label: Text('Nomor')),
+                      DataColumn(label: Text('Nomor Kupon')),
+                      DataColumn(label: Text('Satuan Kerja')),
+                      DataColumn(label: Text('Jenis BBM')),
+                      DataColumn(label: Text('Nomor Polisi')),
+                      DataColumn(label: Text('Jenis Kendaraan')),
+                      DataColumn(label: Text('Bulan/Tahun')),
+                      DataColumn(label: Text('Kuota Sisa')),
+                      DataColumn(label: Text('Status')),
+                      DataColumn(label: Text('Aksi')),
                     ],
                     rows: kupons.asMap().entries.map((entry) {
                       final i = startIndex + entry.key + 1;
                       final k = entry.value;
                       return DataRow(
+                        color: WidgetStateProperty.resolveWith<Color?>(
+                          (Set<WidgetState> states) {
+                            if (entry.key % 2 == 0) return Colors.white;
+                            return const Color(0xFFF9F9F9);
+                          },
+                        ),
                         cells: [
                           DataCell(Text(i.toString())),
                           DataCell(
@@ -1437,75 +1431,28 @@ class _DashboardPageState extends State<DashboardPage>
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
                     columnSpacing: 24,
-                    headingRowColor: WidgetStateProperty.all(
-                      Colors.green.shade50,
-                    ),
                     columns: const [
-                      DataColumn(
-                        label: Text(
-                          'Nomor',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Nomor Kupon',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Satuan Kerja',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Jenis BBM',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Nomor Polisi',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Jenis Kendaraan',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Bulan/Tahun',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Kuota Sisa',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Status',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      DataColumn(
-                        label: Text(
-                          'Aksi',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
+                      DataColumn(label: Text('Nomor')),
+                      DataColumn(label: Text('Nomor Kupon')),
+                      DataColumn(label: Text('Satuan Kerja')),
+                      DataColumn(label: Text('Jenis BBM')),
+                      DataColumn(label: Text('Nomor Polisi')),
+                      DataColumn(label: Text('Jenis Kendaraan')),
+                      DataColumn(label: Text('Bulan/Tahun')),
+                      DataColumn(label: Text('Kuota Sisa')),
+                      DataColumn(label: Text('Status')),
+                      DataColumn(label: Text('Aksi')),
                     ],
                     rows: kupons.asMap().entries.map((entry) {
-                      final i = entry.key + 1;
+                      final i = startIndex + entry.key + 1;
                       final k = entry.value;
                       return DataRow(
+                        color: WidgetStateProperty.resolveWith<Color?>(
+                          (Set<WidgetState> states) {
+                            if (entry.key % 2 == 0) return Colors.white;
+                            return const Color(0xFFF9F9F9);
+                          },
+                        ),
                         cells: [
                           DataCell(Text(i.toString())),
                           DataCell(
