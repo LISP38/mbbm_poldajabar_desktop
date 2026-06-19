@@ -1,4 +1,4 @@
-// lib/main.dart
+﻿// lib/main.dart
 
 import 'package:flutter/material.dart';
 import 'package:kupon_bbm_app/core/di/dependency_injection.dart';
@@ -6,7 +6,7 @@ import 'package:kupon_bbm_app/core/themes/app_theme.dart';
 import 'package:kupon_bbm_app/domain/repositories/kupon_repository.dart';
 import 'package:kupon_bbm_app/domain/repositories/master_data_repository.dart';
 import 'package:kupon_bbm_app/presentation/pages/main_page.dart';
-import 'package:kupon_bbm_app/presentation/providers/dashboard_provider.dart';
+import 'package:kupon_bbm_app/presentation/providers/kupon_provider.dart';
 import 'package:kupon_bbm_app/presentation/providers/enhanced_import_provider.dart';
 import 'package:kupon_bbm_app/presentation/providers/kupon_provider.dart';
 import 'package:kupon_bbm_app/presentation/providers/master_data_provider.dart';
@@ -35,7 +35,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => DashboardProvider(getIt<KuponRepository>()),
+          create: (_) => KuponProvider(getIt<KuponRepository>()),
         ),
         ChangeNotifierProvider(
           create: (_) => TransaksiProvider(getIt<TransaksiRepositoryImpl>()),

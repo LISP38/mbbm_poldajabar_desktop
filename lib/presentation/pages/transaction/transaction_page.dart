@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 // import 'package:get_it/get_it.dart';
 import '../../providers/transaksi_provider.dart';
-import '../../providers/dashboard_provider.dart';
+import '../../providers/kupon_provider.dart';
 import '../../providers/master_data_provider.dart';
 import '../../../data/models/transaksi_model.dart';
 import '../../../domain/entities/kupon_entity.dart';
@@ -201,7 +201,7 @@ class _TransactionPageState extends State<TransactionPage>
         filterTanggalSelesai: _filterTanggalSelesai,
       );
       // Fetch kupon list untuk dropdown (tanpa filter dari dashboard)
-      final dash = Provider.of<DashboardProvider>(context, listen: false);
+      final dash = Provider.of<KuponProvider>(context, listen: false);
       dash.fetchAllKuponsUnfiltered();
       dash.fetchSatkers();
       Provider.of<TransaksiProvider>(context, listen: false).fetchTransaksiHutang();
@@ -300,7 +300,7 @@ class _TransactionPageState extends State<TransactionPage>
       selectedPeriod = nextMonth;
       initialYear = nextYear;
       // set provider filters for initial fetch
-      final dashInit = Provider.of<DashboardProvider>(context, listen: false);
+      final dashInit = Provider.of<KuponProvider>(context, listen: false);
       dashInit.nomorKupon = null;
       dashInit.jenisBBM = null;
       dashInit.jenisKupon = null;
@@ -334,7 +334,7 @@ class _TransactionPageState extends State<TransactionPage>
 
     final jenisKuponMap = _jenisKuponMap;
 
-    final dashboardProvider = Provider.of<DashboardProvider>(
+    final kuponProvider = Provider.of<KuponProvider>(
       context,
       listen: false,
     );
@@ -349,7 +349,7 @@ class _TransactionPageState extends State<TransactionPage>
           builder: (ctx, setState) {
             // Use provider's filtered kupon list (fetchKupons populates kuponList)
             final normalizedSatker = (transaksi.satkerText ?? '').trim().toLowerCase();
-            final kuponOptions = dashboardProvider.kuponList.where((k) {
+            final kuponOptions = kuponProvider.kuponList.where((k) {
               final kSatker = (k.namaSatker ?? '').trim().toLowerCase();
               final monthMatch = selectedPeriod == null ? true : k.bulanTerbit == selectedPeriod;
               final satkerMatch = kSatker == normalizedSatker;
@@ -410,7 +410,7 @@ class _TransactionPageState extends State<TransactionPage>
                           selectedPeriod = val;
                           selectedKupon = null;
                         });
-                        final dash = Provider.of<DashboardProvider>(context, listen: false);
+                        final dash = Provider.of<KuponProvider>(context, listen: false);
                         if (val != null) {
                           // compute year relative to transaction date
                           try {
@@ -494,7 +494,7 @@ class _TransactionPageState extends State<TransactionPage>
                             );    
 
                             // Refresh dashboard kupons
-                            final dash = Provider.of<DashboardProvider>(context, listen: false);
+                            final dash = Provider.of<KuponProvider>(context, listen: false);
                             await dash.fetchKupons();
                             await dash.fetchAllKuponsUnfiltered();
 
@@ -570,7 +570,7 @@ class _TransactionPageState extends State<TransactionPage>
                 // Filter Satker
                 SizedBox(
                   width: 180,
-                  child: Consumer2<DashboardProvider, TransaksiProvider>(
+                  child: Consumer2<KuponProvider, TransaksiProvider>(
                     builder: (context, dash, tprov, _) {
                       final satkerList = dash.satkerList;
                       final current = tprov.filterSatker ?? '';
@@ -910,13 +910,13 @@ class _TransactionPageState extends State<TransactionPage>
   void _exportTransaksi() async {
     if (!mounted) return;
 
-    final dashboardProvider = Provider.of<DashboardProvider>(
+    final kuponProvider = Provider.of<KuponProvider>(
       context,
       listen: false,
     );
 
     // Use allKuponsForDropdown from dashboard provider for visual preview
-    if (dashboardProvider.allKuponsForDropdown.isEmpty) {
+    if (kuponProvider.allKuponsForDropdown.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -1020,7 +1020,7 @@ class _TransactionPageState extends State<TransactionPage>
       context,
       MaterialPageRoute(
         builder: (context) => ExportPreviewPage(
-          allKupons: dashboardProvider.allKuponsForDropdown,
+          allKupons: kuponProvider.allKuponsForDropdown,
           jenisBBMMap: _getJenisBbmMap(),
           exportType: choice,
           getNopolByKendaraanId:
@@ -1047,7 +1047,7 @@ class _TransactionPageState extends State<TransactionPage>
     required int jenisKuponId,
     required Color themeColor,
   }) async {
-    final dashboardProvider = Provider.of<DashboardProvider>(
+    final kuponProvider = Provider.of<KuponProvider>(
       context,
       listen: false,
     );
@@ -1167,7 +1167,7 @@ class _TransactionPageState extends State<TransactionPage>
                       ),
                       const SizedBox(height: 12),
                       // Dropdown Periode Kupon - ambil dari bulanTerbitList di dashboard
-                      Consumer<DashboardProvider>(
+                      Consumer<KuponProvider>(
                         builder: (ctx, dashProv, _) {
                           // Convert bulanTerbitList (List<String>) ke List<int> untuk periode
                           final currentPeriodList =
@@ -1179,7 +1179,7 @@ class _TransactionPageState extends State<TransactionPage>
                                     .toList();
 
                           debugPrint(
-                            '🔍 DEBUG Periode Dropdown: Periods from dashboard: $currentPeriodList',
+                            'ðŸ” DEBUG Periode Dropdown: Periods from dashboard: $currentPeriodList',
                           );
 
                           return DropdownButtonFormField<int>(
@@ -1214,7 +1214,7 @@ class _TransactionPageState extends State<TransactionPage>
                       const SizedBox(height: 12),
                       // Autocomplete Nomor Kupon - hanya tampil jika sudah pilih periode
                       if (selectedPeriod != null)
-                        Consumer<DashboardProvider>(
+                        Consumer<KuponProvider>(
                           builder: (ctx, dashProv, _) {
                             // Rebuild kuponList dengan data terbaru dari provider
                             final List<KuponEntity> currentKuponList = dashProv
@@ -1335,7 +1335,7 @@ class _TransactionPageState extends State<TransactionPage>
                       if (!formKey.currentState!.validate()) return;
 
                       // Get fresh kuponList dari provider untuk find kupon yang dipilih
-                      final freshKuponList = dashboardProvider
+                      final freshKuponList = kuponProvider
                           .allKuponsForDropdown
                           .where(
                             (k) =>
@@ -1425,8 +1425,8 @@ class _TransactionPageState extends State<TransactionPage>
                       try {
                         await transaksiProvider.addTransaksi(transaksiBaru);
                         // Refresh dashboard to update coupon quotas
-                        await dashboardProvider.fetchKupons();
-                        await dashboardProvider.fetchAllKuponsUnfiltered();
+                        await kuponProvider.fetchKupons();
+                        await kuponProvider.fetchAllKuponsUnfiltered();
                         if (ctx.mounted) {
                           Navigator.of(ctx).pop();
                         }
@@ -1605,12 +1605,12 @@ class _TransactionPageState extends State<TransactionPage>
                                   IconButton(
                                     icon: const Icon(Icons.info_outline),
                                     onPressed: () async {
-                                      final dashboardProvider =
-                                          Provider.of<DashboardProvider>(
+                                      final kuponProvider =
+                                          Provider.of<KuponProvider>(
                                             context,
                                             listen: false,
                                           );
-                                      final kuponList = dashboardProvider
+                                      final kuponList = kuponProvider
                                           .allKuponsForDropdown
                                           .where((k) => k.kuponId == t.kuponId)
                                           .toList();
@@ -1704,13 +1704,13 @@ class _TransactionPageState extends State<TransactionPage>
                                           t.transaksiId,
                                         );
                                         if (!context.mounted) return;
-                                        final dashboardProvider =
-                                            Provider.of<DashboardProvider>(
+                                        final kuponProvider =
+                                            Provider.of<KuponProvider>(
                                               context,
                                               listen: false,
                                             );
-                                        await dashboardProvider.fetchKupons();
-                                        await dashboardProvider
+                                        await kuponProvider.fetchKupons();
+                                        await kuponProvider
                                             .fetchAllKuponsUnfiltered();
                                       }
                                     },
@@ -1765,7 +1765,7 @@ class _TransactionPageState extends State<TransactionPage>
 
   // Widget ringkas untuk total saldo kupon (sejajar dengan pagination)
   Widget _buildTotalSaldoKupon() {
-    return Consumer<DashboardProvider>(
+    return Consumer<KuponProvider>(
       builder: (context, provider, _) {
         final double totalSaldo = provider.totalSaldo;
         final int totalKupon =
@@ -1820,7 +1820,7 @@ class _TransactionPageState extends State<TransactionPage>
       context,
       listen: false,
     );
-    final dashboardProvider = Provider.of<DashboardProvider>(
+    final kuponProvider = Provider.of<KuponProvider>(
       context,
       listen: false,
     );
@@ -1850,7 +1850,7 @@ class _TransactionPageState extends State<TransactionPage>
                   readOnly: true,
                   onTap: () async {
                     // Cari kupon terkait untuk mendapatkan range tanggal yang valid
-                    final kuponList = dashboardProvider.allKuponsForDropdown
+                    final kuponList = kuponProvider.allKuponsForDropdown
                         .where((k) => k.kuponId == t.kuponId)
                         .toList();
 
@@ -1904,7 +1904,7 @@ class _TransactionPageState extends State<TransactionPage>
                       double.tryParse(jumlahController.text) ?? t.jumlahLiter;
 
                   // Cari kupon terkait untuk validasi kuota dan tanggal
-                  final kuponList = dashboardProvider.allKuponsForDropdown
+                  final kuponList = kuponProvider.allKuponsForDropdown
                       .where((k) => k.kuponId == t.kuponId)
                       .toList();
 
@@ -1978,8 +1978,8 @@ class _TransactionPageState extends State<TransactionPage>
                     status: t.status,
                   );
                   await transaksiProvider.updateTransaksi(transaksiEdit);
-                  await dashboardProvider.fetchKupons();
-                  await dashboardProvider.fetchAllKuponsUnfiltered();
+                  await kuponProvider.fetchKupons();
+                  await kuponProvider.fetchAllKuponsUnfiltered();
                   if (ctx.mounted) {
                     Navigator.of(ctx).pop();
                   }
@@ -2091,7 +2091,7 @@ class _TransactionPageState extends State<TransactionPage>
                                       if (!context.mounted) return;
                                       // Refresh dashboard
                                       final dashProvider =
-                                          Provider.of<DashboardProvider>(
+                                          Provider.of<KuponProvider>(
                                             context,
                                             listen: false,
                                           );

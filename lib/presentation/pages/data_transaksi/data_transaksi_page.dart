@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../providers/transaksi_provider.dart';
-import '../../providers/dashboard_provider.dart';
+import '../../providers/kupon_provider.dart';
 import '../../../data/models/transaksi_model.dart';
 import '../../../domain/entities/transaksi_entity.dart';
 import '../../../domain/repositories/kendaraan_repository.dart';
@@ -55,7 +55,7 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
     // Pastikan ambil data kupon tanpa filter untuk referensi
     Future.microtask(() {
       if (!mounted) return;
-      Provider.of<DashboardProvider>(
+      Provider.of<KuponProvider>(
         context,
         listen: false,
       ).fetchAllKuponsUnfiltered();
@@ -64,14 +64,11 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
   }
 
   Future<void> _loadNoPolData() async {
-    final dashboardProvider = Provider.of<DashboardProvider>(
-      context,
-      listen: false,
-    );
+    final kuponProvider = Provider.of<KuponProvider>(context, listen: false);
     final kendaraanRepo = getIt<KendaraanRepository>();
 
     // Load no pol for all kupons (menggunakan list tanpa filter)
-    for (final kupon in dashboardProvider.allKuponsForDropdown) {
+    for (final kupon in kuponProvider.allKuponsForDropdown) {
       if (kupon.kendaraanId != null &&
           !_noPolCache.containsKey(kupon.kuponId)) {
         try {
@@ -95,13 +92,10 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
   }
 
   String _getNoPolForTransaksi(TransaksiEntity transaksi) {
-    final dashboardProvider = Provider.of<DashboardProvider>(
-      context,
-      listen: false,
-    );
+    final kuponProvider = Provider.of<KuponProvider>(context, listen: false);
 
     // Find kupon for this transaction (menggunakan list tanpa filter)
-    final matchingKupons = dashboardProvider.allKuponsForDropdown.where(
+    final matchingKupons = kuponProvider.allKuponsForDropdown.where(
       (k) => k.kuponId == transaksi.kuponId,
     );
 
@@ -121,10 +115,7 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final provider = Provider.of<TransaksiProvider>(context, listen: false);
-    final dashboardProvider = Provider.of<DashboardProvider>(
-      context,
-      listen: false,
-    );
+    final kuponProvider = Provider.of<KuponProvider>(context, listen: false);
 
     // Reset filter dan fetch semua transaksi
     provider.resetFilter();
@@ -132,7 +123,7 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
     provider.fetchKuponMinus();
 
     // Load kupon data and no pol
-    dashboardProvider.fetchKupons().then((_) {
+    kuponProvider.fetchKupons().then((_) {
       _loadNoPolData();
     });
   }
@@ -799,10 +790,7 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
       context,
       listen: false,
     );
-    final dashboardProvider = Provider.of<DashboardProvider>(
-      context,
-      listen: false,
-    );
+    final kuponProvider = Provider.of<KuponProvider>(context, listen: false);
 
     final formKey = GlobalKey<FormState>();
     final tanggalController = TextEditingController(text: t.tanggalTransaksi);
@@ -909,7 +897,7 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
                       double.tryParse(jumlahController.text) ?? t.jumlahLiter;
 
                   // Cari kupon terkait untuk validasi kuota
-                  final kuponList = dashboardProvider.allKuponsForDropdown
+                  final kuponList = kuponProvider.allKuponsForDropdown
                       .where((k) => k.kuponId == t.kuponId)
                       .toList();
 
@@ -976,8 +964,8 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
 
                     await transaksiProvider.updateTransaksi(transaksiEdit);
                     await transaksiProvider.fetchTransaksiFiltered();
-                    await dashboardProvider.fetchKupons();
-                    await dashboardProvider.fetchAllKuponsUnfiltered();
+                    await kuponProvider.fetchKupons();
+                    await kuponProvider.fetchAllKuponsUnfiltered();
 
                     if (ctx.mounted) {
                       Navigator.of(ctx).pop(); // Close loading
@@ -1028,10 +1016,7 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
       context,
       listen: false,
     );
-    final dashboardProvider = Provider.of<DashboardProvider>(
-      context,
-      listen: false,
-    );
+    final kuponProvider = Provider.of<KuponProvider>(context, listen: false);
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -1108,8 +1093,8 @@ class _DataTransaksiPageState extends State<DataTransaksiPage> {
       try {
         await transaksiProvider.deleteTransaksi(t.transaksiId);
         await transaksiProvider.fetchTransaksiFiltered();
-        await dashboardProvider.fetchKupons();
-        await dashboardProvider.fetchAllKuponsUnfiltered();
+        await kuponProvider.fetchKupons();
+        await kuponProvider.fetchAllKuponsUnfiltered();
 
         if (context.mounted) {
           Navigator.of(context).pop(); // Close loading

@@ -4,9 +4,10 @@ import 'package:kupon_bbm_app/presentation/pages/dashboard/dashboard_page.dart';
 import 'package:kupon_bbm_app/presentation/pages/import/import_page.dart';
 import 'package:kupon_bbm_app/presentation/pages/transaction/transaction_page.dart';
 import 'package:kupon_bbm_app/presentation/pages/sync_server_page.dart';
-import 'package:kupon_bbm_app/presentation/providers/dashboard_provider.dart';
+import 'package:kupon_bbm_app/presentation/providers/kupon_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:kupon_bbm_app/presentation/pages/alokasi/rekomendasi_alokasi_page.dart';
+import 'package:kupon_bbm_app/presentation/pages/data_kupon/data_kupon_page.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -46,14 +47,14 @@ class _MainPageState extends State<MainPage> {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
               try {
-                final provider = context.read<DashboardProvider>();
+                final provider = context.read<KuponProvider>();
                 provider.fetchKupons();
               } catch (_) {}
             });
           },
         );
       case 4:
-        return const Center(child: Text('Data Kupon (Revamp Phase 3)'));
+        return const DataKuponPage();
       case 5:
         return const TransactionPage();
       case 6:

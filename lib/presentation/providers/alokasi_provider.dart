@@ -124,10 +124,12 @@ class AlokasiProvider extends ChangeNotifier {
 
       for (int i = 1; i <= 12; i++) {
         if (config.containsKey('cadangan_px_percent_m$i')) {
-          _cadanganPxOverrides[i] = double.tryParse(config['cadangan_px_percent_m$i']!) ?? 0;
+          _cadanganPxOverrides[i] =
+              double.tryParse(config['cadangan_px_percent_m$i']!) ?? 0;
         }
         if (config.containsKey('cadangan_pdx_percent_m$i')) {
-          _cadanganPdxOverrides[i] = double.tryParse(config['cadangan_pdx_percent_m$i']!) ?? 0;
+          _cadanganPdxOverrides[i] =
+              double.tryParse(config['cadangan_pdx_percent_m$i']!) ?? 0;
         }
       }
 
@@ -340,7 +342,10 @@ class AlokasiProvider extends ChangeNotifier {
     try {
       _isLoading = true;
       notifyListeners();
-      await _repository.generateHariKerja(_hariKerjaSelectedTahun, _hariKerjaOffset);
+      await _repository.generateHariKerja(
+        _hariKerjaSelectedTahun,
+        _hariKerjaOffset,
+      );
       _hariKerjaList = await _repository.getHariKerja(_hariKerjaSelectedTahun);
     } catch (e) {
       _errorMessage = 'Gagal generate hari kerja: $e';
@@ -379,12 +384,22 @@ class AlokasiProvider extends ChangeNotifier {
   }
 
   /// Update a specific month's Cadangan percentage and recalculate.
-  Future<void> editBulanCadanganPercent(int bulan, double pxPercent, double pdxPercent) async {
+  Future<void> editBulanCadanganPercent(
+    int bulan,
+    double pxPercent,
+    double pdxPercent,
+  ) async {
     _cadanganPxOverrides[bulan] = pxPercent;
     _cadanganPdxOverrides[bulan] = pdxPercent;
 
-    await _repository.saveAlokasiConfig('cadangan_px_percent_m$bulan', pxPercent.toString());
-    await _repository.saveAlokasiConfig('cadangan_pdx_percent_m$bulan', pdxPercent.toString());
+    await _repository.saveAlokasiConfig(
+      'cadangan_px_percent_m$bulan',
+      pxPercent.toString(),
+    );
+    await _repository.saveAlokasiConfig(
+      'cadangan_pdx_percent_m$bulan',
+      pdxPercent.toString(),
+    );
 
     if (_hasResults) {
       // Trigger a recalculation using existing budget overrides
