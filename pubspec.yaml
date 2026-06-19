@@ -78,7 +78,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/images/Logo_Polda_Jabar.png
+    - assets/images/
 
   fonts:
     - family: Mazzard

@@ -5,12 +5,13 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 // import 'package:get_it/get_it.dart';
 import '../../providers/transaksi_provider.dart';
-import '../../providers/dashboard_provider.dart';
+import '../../providers/kupon_provider.dart';
 import '../../providers/master_data_provider.dart';
 import '../../../data/models/transaksi_model.dart';
 import '../../../domain/entities/kupon_entity.dart';
 import '../../../domain/repositories/kendaraan_repository.dart';
 import '../../../core/di/dependency_injection.dart';
+import '../../../core/themes/app_theme.dart';
 import '../export/export_preview_page.dart';
 
 class TransactionPage extends StatefulWidget {
@@ -20,11 +21,7 @@ class TransactionPage extends StatefulWidget {
   State<TransactionPage> createState() => _TransactionPageState();
 }
 
-enum TableType {
-  transaksi,
-  kuponMinus,
-  transaksiHutang,
-}
+enum TableType { transaksi, kuponMinus, transaksiHutang }
 
 class _TransactionPageState extends State<TransactionPage>
     with SingleTickerProviderStateMixin {
@@ -34,6 +31,11 @@ class _TransactionPageState extends State<TransactionPage>
   // Filter tanggal
   DateTime? _filterTanggalMulai;
   DateTime? _filterTanggalSelesai;
+
+  // Filter tambahan
+  String? _filterJenisTransaksi;
+  String? _filterJenisBbm;
+  bool _isFilterExpanded = false;
 
   String? nomorKupon;
   int? selectedPeriod;
@@ -201,15 +203,18 @@ class _TransactionPageState extends State<TransactionPage>
         filterTanggalSelesai: _filterTanggalSelesai,
       );
       // Fetch kupon list untuk dropdown (tanpa filter dari dashboard)
-      final dash = Provider.of<DashboardProvider>(context, listen: false);
+      final dash = Provider.of<KuponProvider>(context, listen: false);
       dash.fetchAllKuponsUnfiltered();
       dash.fetchSatkers();
-      Provider.of<TransaksiProvider>(context, listen: false).fetchTransaksiHutang();
+      Provider.of<TransaksiProvider>(
+        context,
+        listen: false,
+      ).fetchTransaksiHutang();
       context.read<TransaksiProvider>().fetchTransaksiHutang();
       selectedPeriod = DateTime.now().month == 12
-        ? 1
-        : DateTime.now().month + 1;
-      });
+          ? 1
+          : DateTime.now().month + 1;
+    });
   }
 
   @override
@@ -286,7 +291,10 @@ class _TransactionPageState extends State<TransactionPage>
     }
   }
 
-  Future<void> _showReimburseDialog(BuildContext context, TransaksiEntity transaksi) async {
+  Future<void> _showReimburseDialog(
+    BuildContext context,
+    TransaksiEntity transaksi,
+  ) async {
     // Reset selected kupon when opening
     selectedKupon = null;
     // Default periode = bulan transaksi + 1 (bulan terbit kupon)
@@ -300,7 +308,7 @@ class _TransactionPageState extends State<TransactionPage>
       selectedPeriod = nextMonth;
       initialYear = nextYear;
       // set provider filters for initial fetch
-      final dashInit = Provider.of<DashboardProvider>(context, listen: false);
+      final dashInit = Provider.of<KuponProvider>(context, listen: false);
       dashInit.nomorKupon = null;
       dashInit.jenisBBM = null;
       dashInit.jenisKupon = null;
@@ -334,10 +342,7 @@ class _TransactionPageState extends State<TransactionPage>
 
     final jenisKuponMap = _jenisKuponMap;
 
-    final dashboardProvider = Provider.of<DashboardProvider>(
-      context,
-      listen: false,
-    );
+    final kuponProvider = Provider.of<KuponProvider>(context, listen: false);
 
     DateTime selectedTanggal = DateTime.now();
 
@@ -348,179 +353,279 @@ class _TransactionPageState extends State<TransactionPage>
         return StatefulBuilder(
           builder: (ctx, setState) {
             // Use provider's filtered kupon list (fetchKupons populates kuponList)
-            final normalizedSatker = (transaksi.satkerText ?? '').trim().toLowerCase();
-            final kuponOptions = dashboardProvider.kuponList.where((k) {
+            final normalizedSatker = (transaksi.satkerText ?? '')
+                .trim()
+                .toLowerCase();
+            final kuponOptions = kuponProvider.kuponList.where((k) {
               final kSatker = (k.namaSatker ?? '').trim().toLowerCase();
-              final monthMatch = selectedPeriod == null ? true : k.bulanTerbit == selectedPeriod;
+              final monthMatch = selectedPeriod == null
+                  ? true
+                  : k.bulanTerbit == selectedPeriod;
               final satkerMatch = kSatker == normalizedSatker;
               return satkerMatch && monthMatch && (k.kuotaSisa > 0);
             }).toList();
 
             String _formatKupon(KuponEntity k) {
-              final jenisName = jenisKuponMap[k.jenisKuponId] ?? k.jenisKuponId.toString();
+              final jenisName =
+                  jenisKuponMap[k.jenisKuponId] ?? k.jenisKuponId.toString();
               return '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/${k.namaSatker}/$jenisName (${k.kuotaSisa.toInt()} L)';
             }
 
-            return AlertDialog(
-              title: const Text('Reimburse'),
-              content: SingleChildScrollView(
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Container(
+                width: 400,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Nama Konsumen: ${transaksi.namaKonsumen ?? '-'}'),
-                    Text('Satker: ${transaksi.satkerText ?? '-'}'),
-                    Text('Nomor Kendaraan: ${transaksi.nomorKendaraanText ?? '-'}'),
-                    Text('Jumlah Liter: ${transaksi.jumlahLiter.toInt()} L'),
-                    const SizedBox(height: 12),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        'Tanggal Transaksi : ${DateFormat('dd-MM-yyyy').format(selectedTanggal)}',
+                    // Header
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                       ),
-                      trailing: const Icon(Icons.calendar_today),
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: selectedTanggal,
-                          firstDate: DateTime(2025),
-                          lastDate: DateTime(2100),
-                        );
-
-                        if (picked != null) {
-                          setState(() {
-                            selectedTanggal = picked;
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    // Periode dropdown
-                    DropdownButtonFormField<int>(
-                      value: selectedPeriod,
-                      decoration: const InputDecoration(labelText: 'Periode'),
-                      items: List.generate(12, (i) => i + 1).map((m) {
-                        return DropdownMenuItem<int>(
-                          value: m,
-                          child: Text(bulanNames[m] ?? m.toString()),
-                        );
-                      }).toList(),
-                      onChanged: (val) async {
-                        setState(() {
-                          selectedPeriod = val;
-                          selectedKupon = null;
-                        });
-                        final dash = Provider.of<DashboardProvider>(context, listen: false);
-                        if (val != null) {
-                          // compute year relative to transaction date
-                          try {
-                            final txnDate = DateTime.parse(transaksi.tanggalTransaksi);
-                            final txnMonth = txnDate.month;
-                            final txnYear = txnDate.year;
-                            final year = (txnMonth == 12 && val == 1) ? txnYear + 1 : txnYear;
-                            dash.bulanTerbit = val;
-                            dash.tahunTerbit = year;
-                          } catch (_) {
-                            dash.bulanTerbit = val;
-                            dash.tahunTerbit = DateTime.now().year;
-                          }
-                          dash.satker = transaksi.satkerText;
-                          try {
-                            await dash.fetchKupons(forceRefresh: true);
-                          } catch (_) {}
-                          if (mounted) setState(() {});
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    // Kupon autocomplete
-                    if (kuponOptions.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8.0),
-                        child: Text('Tidak ada kupon tersedia untuk satker/periode ini.'),
-                      )
-                    else
-                      Autocomplete<KuponEntity>(
-                        optionsBuilder: (TextEditingValue txt) {
-                          // show all options if user hasn't typed anything
-                          if (txt.text.isEmpty) return kuponOptions;
-                          final q = txt.text.toLowerCase().trim();
-                          return kuponOptions.where((k) {
-                            return k.nomorKupon.toLowerCase().contains(q) ||
-                                k.namaSatker.toLowerCase().contains(q);
-                          });
-                        },
-                        displayStringForOption: (k) => _formatKupon(k),
-                        onSelected: (k) {
-                          setState(() {
-                            selectedKupon = k;
-                          });
-                        },
-                        fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                          return TextFormField(
-                            controller: controller,
-                            focusNode: focusNode,
-                            decoration: const InputDecoration(
-                              labelText: 'Nomor Kupon',
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Reimburse Transaksi',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
-                          );
-                        },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(ctx),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
                       ),
+                    ),
+                    // Content
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildDetailRow('Nomor Konsumen', transaksi.namaKonsumen ?? '-'),
+                          _buildDetailRow('Satker', transaksi.satkerText ?? '-'),
+                          _buildDetailRow('Nomor Kendaraan', transaksi.nomorKendaraanText ?? '-'),
+                          _buildDetailRow('Jumlah Liter', '${transaksi.jumlahLiter.toInt()} Liter'),
+                          const SizedBox(height: 16),
+                          const Divider(height: 1, color: Colors.grey),
+                          const SizedBox(height: 16),
+                          const Text('Tanggal', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+                          const SizedBox(height: 8),
+                          InkWell(
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: selectedTanggal,
+                                firstDate: DateTime(2025),
+                                lastDate: DateTime(2100),
+                              );
+
+                              if (picked != null) {
+                                setState(() {
+                                  selectedTanggal = picked;
+                                });
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade400),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(DateFormat('dd-MM-yyyy').format(selectedTanggal), style: const TextStyle(fontSize: 16, color: Colors.black87)),
+                                  const Icon(Icons.calendar_today, color: Colors.black54),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text('Periode', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<int>(
+                            value: selectedPeriod,
+                            decoration: InputDecoration(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: Colors.grey.shade400),
+                              ),
+                            ),
+                            items: List.generate(12, (i) => i + 1).map((m) {
+                              return DropdownMenuItem<int>(
+                                value: m,
+                                child: Text(bulanNames[m] ?? m.toString()),
+                              );
+                            }).toList(),
+                            onChanged: (val) async {
+                              setState(() {
+                                selectedPeriod = val;
+                                selectedKupon = null;
+                              });
+                              final dash = Provider.of<KuponProvider>(
+                                context,
+                                listen: false,
+                              );
+                              if (val != null) {
+                                // compute year relative to transaction date
+                                try {
+                                  final txnDate = DateTime.parse(
+                                    transaksi.tanggalTransaksi,
+                                  );
+                                  final txnMonth = txnDate.month;
+                                  final txnYear = txnDate.year;
+                                  final year = (txnMonth == 12 && val == 1)
+                                      ? txnYear + 1
+                                      : txnYear;
+                                  dash.bulanTerbit = val;
+                                  dash.tahunTerbit = year;
+                                } catch (_) {
+                                  dash.bulanTerbit = val;
+                                  dash.tahunTerbit = DateTime.now().year;
+                                }
+                                dash.satker = transaksi.satkerText;
+                                try {
+                                  await dash.fetchKupons(forceRefresh: true);
+                                } catch (_) {}
+                                if (mounted) setState(() {});
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          const Text('Nomor Kupon', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+                          const SizedBox(height: 8),
+                          if (kuponOptions.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8.0),
+                              child: Text(
+                                'Tidak ada kupon tersedia untuk satker/periode ini.',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            )
+                          else
+                            Autocomplete<KuponEntity>(
+                              optionsBuilder: (TextEditingValue txt) {
+                                // show all options if user hasn't typed anything
+                                if (txt.text.isEmpty) return kuponOptions;
+                                final q = txt.text.toLowerCase().trim();
+                                return kuponOptions.where((k) {
+                                  return k.nomorKupon.toLowerCase().contains(q) ||
+                                      k.namaSatker.toLowerCase().contains(q);
+                                });
+                              },
+                              displayStringForOption: (k) => _formatKupon(k),
+                              onSelected: (k) {
+                                setState(() {
+                                  selectedKupon = k;
+                                });
+                              },
+                              fieldViewBuilder:
+                                  (context, controller, focusNode, onFieldSubmitted) {
+                                    return TextFormField(
+                                      controller: controller,
+                                      focusNode: focusNode,
+                                      decoration: InputDecoration(
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: BorderSide(color: Colors.grey.shade400),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                            ),
+                          const SizedBox(height: 32),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              OutlinedButton(
+                                onPressed: () {
+                                  // Reset selection
+                                  setState(() {
+                                    selectedKupon = null;
+                                    selectedPeriod = null;
+                                  });
+                                  Navigator.of(ctx).pop();
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                                  side: const BorderSide(color: AppTheme.primaryBlue),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                child: const Text('Batal', style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.bold)),
+                              ),
+                              const SizedBox(width: 16),
+                              ElevatedButton(
+                                onPressed: selectedKupon == null
+                                    ? null
+                                    : () async {
+                                        try {
+                                          await context
+                                              .read<TransaksiProvider>()
+                                              .reimburseTransaksi(
+                                                transaksiId: transaksi.transaksiId,
+                                                kuponId: selectedKupon!.kuponId,
+                                                tanggalTransaksi: DateFormat(
+                                                  'yyyy-MM-dd',
+                                                ).format(selectedTanggal),
+                                              );
+
+                                          // Refresh dashboard kupons
+                                          final dash = Provider.of<KuponProvider>(
+                                            context,
+                                            listen: false,
+                                          );
+                                          await dash.fetchKupons();
+                                          await dash.fetchAllKuponsUnfiltered();
+
+                                          if (!mounted) return;
+                                          // Reset
+                                          setState(() {
+                                            selectedKupon = null;
+                                            selectedPeriod = null;
+                                          });
+                                          Navigator.of(ctx).pop();
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Reimburse berhasil'),
+                                              ),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Gagal reimburse: $e')),
+                                            );
+                                          }
+                                        }
+                                      },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.primaryBlue,
+                                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                child: const Text('Reimburse', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    // Reset selection
-                    setState(() {
-                      selectedKupon = null;
-                      selectedPeriod = null;
-                    });
-                    Navigator.of(ctx).pop();
-                  },
-                  child: const Text('Batal'),
-                ),
-                ElevatedButton(
-                  onPressed: selectedKupon == null
-                      ? null
-                      : () async {
-                          try {
-                            await context.read<TransaksiProvider>().reimburseTransaksi(
-                                  transaksiId: transaksi.transaksiId,
-                                  kuponId: selectedKupon!.kuponId,
-                                  tanggalTransaksi: 
-                                  DateFormat('yyyy-MM-dd').format(selectedTanggal),
-                            );    
-
-                            // Refresh dashboard kupons
-                            final dash = Provider.of<DashboardProvider>(context, listen: false);
-                            await dash.fetchKupons();
-                            await dash.fetchAllKuponsUnfiltered();
-
-                            if (!mounted) return;
-                            // Reset
-                            setState(() {
-                              selectedKupon = null;
-                              selectedPeriod = null;
-                            });
-                            Navigator.of(ctx).pop();
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Reimburse berhasil')),
-                              );
-                            }
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Gagal reimburse: $e')),
-                              );
-                            }
-                          }
-                        },
-                  child: const Text('Reimburse'),
-                ),
-              ],
             );
           },
         );
@@ -531,237 +636,472 @@ class _TransactionPageState extends State<TransactionPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Data Transaksi',
-          style: GoogleFonts.stardosStencil(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.history),
-            tooltip: 'Riwayat Transaksi Terhapus',
-            onPressed: () => _showDeletedTransaksiDialog(context),
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.list_alt), text: 'Data Transaksi'),
-            Tab(icon: Icon(Icons.warning), text: 'Kupon Minus'),
-            Tab(icon: Icon(Icons.account_balance), text: 'Transaksi Hutang'),
-          ],
-        ),
-      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // SUMMARY CARDS - Expenditure per fuel type
-            _buildTransactionSummaryCards(),
-            const SizedBox(height: 12),
-
-            // FILTER & BUTTON SECTION - Single Row
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Filter Satker
-                SizedBox(
-                  width: 180,
-                  child: Consumer2<DashboardProvider, TransaksiProvider>(
-                    builder: (context, dash, tprov, _) {
-                      final satkerList = dash.satkerList;
-                      final current = tprov.filterSatker ?? '';
-                      return DropdownButtonFormField<String>(
-                        initialValue: current.isEmpty ? '' : current,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Satuan Kerja',
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 8,
-                          ),
-                        ),
-                        items: [
-                          const DropdownMenuItem(
-                            value: '',
-                            child: Text('Semua'),
-                          ),
-                          ...satkerList.map(
-                            (s) => DropdownMenuItem(
-                              value: s,
-                              child: Text(s, overflow: TextOverflow.ellipsis),
-                            ),
-                          ),
-                        ],
-                        onChanged: (val) {
-                          final satker = (val == null || val.isEmpty)
-                              ? null
-                              : val;
-                          Provider.of<TransaksiProvider>(
-                            context,
-                            listen: false,
-                          ).setFilterTransaksi(satker: satker);
-                        },
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Filter Range Tanggal
-                SizedBox(
-                  width: 180,
-                  child: GestureDetector(
-                    onTap: () => _selectDateRange(context),
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: "Range Tanggal",
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 8,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _filterTanggalMulai != null &&
-                                      _filterTanggalSelesai != null
-                                  ? '${_filterTanggalMulai!.day}/${_filterTanggalMulai!.month} - ${_filterTanggalSelesai!.day}/${_filterTanggalSelesai!.month}'
-                                  : 'Pilih Tanggal',
-                              style: const TextStyle(fontSize: 12),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (_filterTanggalMulai != null)
-                            GestureDetector(
-                              onTap: _clearDateFilter,
-                              child: const Icon(Icons.clear, size: 16),
-                            ),
-                        ],
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Data Transaksi',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SizedBox(
-                    height: 44,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _showTambahTransaksiDialog(
-                        context,
-                        jenisBbm: 1,
-                        jenisKuponId: 1,
-                        themeColor: Colors.blue,
-                      ),
-                      icon: const Icon(Icons.add, size: 16),
-                      label: const Text('RAN-PX'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Data Transaksi Pengisian BBM Polda Jawa Barat',
+                      style: TextStyle(fontSize: 16, color: Colors.grey),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: SizedBox(
-                    height: 44,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _showTambahTransaksiDialog(
-                        context,
-                        jenisBbm: 1,
-                        jenisKuponId: 2,
-                        themeColor: Colors.green,
-                      ),
-                      icon: const Icon(Icons.add, size: 16),
-                      label: const Text('DUK-PX'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: SizedBox(
-                    height: 44,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _showTambahTransaksiDialog(
-                        context,
-                        jenisBbm: 2,
-                        jenisKuponId: 1,
-                        themeColor: Colors.orange,
-                      ),
-                      icon: const Icon(Icons.add, size: 16),
-                      label: const Text('RAN-DX'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: SizedBox(
-                    height: 44,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _showTambahTransaksiDialog(
-                        context,
-                        jenisBbm: 2,
-                        jenisKuponId: 2,
-                        themeColor: Colors.red,
-                      ),
-                      icon: const Icon(Icons.add, size: 16),
-                      label: const Text('DUK-DX'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
+                IconButton(
+                  icon: const Icon(Icons.history),
+                  tooltip: 'Riwayat Transaksi Terhapus',
+                  onPressed: () => _showDeletedTransaksiDialog(context),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.orange.withOpacity(0.1),
+                    foregroundColor: Colors.orange,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 24),
+            // SUMMARY CARDS - Expenditure per fuel type
+            _buildTransactionSummaryCards(),
+            const SizedBox(height: 16),
+            _buildCustomTabBar(),
             const SizedBox(height: 16),
             Expanded(
               child: TabBarView(
                 controller: _tabController,
+                physics: const NeverScrollableScrollPhysics(),
                 children: [
-                  // TAB 1: DATA TRANSAKSI
-                  _buildTransaksiTable(context),
-                  // TAB 2: KUPON MINUS
-                  _buildKuponMinusTable(context),
-                  // TAB 3: HUTANG
-                  _buildTransaksiHutangTable(context),
+                  _buildTab1Content(context),
+                  _buildTab2Content(context),
+                  _buildTab3Content(context),
                 ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCustomTabBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: TabBar(
+        controller: _tabController,
+        isScrollable: true,
+        tabAlignment: TabAlignment.center,
+        indicator: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        labelColor: Colors.blue,
+        unselectedLabelColor: Colors.grey[600],
+        dividerColor: Colors.transparent,
+        onTap: (index) {
+          setState(() {});
+        },
+        tabs: const [
+          Tab(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 150.0),
+              child: Text('Data Transaksi'),
+            ),
+          ),
+          Tab(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 150.0),
+              child: Text('Kupon Minus'),
+            ),
+          ),
+          Tab(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 150.0),
+              child: Text('Transaksi Hutang'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterAccordion(BuildContext context, {bool showJenis = true}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: ExpansionTile(
+        title: const Text(
+          'Filter',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        collapsedBackgroundColor: const Color(0xFFE0E0E0),
+        backgroundColor: const Color(0xFFF5F5F5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        collapsedShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        initiallyExpanded: _isFilterExpanded,
+        onExpansionChanged: (val) {
+          setState(() {
+            _isFilterExpanded = val;
+          });
+        },
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Consumer2<KuponProvider, TransaksiProvider>(
+                        builder: (context, dash, tprov, _) {
+                          final satkerList = dash.satkerList;
+                          final current = tprov.filterSatker ?? '';
+                          return DropdownButtonFormField<String>(
+                            value: current.isEmpty ? null : current,
+                            decoration: const InputDecoration(
+                              labelText: 'Satuan Kerja',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: [
+                              const DropdownMenuItem(
+                                value: null,
+                                child: Text('Semua'),
+                              ),
+                              ...satkerList.map(
+                                (s) =>
+                                    DropdownMenuItem(value: s, child: Text(s)),
+                              ),
+                            ],
+                            onChanged: (val) {
+                              Provider.of<TransaksiProvider>(
+                                context,
+                                listen: false,
+                              ).setFilterTransaksi(satker: val);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    if (showJenis) ...[
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _filterJenisTransaksi,
+                          decoration: const InputDecoration(
+                            labelText: 'Jenis Transaksi',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: null, child: Text('Semua')),
+                            DropdownMenuItem(
+                              value: 'RANJEN',
+                              child: Text('RANJEN'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'DUKUNGAN',
+                              child: Text('DUKUNGAN'),
+                            ),
+                          ],
+                          onChanged: (val) {
+                            setState(() {
+                              _filterJenisTransaksi = val;
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                    ],
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _filterJenisBbm,
+                        decoration: const InputDecoration(
+                          labelText: 'Jenis BBM',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: null, child: Text('Semua')),
+                          DropdownMenuItem(
+                            value: 'PERTAMAX',
+                            child: Text('PERTAMAX'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'PERTAMINA DEX',
+                            child: Text('PERTAMINA DEX'),
+                          ),
+                        ],
+                        onChanged: (val) {
+                          setState(() {
+                            _filterJenisBbm = val;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _selectDateRange(context),
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: "Range Tanggal",
+                            border: OutlineInputBorder(),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _filterTanggalMulai != null &&
+                                          _filterTanggalSelesai != null
+                                      ? '${_filterTanggalMulai!.day}/${_filterTanggalMulai!.month} - ${_filterTanggalSelesai!.day}/${_filterTanggalSelesai!.month}'
+                                      : 'Pilih Tanggal',
+                                ),
+                              ),
+                              if (_filterTanggalMulai != null)
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _filterTanggalMulai = null;
+                                      _filterTanggalSelesai = null;
+                                    });
+                                    _clearDateFilter();
+                                  },
+                                  child: const Icon(Icons.clear, size: 16),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Consumer<TransaksiProvider>(
+                        builder: (ctx, prov, _) {
+                          return DropdownButtonFormField<int>(
+                            value: prov.filterBulan,
+                            decoration: const InputDecoration(
+                              labelText: 'Bulan Terbit',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: [
+                              const DropdownMenuItem(
+                                value: null,
+                                child: Text('Semua'),
+                              ),
+                              ...List.generate(12, (i) => i + 1).map(
+                                (m) => DropdownMenuItem(
+                                  value: m,
+                                  child: Text(_getBulanName(m)),
+                                ),
+                              ),
+                            ],
+                            onChanged: (val) {
+                              prov.setBulan(val ?? 0);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () {
+                              setState(() {
+                                _filterJenisTransaksi = null;
+                                _filterJenisBbm = null;
+                                _filterTanggalMulai = null;
+                                _filterTanggalSelesai = null;
+                              });
+                              Provider.of<TransaksiProvider>(
+                                context,
+                                listen: false,
+                              ).resetFilter();
+                            },
+                            child: const Text('Reset'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: () {
+                              setState(() {});
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Filter'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: SizedBox(
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: () => _showTambahTransaksiDialog(
+                  context,
+                  jenisBbm: 1,
+                  jenisKuponId: 1,
+                  themeColor: Colors.blue,
+                ),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('RAN-PX'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE53935), // Red
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SizedBox(
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: () => _showTambahTransaksiDialog(
+                  context,
+                  jenisBbm: 1,
+                  jenisKuponId: 2,
+                  themeColor: Colors.green,
+                ),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('DUK-PX'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFDB813), // Yellow/Amber
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SizedBox(
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: () => _showTambahTransaksiDialog(
+                  context,
+                  jenisBbm: 2,
+                  jenisKuponId: 1,
+                  themeColor: Colors.orange,
+                ),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('RAN-DX'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D32), // Green
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SizedBox(
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: () => _showTambahTransaksiDialog(
+                  context,
+                  jenisBbm: 2,
+                  jenisKuponId: 2,
+                  themeColor: Colors.red,
+                ),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('DUK-DX'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1565C0), // Blue
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTab1Content(BuildContext context) {
+    return Column(
+      children: [
+        _buildActionButtons(context),
+        _buildFilterAccordion(context, showJenis: true),
+        Expanded(child: _buildTransaksiTable(context)),
+      ],
+    );
+  }
+
+  Widget _buildTab2Content(BuildContext context) {
+    return Column(children: [Expanded(child: _buildKuponMinusTable(context))]);
+  }
+
+  Widget _buildTab3Content(BuildContext context) {
+    return Column(
+      children: [
+        _buildFilterAccordion(context, showJenis: false),
+        Expanded(child: _buildTransaksiHutangTable(context)),
+      ],
     );
   }
 
@@ -855,16 +1195,13 @@ class _TransactionPageState extends State<TransactionPage>
       elevation: 2,
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border(left: BorderSide(color: color, width: 4)),
-        ),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: color, size: 24),
@@ -910,13 +1247,10 @@ class _TransactionPageState extends State<TransactionPage>
   void _exportTransaksi() async {
     if (!mounted) return;
 
-    final dashboardProvider = Provider.of<DashboardProvider>(
-      context,
-      listen: false,
-    );
+    final kuponProvider = Provider.of<KuponProvider>(context, listen: false);
 
     // Use allKuponsForDropdown from dashboard provider for visual preview
-    if (dashboardProvider.allKuponsForDropdown.isEmpty) {
+    if (kuponProvider.allKuponsForDropdown.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -1020,7 +1354,7 @@ class _TransactionPageState extends State<TransactionPage>
       context,
       MaterialPageRoute(
         builder: (context) => ExportPreviewPage(
-          allKupons: dashboardProvider.allKuponsForDropdown,
+          allKupons: kuponProvider.allKuponsForDropdown,
           jenisBBMMap: _getJenisBbmMap(),
           exportType: choice,
           getNopolByKendaraanId:
@@ -1047,10 +1381,7 @@ class _TransactionPageState extends State<TransactionPage>
     required int jenisKuponId,
     required Color themeColor,
   }) async {
-    final dashboardProvider = Provider.of<DashboardProvider>(
-      context,
-      listen: false,
-    );
+    final kuponProvider = Provider.of<KuponProvider>(context, listen: false);
     final transaksiProvider = Provider.of<TransaksiProvider>(
       context,
       listen: false,
@@ -1167,7 +1498,7 @@ class _TransactionPageState extends State<TransactionPage>
                       ),
                       const SizedBox(height: 12),
                       // Dropdown Periode Kupon - ambil dari bulanTerbitList di dashboard
-                      Consumer<DashboardProvider>(
+                      Consumer<KuponProvider>(
                         builder: (ctx, dashProv, _) {
                           // Convert bulanTerbitList (List<String>) ke List<int> untuk periode
                           final currentPeriodList =
@@ -1179,7 +1510,7 @@ class _TransactionPageState extends State<TransactionPage>
                                     .toList();
 
                           debugPrint(
-                            '🔍 DEBUG Periode Dropdown: Periods from dashboard: $currentPeriodList',
+                            'ðŸ” DEBUG Periode Dropdown: Periods from dashboard: $currentPeriodList',
                           );
 
                           return DropdownButtonFormField<int>(
@@ -1214,7 +1545,7 @@ class _TransactionPageState extends State<TransactionPage>
                       const SizedBox(height: 12),
                       // Autocomplete Nomor Kupon - hanya tampil jika sudah pilih periode
                       if (selectedPeriod != null)
-                        Consumer<DashboardProvider>(
+                        Consumer<KuponProvider>(
                           builder: (ctx, dashProv, _) {
                             // Rebuild kuponList dengan data terbaru dari provider
                             final List<KuponEntity> currentKuponList = dashProv
@@ -1335,8 +1666,7 @@ class _TransactionPageState extends State<TransactionPage>
                       if (!formKey.currentState!.validate()) return;
 
                       // Get fresh kuponList dari provider untuk find kupon yang dipilih
-                      final freshKuponList = dashboardProvider
-                          .allKuponsForDropdown
+                      final freshKuponList = kuponProvider.allKuponsForDropdown
                           .where(
                             (k) =>
                                 k.jenisBbmId == jenisBbm &&
@@ -1425,8 +1755,8 @@ class _TransactionPageState extends State<TransactionPage>
                       try {
                         await transaksiProvider.addTransaksi(transaksiBaru);
                         // Refresh dashboard to update coupon quotas
-                        await dashboardProvider.fetchKupons();
-                        await dashboardProvider.fetchAllKuponsUnfiltered();
+                        await kuponProvider.fetchKupons();
+                        await kuponProvider.fetchAllKuponsUnfiltered();
                         if (ctx.mounted) {
                           Navigator.of(ctx).pop();
                         }
@@ -1507,6 +1837,21 @@ class _TransactionPageState extends State<TransactionPage>
           }).toList();
         }
 
+        // Apply additional local filters
+        if (_filterJenisTransaksi != null &&
+            _filterJenisTransaksi!.isNotEmpty) {
+          filteredList = filteredList.where((t) {
+            final jenisKuponNama = t.jenisKuponId == 1 ? 'RANJEN' : 'DUKUNGAN';
+            return jenisKuponNama == _filterJenisTransaksi;
+          }).toList();
+        }
+        if (_filterJenisBbm != null && _filterJenisBbm!.isNotEmpty) {
+          filteredList = filteredList.where((t) {
+            final jenisBbmNama = _getJenisBbmName(t.jenisBbmId);
+            return jenisBbmNama == _filterJenisBbm;
+          }).toList();
+        }
+
         if (filteredList.isEmpty) {
           return const Center(child: Text('Tidak ada data transaksi.'));
         }
@@ -1529,232 +1874,154 @@ class _TransactionPageState extends State<TransactionPage>
         return Column(
           children: [
             Expanded(
-              child: Card(
-                elevation: 2,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columnSpacing: 24,
-                      headingRowColor: WidgetStateProperty.all(
-                        Colors.blue.shade50,
-                      ),
-                      columns: const [
-                        DataColumn(
-                          label: Text(
-                            'Tanggal',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            'Nomor Kupon',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            'Satuan Kerja',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            'Jenis BBM',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            'Jenis Kupon',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            'Jumlah (L)',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            'Aksi',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                      rows: paginatedList.asMap().entries.map((entry) {
-                        final t = entry.value;
-                        // Get jenis kupon directly from transaksi entity
-                        final jenisKuponNama = t.jenisKuponId == 1
-                            ? 'RANJEN'
-                            : 'DUKUNGAN';
-
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(t.tanggalTransaksi)),
-                            DataCell(Text(t.nomorKupon)),
-                            DataCell(Text(t.namaSatker)),
-                            DataCell(Text(_getJenisBbmName(t.jenisBbmId))),
-                            DataCell(Text(jenisKuponNama)),
-                            DataCell(Text('${t.jumlahLiter.toInt()} L')),
-                            DataCell(
-                              Row(
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.info_outline),
-                                    onPressed: () async {
-                                      final dashboardProvider =
-                                          Provider.of<DashboardProvider>(
-                                            context,
-                                            listen: false,
-                                          );
-                                      final kuponList = dashboardProvider
-                                          .allKuponsForDropdown
-                                          .where((k) => k.kuponId == t.kuponId)
-                                          .toList();
-                                      if (kuponList.isNotEmpty) {
-                                        final kupon = kuponList.first;
-                                        await showDialog(
-                                          context: context,
-                                          builder: (context) => AlertDialog(
-                                            title: const Text('Detail Kupon'),
-                                            content: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  'Nomor: ${kupon.nomorKupon}',
-                                                ),
-                                                Text(
-                                                  'Satker: ${kupon.namaSatker}',
-                                                ),
-                                                Text(
-                                                  'Jenis: ${_jenisKuponMap[kupon.jenisKuponId] ?? "Unknown"}',
-                                                ),
-                                                Text(
-                                                  'BBM: ${_getJenisBbmName(kupon.jenisBbmId)}',
-                                                ),
-                                                Text(
-                                                  'Kuota Awal: ${kupon.kuotaAwal.toInt()} L',
-                                                ),
-                                                Text(
-                                                  'Kuota Sisa: ${kupon.kuotaSisa.toInt()} L',
-                                                ),
-                                                Text('Status: ${kupon.status}'),
-                                                Text(
-                                                  'Periode: ${_getBulanName(kupon.bulanTerbit)} ${kupon.tahunTerbit}',
-                                                ),
-                                                Text(
-                                                  'Berlaku s/d: ${_getExpiredDate(kupon.bulanTerbit, kupon.tahunTerbit)}',
-                                                ),
-                                              ],
-                                            ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () =>
-                                                    Navigator.pop(context),
-                                                child: const Text('Tutup'),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }
-                                    },
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.edit),
-                                    onPressed: () =>
-                                        _showEditTransaksiDialog(context, t),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete),
-                                    onPressed: () async {
-                                      final confirm = await showDialog<bool>(
-                                        context: context,
-                                        builder: (ctx) => AlertDialog(
-                                          title: const Text('Hapus Transaksi'),
-                                          content: const Text(
-                                            'Yakin ingin menghapus transaksi ini?',
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () =>
-                                                  Navigator.of(ctx).pop(false),
-                                              child: const Text('Batal'),
-                                            ),
-                                            ElevatedButton(
-                                              onPressed: () =>
-                                                  Navigator.of(ctx).pop(true),
-                                              child: const Text('Hapus'),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                      if (confirm == true) {
-                                        if (!context.mounted) return;
-                                        final transaksiProvider =
-                                            Provider.of<TransaksiProvider>(
-                                              context,
-                                              listen: false,
-                                            );
-                                        await transaksiProvider.deleteTransaksi(
-                                          t.transaksiId,
-                                        );
-                                        if (!context.mounted) return;
-                                        final dashboardProvider =
-                                            Provider.of<DashboardProvider>(
-                                              context,
-                                              listen: false,
-                                            );
-                                        await dashboardProvider.fetchKupons();
-                                        await dashboardProvider
-                                            .fetchAllKuponsUnfiltered();
-                                      }
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.blue.shade100, width: 1.5),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.vertical,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minWidth: constraints.maxWidth,
+                            ),
+                            child: DataTable(
+                              dividerThickness: 0.5,
+                              columnSpacing: 24,
+                              headingRowColor: WidgetStateProperty.all(
+                                Colors.blue.shade50,
+                              ),
+                              headingTextStyle: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
+                              dataTextStyle: const TextStyle(
+                                color: AppTheme.textPrimary,
+                                fontSize: 13,
+                              ),
+                              columns: const [
+                                DataColumn(label: Text('Tanggal')),
+                                DataColumn(label: Text('Nomor Kupon')),
+                                DataColumn(label: Text('Satuan Kerja')),
+                                DataColumn(label: Text('Jenis BBM')),
+                                DataColumn(label: Text('Jenis Kupon')),
+                                DataColumn(label: Text('Jumlah (L)')),
+                                DataColumn(label: Text('Aksi')),
+                              ],
+                              rows: paginatedList.asMap().entries.map((entry) {
+                                final index = entry.key;
+                                final t = entry.value;
+                                // Get jenis kupon directly from transaksi entity
+                                final jenisKuponNama = t.jenisKuponId == 1
+                                    ? 'RANJEN'
+                                    : 'DUKUNGAN';
+
+                                return DataRow(
+                                  color: WidgetStateProperty.all(
+                                    index % 2 == 0
+                                        ? Colors.white
+                                        : Colors.grey[50]!,
+                                  ),
+                                  cells: [
+                                    DataCell(Text(t.tanggalTransaksi)),
+                                    DataCell(Text(t.nomorKupon)),
+                                    DataCell(Text(t.namaSatker)),
+                                    DataCell(
+                                      Text(_getJenisBbmName(t.jenisBbmId)),
+                                    ),
+                                    DataCell(Text(jenisKuponNama)),
+                                    DataCell(
+                                      Text('${t.jumlahLiter.toInt()} L'),
+                                    ),
+                                    DataCell(
+                                      Row(
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.info_outline,
+                                              color: AppTheme.primaryBlue,
+                                              size: 20,
+                                            ),
+                                            onPressed: () async {
+                                              await _showDetailKuponDialog(context, t);
+                                            },
+                                          ),
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.edit_outlined,
+                                              color: Colors.orange.shade600,
+                                              size: 20,
+                                            ),
+                                            onPressed: () =>
+                                                _showEditTransaksiDialog(
+                                                  context,
+                                                  t,
+                                                ),
+                                          ),
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.delete_outline,
+                                              color: Colors.red.shade600,
+                                              size: 20,
+                                            ),
+                                            onPressed: () async {
+                                              await _showDeleteTransaksiDialog(context, t);
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
             ),
             const SizedBox(height: 12),
             // Total pengeluaran, Export, dan pagination dalam satu baris
+            // Total pengeluaran, pagination, dan Export dalam satu baris
             Row(
               children: [
-                // Total pengeluaran (ringkas)
                 _buildTotalSaldoKupon(),
+                const Spacer(),
+                _buildPaginationControls(context, TableType.transaksi),
                 const SizedBox(width: 12),
-                // Export button - Expanded to fill space
-                Expanded(
-                  child: SizedBox(
-                    height: 44,
-                    child: ElevatedButton.icon(
-                      onPressed: _exportTransaksi,
-                      icon: const Icon(Icons.download, size: 18),
-                      label: const Text('Export'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                      ),
+                ElevatedButton.icon(
+                  onPressed: _exportTransaksi,
+                  icon: const Icon(Icons.download, size: 18),
+                  label: const Text('Export Data'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2B4C8C),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                // Pagination controls - wrap in Flexible to prevent overflow
-                Flexible(child: _buildPaginationControls(context, TableType.transaksi)),
               ],
             ),
           ],
@@ -1765,7 +2032,7 @@ class _TransactionPageState extends State<TransactionPage>
 
   // Widget ringkas untuk total saldo kupon (sejajar dengan pagination)
   Widget _buildTotalSaldoKupon() {
-    return Consumer<DashboardProvider>(
+    return Consumer<KuponProvider>(
       builder: (context, provider, _) {
         final double totalSaldo = provider.totalSaldo;
         final int totalKupon =
@@ -1812,6 +2079,201 @@ class _TransactionPageState extends State<TransactionPage>
     );
   }
 
+  Future<void> _showDetailKuponDialog(BuildContext context, TransaksiModel t) async {
+    final kuponProvider = Provider.of<KuponProvider>(context, listen: false);
+    final kuponList = kuponProvider.allKuponsForDropdown.where((k) => k.kuponId == t.kuponId).toList();
+    if (kuponList.isEmpty) return;
+    final kupon = kuponList.first;
+
+    await showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Detail Kupon #${kupon.nomorKupon}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ),
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    _buildDetailRow('Nomor Kupon', kupon.nomorKupon),
+                    _buildDetailRow('Satker', kupon.namaSatker),
+                    _buildDetailRow('Jenis Kupon', _jenisKuponMap[kupon.jenisKuponId] ?? "Unknown"),
+                    _buildDetailRow('Jenis BBM', _getJenisBbmName(kupon.jenisBbmId)),
+                    const SizedBox(height: 16),
+                    _buildDetailRow('Kuota Kupon', '${kupon.kuotaAwal.toInt()} Liter'),
+                    _buildDetailRow('Sisa Kuota', '${kupon.kuotaSisa.toInt()} Liter'),
+                    const SizedBox(height: 16),
+                    _buildDetailRow('Status Kupon', kupon.status),
+                    _buildDetailRow('Periode Kupon', '${_getBulanName(kupon.bulanTerbit)} ${kupon.tahunTerbit}'),
+                    _buildDetailRow('Berlaku s/d', _getExpiredDate(kupon.bulanTerbit, kupon.tahunTerbit)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black54),
+            ),
+          ),
+          const Text(':', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+          const SizedBox(width: 16),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              style: const TextStyle(color: Colors.black87),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showDeleteTransaksiDialog(BuildContext context, TransaksiModel t) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Container(
+          width: 400,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.priority_high,
+                  color: Colors.red,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Hapus Transaksi',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Apakah Anda yakin ingin menghapus transaksi ini?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(ctx).pop(false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: const BorderSide(color: AppTheme.primaryBlue),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'Batal',
+                        style: TextStyle(
+                          color: AppTheme.primaryBlue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(ctx).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryBlue,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'Ya',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirm == true) {
+      if (!context.mounted) return;
+      final transaksiProvider = Provider.of<TransaksiProvider>(context, listen: false);
+      await transaksiProvider.deleteTransaksi(t.transaksiId);
+      if (!context.mounted) return;
+      final kuponProvider = Provider.of<KuponProvider>(context, listen: false);
+      await kuponProvider.fetchKupons();
+    }
+  }
+
   Future<void> _showEditTransaksiDialog(
     BuildContext context,
     TransaksiModel t,
@@ -1820,10 +2282,7 @@ class _TransactionPageState extends State<TransactionPage>
       context,
       listen: false,
     );
-    final dashboardProvider = Provider.of<DashboardProvider>(
-      context,
-      listen: false,
-    );
+    final kuponProvider = Provider.of<KuponProvider>(context, listen: false);
     final formKey = GlobalKey<FormState>();
     final tanggalController = TextEditingController(text: t.tanggalTransaksi);
     final jumlahController = TextEditingController(
@@ -1832,162 +2291,245 @@ class _TransactionPageState extends State<TransactionPage>
     await showDialog(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Edit Transaksi'),
-          content: Form(
-            key: formKey,
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Container(
+            width: 400,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextFormField(
-                  controller: tanggalController,
-                  decoration: const InputDecoration(
-                    labelText: 'Tanggal',
-                    suffixIcon: Icon(Icons.calendar_today),
+                // Header
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                   ),
-                  validator: (v) =>
-                      v == null || v.isEmpty ? 'Wajib diisi' : null,
-                  readOnly: true,
-                  onTap: () async {
-                    // Cari kupon terkait untuk mendapatkan range tanggal yang valid
-                    final kuponList = dashboardProvider.allKuponsForDropdown
-                        .where((k) => k.kuponId == t.kuponId)
-                        .toList();
-
-                    DateTime firstDate = DateTime(2000);
-                    DateTime lastDate = DateTime(2100);
-
-                    if (kuponList.isNotEmpty) {
-                      final kupon = kuponList.first;
-                      firstDate =
-                          DateTime.tryParse(kupon.tanggalMulai) ??
-                          DateTime(2000);
-                      lastDate =
-                          DateTime.tryParse(kupon.tanggalSampai) ??
-                          DateTime(2100);
-                    }
-
-                    DateTime? pickedDate = await showDatePicker(
-                      context: context,
-                      initialDate:
-                          DateTime.tryParse(tanggalController.text) ??
-                          DateTime.now(),
-                      firstDate: firstDate,
-                      lastDate: lastDate,
-                    );
-                    if (pickedDate != null) {
-                      tanggalController.text = DateFormat(
-                        'yyyy-MM-dd',
-                      ).format(pickedDate);
-                    }
-                  },
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Detail Transaksi',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(ctx),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
                 ),
-                TextFormField(
-                  controller: jumlahController,
-                  decoration: const InputDecoration(labelText: 'Jumlah Liter'),
-                  keyboardType: TextInputType.number,
-                  validator: (v) =>
-                      v == null || v.isEmpty ? 'Wajib diisi' : null,
+                // Content
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Tanggal', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: tanggalController,
+                          decoration: InputDecoration(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.grey.shade400),
+                            ),
+                            suffixIcon: const Icon(Icons.calendar_today, color: Colors.black54),
+                          ),
+                          validator: (v) =>
+                              v == null || v.isEmpty ? 'Wajib diisi' : null,
+                          readOnly: true,
+                          onTap: () async {
+                            // Cari kupon terkait untuk mendapatkan range tanggal yang valid
+                            final kuponList = kuponProvider.allKuponsForDropdown
+                                .where((k) => k.kuponId == t.kuponId)
+                                .toList();
+
+                            DateTime firstDate = DateTime(2000);
+                            DateTime lastDate = DateTime(2100);
+
+                            if (kuponList.isNotEmpty) {
+                              final kupon = kuponList.first;
+                              firstDate =
+                                  DateTime.tryParse(kupon.tanggalMulai) ??
+                                  DateTime(2000);
+                              lastDate =
+                                  DateTime.tryParse(kupon.tanggalSampai) ??
+                                  DateTime(2100);
+                            }
+
+                            DateTime? pickedDate = await showDatePicker(
+                              context: context,
+                              initialDate:
+                                  DateTime.tryParse(tanggalController.text) ??
+                                  DateTime.now(),
+                              firstDate: firstDate,
+                              lastDate: lastDate,
+                            );
+                            if (pickedDate != null) {
+                              tanggalController.text = DateFormat(
+                                'yyyy-MM-dd',
+                              ).format(pickedDate);
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        const Text('Jumlah Liter', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: jumlahController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.grey.shade400),
+                            ),
+                            suffixIcon: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
+                                border: Border.all(color: Colors.grey.shade400),
+                              ),
+                              child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text('Liter', style: TextStyle(color: Colors.black54, fontWeight: FontWeight.w500)),
+                                ]
+                              )
+                            ),
+                            suffixIconConstraints: const BoxConstraints(minHeight: 48),
+                          ),
+                          validator: (v) =>
+                              v == null || v.isEmpty ? 'Wajib diisi' : null,
+                        ),
+                        const SizedBox(height: 32),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            OutlinedButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                                side: const BorderSide(color: AppTheme.primaryBlue),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              child: const Text('Batal', style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.bold)),
+                            ),
+                            const SizedBox(width: 16),
+                            ElevatedButton(
+                              onPressed: () async {
+                                if (formKey.currentState?.validate() ?? false) {
+                                  final newJumlahLiter =
+                                      double.tryParse(jumlahController.text) ?? t.jumlahLiter;
+
+                                  // Cari kupon terkait untuk validasi kuota dan tanggal
+                                  final kuponList = kuponProvider.allKuponsForDropdown
+                                      .where((k) => k.kuponId == t.kuponId)
+                                      .toList();
+
+                                  if (kuponList.isNotEmpty) {
+                                    final kupon = kuponList.first;
+                                    // Validasi tanggal transaksi harus dalam masa berlaku kupon
+                                    if (!_isDateWithinKuponValidity(
+                                      tanggalController.text,
+                                      kupon.tanggalMulai,
+                                      kupon.tanggalSampai,
+                                    )) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Tanggal transaksi harus dalam masa berlaku kupon (${kupon.tanggalMulai} s/d ${kupon.tanggalSampai})',
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                  }
+
+                                  if (kuponList.isNotEmpty) {
+                                    final kupon = kuponList.first;
+
+                                    // Hitung kuota yang tersedia: kuotaSisa saat ini + jumlah liter transaksi lama
+                                    final availableKuota = kupon.kuotaSisa + t.jumlahLiter;
+
+                                    // Cek apakah jumlah baru melebihi kuota yang tersedia
+                                    if (newJumlahLiter > availableKuota) {
+                                      final lanjut = await showDialog<bool>(
+                                        context: context,
+                                        builder: (context) {
+                                          return AlertDialog(
+                                            title: const Text('Konfirmasi'),
+                                            content: Text(
+                                              'Jumlah liter ($newJumlahLiter L) melebihi kuota tersedia (${availableKuota.toInt()} L). Kupon akan menjadi minus. Apakah tetap ingin melanjutkan?',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.of(context).pop(false),
+                                                child: const Text('Batal'),
+                                              ),
+                                              ElevatedButton(
+                                                onPressed: () =>
+                                                    Navigator.of(context).pop(true),
+                                                child: const Text('Lanjutkan'),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                      );
+
+                                      if (lanjut != true) return;
+                                    }
+                                  }
+
+                                  final transaksiEdit = TransaksiModel(
+                                    transaksiId: t.transaksiId,
+                                    kuponId: t.kuponId,
+                                    nomorKupon: t.nomorKupon,
+                                    namaSatker: t.namaSatker,
+                                    jenisBbmId: t.jenisBbmId, // Keep original BBM type
+                                    jenisKuponId: t.jenisKuponId,
+                                    tanggalTransaksi: tanggalController.text,
+                                    jumlahLiter: newJumlahLiter,
+                                    createdAt: t.createdAt,
+                                    updatedAt: DateTime.now().toIso8601String(),
+                                    isDeleted: t.isDeleted,
+                                    status: t.status,
+                                  );
+                                  await transaksiProvider.updateTransaksi(transaksiEdit);
+                                  await kuponProvider.fetchKupons();
+                                  await kuponProvider.fetchAllKuponsUnfiltered();
+                                  if (ctx.mounted) {
+                                    Navigator.of(ctx).pop();
+                                  }
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primaryBlue,
+                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              child: const Text('Simpan', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (formKey.currentState?.validate() ?? false) {
-                  final newJumlahLiter =
-                      double.tryParse(jumlahController.text) ?? t.jumlahLiter;
-
-                  // Cari kupon terkait untuk validasi kuota dan tanggal
-                  final kuponList = dashboardProvider.allKuponsForDropdown
-                      .where((k) => k.kuponId == t.kuponId)
-                      .toList();
-
-                  if (kuponList.isNotEmpty) {
-                    final kupon = kuponList.first;
-                    // Validasi tanggal transaksi harus dalam masa berlaku kupon
-                    if (!_isDateWithinKuponValidity(
-                      tanggalController.text,
-                      kupon.tanggalMulai,
-                      kupon.tanggalSampai,
-                    )) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Tanggal transaksi harus dalam masa berlaku kupon (${kupon.tanggalMulai} s/d ${kupon.tanggalSampai})',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-                  }
-
-                  if (kuponList.isNotEmpty) {
-                    final kupon = kuponList.first;
-
-                    // Hitung kuota yang tersedia: kuotaSisa saat ini + jumlah liter transaksi lama
-                    final availableKuota = kupon.kuotaSisa + t.jumlahLiter;
-
-                    // Cek apakah jumlah baru melebihi kuota yang tersedia
-                    if (newJumlahLiter > availableKuota) {
-                      final lanjut = await showDialog<bool>(
-                        context: context,
-                        builder: (context) {
-                          return AlertDialog(
-                            title: const Text('Konfirmasi'),
-                            content: Text(
-                              'Jumlah liter ($newJumlahLiter L) melebihi kuota tersedia (${availableKuota.toInt()} L). Kupon akan menjadi minus. Apakah tetap ingin melanjutkan?',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(context).pop(false),
-                                child: const Text('Batal'),
-                              ),
-                              ElevatedButton(
-                                onPressed: () =>
-                                    Navigator.of(context).pop(true),
-                                child: const Text('Lanjutkan'),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-
-                      if (lanjut != true) return;
-                    }
-                  }
-
-                  final transaksiEdit = TransaksiModel(
-                    transaksiId: t.transaksiId,
-                    kuponId: t.kuponId,
-                    nomorKupon: t.nomorKupon,
-                    namaSatker: t.namaSatker,
-                    jenisBbmId: t.jenisBbmId, // Keep original BBM type
-                    jenisKuponId: t.jenisKuponId,
-                    tanggalTransaksi: tanggalController.text,
-                    jumlahLiter: newJumlahLiter,
-                    createdAt: t.createdAt,
-                    updatedAt: DateTime.now().toIso8601String(),
-                    isDeleted: t.isDeleted,
-                    status: t.status,
-                  );
-                  await transaksiProvider.updateTransaksi(transaksiEdit);
-                  await dashboardProvider.fetchKupons();
-                  await dashboardProvider.fetchAllKuponsUnfiltered();
-                  if (ctx.mounted) {
-                    Navigator.of(ctx).pop();
-                  }
-                }
-              },
-              child: const Text('Simpan'),
-            ),
-          ],
         );
       },
     );
@@ -2091,7 +2633,7 @@ class _TransactionPageState extends State<TransactionPage>
                                       if (!context.mounted) return;
                                       // Refresh dashboard
                                       final dashProvider =
-                                          Provider.of<DashboardProvider>(
+                                          Provider.of<KuponProvider>(
                                             context,
                                             listen: false,
                                           );
@@ -2207,113 +2749,154 @@ class _TransactionPageState extends State<TransactionPage>
         return Column(
           children: [
             Expanded(
-              child: Card(
-                elevation: 2,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columnSpacing: 24,
-                      headingRowColor: WidgetStateProperty.all(
-                        Colors.red.shade50,
-                      ),
-                      columns: const [
-                        DataColumn(
-                          label: Text(
-                            'Tanggal',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            'Nomor Kupon',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            'Jenis Kupon',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            'Jenis BBM',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            'Satuan Kerja',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            'Kuota Satker',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            'Kuota Sisa',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            'Minus',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                      rows: minus.map((m) {
-                        // Safe parsing untuk jenis_kupon_id
-                        int jenisKuponId = 0;
-                        if (m['jenis_kupon_id'] is int) {
-                          jenisKuponId = m['jenis_kupon_id'];
-                        } else if (m['jenis_kupon_id'] is double) {
-                          jenisKuponId = (m['jenis_kupon_id'] as double)
-                              .toInt();
-                        } else if (m['jenis_kupon_id'] is String) {
-                          jenisKuponId =
-                              int.tryParse(m['jenis_kupon_id'].toString()) ?? 0;
-                        }
-
-                        // Safe parsing untuk jenis_bbm_id
-                        int jenisBbmId = 0;
-                        if (m['jenis_bbm_id'] is int) {
-                          jenisBbmId = m['jenis_bbm_id'];
-                        } else if (m['jenis_bbm_id'] is double) {
-                          jenisBbmId = (m['jenis_bbm_id'] as double).toInt();
-                        } else if (m['jenis_bbm_id'] is String) {
-                          jenisBbmId =
-                              int.tryParse(m['jenis_bbm_id'].toString()) ?? 0;
-                        }
-
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(_formatDate(m['tanggal_transaksi']))),
-                            DataCell(Text(m['nomor_kupon']?.toString() ?? '')),
-                            DataCell(
-                              Text(_jenisKuponMap[jenisKuponId] ?? 'Unknown'),
-                            ),
-                            DataCell(Text(_getJenisBbmName(jenisBbmId))),
-                            DataCell(Text(m['nama_satker']?.toString() ?? '')),
-                            DataCell(Text('${m['kuota_satker'] ?? 0} L')),
-                            DataCell(Text('${m['kuota_sisa'] ?? 0} L')),
-                            DataCell(Text('${m['minus'] ?? 0} L')),
-                          ],
-                        );
-                      }).toList(),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.grey.shade200, width: 1.0),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.vertical,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minWidth: constraints.maxWidth,
+                            ),
+                            child: DataTable(
+                              dividerThickness: 0.5,
+                              columnSpacing: 24,
+                              headingRowColor: WidgetStateProperty.all(
+                                const Color(0xFFFFEAEA),
+                              ),
+                              headingTextStyle: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
+                              dataTextStyle: const TextStyle(
+                                color: AppTheme.textPrimary,
+                                fontSize: 13,
+                              ),
+                              columns: const [
+                                DataColumn(label: Text('Tanggal')),
+                                DataColumn(label: Text('Nomor Kupon')),
+                                DataColumn(label: Text('Jenis Kupon')),
+                                DataColumn(label: Text('Jenis BBM')),
+                                DataColumn(label: Text('Satuan Kerja')),
+                                DataColumn(label: Text('Kuota Satker')),
+                                DataColumn(label: Text('Kuota Sisa')),
+                                DataColumn(label: Text('Minus')),
+                              ],
+                              rows: minus.asMap().entries.map((entry) {
+                                final index = entry.key;
+                                final m = entry.value;
+                                // Safe parsing untuk jenis_kupon_id
+                                int jenisKuponId = 0;
+                                if (m['jenis_kupon_id'] is int) {
+                                  jenisKuponId = m['jenis_kupon_id'];
+                                } else if (m['jenis_kupon_id'] is double) {
+                                  jenisKuponId = (m['jenis_kupon_id'] as double)
+                                      .toInt();
+                                } else if (m['jenis_kupon_id'] is String) {
+                                  jenisKuponId =
+                                      int.tryParse(
+                                        m['jenis_kupon_id'].toString(),
+                                      ) ??
+                                      0;
+                                }
+
+                                // Safe parsing untuk jenis_bbm_id
+                                int jenisBbmId = 0;
+                                if (m['jenis_bbm_id'] is int) {
+                                  jenisBbmId = m['jenis_bbm_id'];
+                                } else if (m['jenis_bbm_id'] is double) {
+                                  jenisBbmId = (m['jenis_bbm_id'] as double)
+                                      .toInt();
+                                } else if (m['jenis_bbm_id'] is String) {
+                                  jenisBbmId =
+                                      int.tryParse(
+                                        m['jenis_bbm_id'].toString(),
+                                      ) ??
+                                      0;
+                                }
+
+                                return DataRow(
+                                  color: WidgetStateProperty.all(
+                                    index % 2 == 0
+                                        ? Colors.white
+                                        : Colors.grey[50]!,
+                                  ),
+                                  cells: [
+                                    DataCell(
+                                      Text(_formatDate(m['tanggal_transaksi'])),
+                                    ),
+                                    DataCell(
+                                      Text(m['nomor_kupon']?.toString() ?? ''),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        _jenisKuponMap[jenisKuponId] ??
+                                            'Unknown',
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(_getJenisBbmName(jenisBbmId)),
+                                    ),
+                                    DataCell(
+                                      Text(m['nama_satker']?.toString() ?? ''),
+                                    ),
+                                    DataCell(
+                                      Text('${m['kuota_satker'] ?? 0} L'),
+                                    ),
+                                    DataCell(Text('${m['kuota_sisa'] ?? 0} L')),
+                                    DataCell(Text('${m['minus'] ?? 0} L')),
+                                  ],
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
             ),
             const SizedBox(height: 8),
-            _buildPaginationControls(context, TableType.kuponMinus),
+            Row(
+              children: [
+                const Spacer(),
+                _buildPaginationControls(context, TableType.kuponMinus),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: _exportTransaksi,
+                  icon: const Icon(Icons.download, size: 18),
+                  label: const Text('Export Data'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2B4C8C),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         );
       },
@@ -2359,7 +2942,7 @@ class _TransactionPageState extends State<TransactionPage>
   //                       ? IconButton(
   //                           icon: const Icon(Icons.currency_exchange),
   //                           onPressed: () => _showReimburseDialog(context, t),
-  //                         ) 
+  //                         )
   //                       : const Icon(Icons.check_circle, color: Colors.green),
   //                 ),
   //               ]);
@@ -2379,9 +2962,7 @@ class _TransactionPageState extends State<TransactionPage>
         _filteredTransaksiHutangCount = hutang.length;
 
         if (hutang.isEmpty) {
-          return const Center(
-            child: Text('Tidak ada transaksi hutang'),
-          );
+          return const Center(child: Text('Tidak ada transaksi hutang'));
         }
 
         // Pagination
@@ -2403,129 +2984,146 @@ class _TransactionPageState extends State<TransactionPage>
         return Column(
           children: [
             Expanded(
-              child: Card(
-                elevation: 2,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columnSpacing: 24,
-                      headingRowColor: WidgetStateProperty.all(
-                        Colors.green.shade50,
-                      ),
-                      columns: const [
-                        DataColumn(
-                          label: Text(
-                            "Tanggal",
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            "Nama Konsumen",
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            "Satker",
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            "Nomor Kendaraan",
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            "Jumlah Liter",
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            "Status",
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        DataColumn(
-                          label: Text(
-                            "Aksi",
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                      rows: transaksiPage.map((t) {
-                        final jenis =
-                            t.jenisTransaksi?.trim().toLowerCase() ?? '';
-                        final belumReimburse = jenis == 'hutang';
-
-                        return DataRow(
-                          cells: [
-                            DataCell(
-                              Text(_formatDate(t.createdAt)),
-                            ),
-                            DataCell(
-                              Text(t.namaKonsumen ?? '-'),
-                            ),
-                            DataCell(
-                              Text(t.satkerText ?? '-'),
-                            ),
-                            DataCell(
-                              Text(t.nomorKendaraanText ?? '-'),
-                            ),
-                            DataCell(
-                              Text('${t.jumlahLiter} L'),
-                            ),
-                            DataCell(
-                              Text(
-                                belumReimburse
-                                    ? 'Belum Reimburse'
-                                    : 'Sudah Reimburse',
-                              ),
-                            ),
-                            DataCell(
-                              belumReimburse
-                                  ? IconButton(
-                                      icon: const Icon(
-                                        Icons.currency_exchange,
-                                      ),
-                                      onPressed: () => _showReimburseDialog(
-                                        context,
-                                        t,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.check_circle,
-                                      color: Colors.green,
-                                    ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.grey.shade200, width: 1.0),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.vertical,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minWidth: constraints.maxWidth,
+                            ),
+                            child: DataTable(
+                              dividerThickness: 0.5,
+                              columnSpacing: 24,
+                              headingRowColor: WidgetStateProperty.all(
+                                const Color(0xFFEAF5EA),
+                              ),
+                              headingTextStyle: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
+                              dataTextStyle: const TextStyle(
+                                color: AppTheme.textPrimary,
+                                fontSize: 13,
+                              ),
+                              columns: const [
+                                DataColumn(label: Text("Tanggal")),
+                                DataColumn(label: Text("Nama Konsumen")),
+                                DataColumn(label: Text("Satker")),
+                                DataColumn(label: Text("Nomor Kendaraan")),
+                                DataColumn(label: Text("Jumlah Liter")),
+                                DataColumn(label: Text("Status")),
+                                DataColumn(label: Text("Aksi")),
+                              ],
+                              rows: transaksiPage.asMap().entries.map((entry) {
+                                final index = entry.key;
+                                final t = entry.value;
+                                final jenis =
+                                    t.jenisTransaksi?.trim().toLowerCase() ??
+                                    '';
+                                final belumReimburse = jenis == 'hutang';
+
+                                return DataRow(
+                                  color: WidgetStateProperty.all(
+                                    index % 2 == 0
+                                        ? Colors.white
+                                        : Colors.grey[50]!,
+                                  ),
+                                  cells: [
+                                    DataCell(Text(_formatDate(t.createdAt))),
+                                    DataCell(Text(t.namaKonsumen ?? '-')),
+                                    DataCell(Text(t.satkerText ?? '-')),
+                                    DataCell(Text(t.nomorKendaraanText ?? '-')),
+                                    DataCell(Text('${t.jumlahLiter} L')),
+                                    DataCell(
+                                      Text(
+                                        belumReimburse
+                                            ? 'Belum Reimburse'
+                                            : 'Sudah Reimburse',
+                                      ),
+                                    ),
+                                    DataCell(
+                                      belumReimburse
+                                          ? IconButton(
+                                              icon: Icon(
+                                                Icons.currency_exchange,
+                                                color: Colors.orange.shade600,
+                                                size: 20,
+                                              ),
+                                              onPressed: () =>
+                                                  _showReimburseDialog(
+                                                    context,
+                                                    t,
+                                                  ),
+                                            )
+                                          : Icon(
+                                              Icons.check_circle,
+                                              color: Colors.green.shade500,
+                                              size: 20,
+                                            ),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
             ),
             const SizedBox(height: 8),
-            _buildPaginationControls(context, TableType.transaksiHutang),
+            Row(
+              children: [
+                const Spacer(),
+                _buildPaginationControls(context, TableType.transaksiHutang),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: _exportTransaksi,
+                  icon: const Icon(Icons.download, size: 18),
+                  label: const Text('Export Data'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2B4C8C),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         );
       },
     );
   }
 
-  Widget _buildPaginationControls(
-    BuildContext context,
-    TableType tableType,
-  ) {
+  Widget _buildPaginationControls(BuildContext context, TableType tableType) {
     return Consumer<TransaksiProvider>(
       builder: (context, provider, _) {
-
         final totalItems = switch (tableType) {
           TableType.transaksi => _filteredTransaksiCount,
           TableType.kuponMinus => _filteredKuponMinusCount,
@@ -2550,10 +3148,7 @@ class _TransactionPageState extends State<TransactionPage>
         return Card(
           elevation: 1,
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 4,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
