@@ -471,6 +471,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   Future<void> reimburseTransaksi({
     required int transaksiId,
     required int kuponId,
+    required String tanggalTransaksi,
   }) async {
     final kupon = await GetIt.I<KuponRepository>().getKuponById(kuponId);
 
@@ -486,6 +487,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
     }
     variables.add(Variable.withInt(kupon.jenisBbmId));
     variables.add(Variable.withInt(kupon.jenisKuponId));
+    variables.add(Variable.withString(tanggalTransaksi));
     variables.add(Variable.withString(DateTime.now().toIso8601String()));
     variables.add(Variable.withInt(transaksiId));
 
@@ -498,6 +500,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         $kendaraanSql
         jenis_bbm_id = ?,
         jenis_kupon_id = ?,
+        tanggal_transaksi = ?,
         jenis_transaksi = 'Reimburse',
         updated_at = ?
       WHERE transaksi_id = ?

@@ -339,7 +339,7 @@ class _TransactionPageState extends State<TransactionPage>
       listen: false,
     );
 
-    // initial fetch done above; dashboardProvider holds current filtered kupon list
+    DateTime selectedTanggal = DateTime.now();
 
     await showDialog<void>(
       context: context,
@@ -372,6 +372,28 @@ class _TransactionPageState extends State<TransactionPage>
                     Text('Satker: ${transaksi.satkerText ?? '-'}'),
                     Text('Nomor Kendaraan: ${transaksi.nomorKendaraanText ?? '-'}'),
                     Text('Jumlah Liter: ${transaksi.jumlahLiter.toInt()} L'),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        'Tanggal Transaksi : ${DateFormat('dd-MM-yyyy').format(selectedTanggal)}',
+                      ),
+                      trailing: const Icon(Icons.calendar_today),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedTanggal,
+                          firstDate: DateTime(2025),
+                          lastDate: DateTime(2100),
+                        );
+
+                        if (picked != null) {
+                          setState(() {
+                            selectedTanggal = picked;
+                          });
+                        }
+                      },
+                    ),
                     const SizedBox(height: 12),
                     // Periode dropdown
                     DropdownButtonFormField<int>(
@@ -467,7 +489,9 @@ class _TransactionPageState extends State<TransactionPage>
                             await context.read<TransaksiProvider>().reimburseTransaksi(
                                   transaksiId: transaksi.transaksiId,
                                   kuponId: selectedKupon!.kuponId,
-                                );
+                                  tanggalTransaksi: 
+                                  DateFormat('yyyy-MM-dd').format(selectedTanggal),
+                            );    
 
                             // Refresh dashboard kupons
                             final dash = Provider.of<DashboardProvider>(context, listen: false);
@@ -2442,7 +2466,7 @@ class _TransactionPageState extends State<TransactionPage>
                         return DataRow(
                           cells: [
                             DataCell(
-                              Text(_formatDate(t.tanggalTransaksi)),
+                              Text(_formatDate(t.createdAt)),
                             ),
                             DataCell(
                               Text(t.namaKonsumen ?? '-'),

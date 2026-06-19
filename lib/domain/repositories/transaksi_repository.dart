@@ -27,5 +27,6 @@ abstract class TransaksiRepository {
   Future<void> reimburseTransaksi({
     required int transaksiId,
     required int kuponId,
+    required String tanggalTransaksi,
   });
 }
