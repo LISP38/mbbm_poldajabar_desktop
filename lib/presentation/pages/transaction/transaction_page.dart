@@ -20,6 +20,12 @@ class TransactionPage extends StatefulWidget {
   State<TransactionPage> createState() => _TransactionPageState();
 }
 
+enum TableType {
+  transaksi,
+  kuponMinus,
+  transaksiHutang,
+}
+
 class _TransactionPageState extends State<TransactionPage>
     with SingleTickerProviderStateMixin {
   // Map jenis kupon untuk tampilan
@@ -36,11 +42,13 @@ class _TransactionPageState extends State<TransactionPage>
   // Pagination
   int _currentPageTransaksi = 1;
   int _currentPageKuponMinus = 1;
+  int _currentPageTransaksiHutang = 1;
   final int _itemsPerPage = 20;
 
   // Track filtered item counts for pagination
   int _filteredTransaksiCount = 0;
   int _filteredKuponMinusCount = 0;
+  int _filteredTransaksiHutangCount = 0;
 
   // Tab Controller
   late TabController _tabController;
@@ -1722,7 +1730,7 @@ class _TransactionPageState extends State<TransactionPage>
                 ),
                 const SizedBox(width: 12),
                 // Pagination controls - wrap in Flexible to prevent overflow
-                Flexible(child: _buildPaginationControls(context, true)),
+                Flexible(child: _buildPaginationControls(context, TableType.transaksi)),
               ],
             ),
           ],
@@ -2281,77 +2289,236 @@ class _TransactionPageState extends State<TransactionPage>
               ),
             ),
             const SizedBox(height: 8),
-            _buildPaginationControls(context, false),
+            _buildPaginationControls(context, TableType.kuponMinus),
           ],
         );
       },
     );
   }
 
+  // Widget _buildTransaksiHutangTable(BuildContext context) {
+  //   return Consumer<TransaksiProvider>(
+  //     builder: (_, provider, __) {
+  //       final hutang = provider.transaksiHutang;
+
+  //       if (hutang.isEmpty) {
+  //         return const Center(child: Text('Tidak ada transaksi hutang'));
+  //       }
+
+  //       return Card(
+  //         child: SingleChildScrollView(
+  //           scrollDirection: Axis.horizontal,
+  //           child: DataTable(
+  //             columns: const [
+  //               DataColumn(label: Text("Tanggal")),
+  //               DataColumn(label: Text("Nama Konsumen")),
+  //               DataColumn(label: Text("Satker")),
+  //               DataColumn(label: Text("Nomor Kendaraan")),
+  //               DataColumn(label: Text("Jumlah Liter")),
+  //               DataColumn(label: Text("Status")),
+  //               DataColumn(label: Text("Aksi")),
+  //             ],
+  //             rows: hutang.map((t) {
+  //               final jenis = t.jenisTransaksi?.trim().toLowerCase() ?? '';
+  //               final belumReimburse = jenis == 'hutang';
+  //               return DataRow(cells: [
+  //                 DataCell(Text(_formatDate(t.tanggalTransaksi))),
+  //                 DataCell(Text(t.namaKonsumen ?? '-')),
+  //                 DataCell(Text(t.satkerText ?? '-')),
+  //                 DataCell(Text(t.nomorKendaraanText ?? '-')),
+  //                 DataCell(Text('${t.jumlahLiter} L')),
+  //                 DataCell(Text(
+  //                   belumReimburse ? 'Belum Reimburse' : 'Sudah Reimburse',
+  //                 )),
+  //                 DataCell(
+  //                   belumReimburse
+  //                       ? IconButton(
+  //                           icon: const Icon(Icons.currency_exchange),
+  //                           onPressed: () => _showReimburseDialog(context, t),
+  //                         ) 
+  //                       : const Icon(Icons.check_circle, color: Colors.green),
+  //                 ),
+  //               ]);
+  //             }).toList(),
+  //           ),
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
+
   Widget _buildTransaksiHutangTable(BuildContext context) {
     return Consumer<TransaksiProvider>(
       builder: (_, provider, __) {
         final hutang = provider.transaksiHutang;
 
+        _filteredTransaksiHutangCount = hutang.length;
+
         if (hutang.isEmpty) {
-          return const Center(child: Text('Tidak ada transaksi hutang'));
+          return const Center(
+            child: Text('Tidak ada transaksi hutang'),
+          );
         }
 
-        return Card(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text("Tanggal")),
-                DataColumn(label: Text("Nama Konsumen")),
-                DataColumn(label: Text("Satker")),
-                DataColumn(label: Text("Nomor Kendaraan")),
-                DataColumn(label: Text("Jumlah Liter")),
-                DataColumn(label: Text("Status")),
-                DataColumn(label: Text("Aksi")),
-              ],
-              rows: hutang.map((t) {
-                final jenis = t.jenisTransaksi?.trim().toLowerCase() ?? '';
-                final belumReimburse = jenis == 'hutang';
-                return DataRow(cells: [
-                  DataCell(Text(_formatDate(t.tanggalTransaksi))),
-                  DataCell(Text(t.namaKonsumen ?? '-')),
-                  DataCell(Text(t.satkerText ?? '-')),
-                  DataCell(Text(t.nomorKendaraanText ?? '-')),
-                  DataCell(Text('${t.jumlahLiter} L')),
-                  DataCell(Text(
-                    belumReimburse ? 'Belum Reimburse' : 'Sudah Reimburse',
-                  )),
-                  DataCell(
-                    belumReimburse
-                        ? IconButton(
-                            icon: const Icon(Icons.currency_exchange),
-                            onPressed: () => _showReimburseDialog(context, t),
-                          ) 
-                        : const Icon(Icons.check_circle, color: Colors.green),
+        // Pagination
+        final totalItems = hutang.length;
+        final totalPages = (totalItems / _itemsPerPage).ceil();
+
+        if (_currentPageTransaksiHutang > totalPages) {
+          _currentPageTransaksiHutang = totalPages;
+        }
+        if (_currentPageTransaksiHutang < 1) {
+          _currentPageTransaksiHutang = 1;
+        }
+
+        final startIndex = (_currentPageTransaksiHutang - 1) * _itemsPerPage;
+        final endIndex = (startIndex + _itemsPerPage).clamp(0, totalItems);
+
+        final transaksiPage = hutang.sublist(startIndex, endIndex);
+
+        return Column(
+          children: [
+            Expanded(
+              child: Card(
+                elevation: 2,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.vertical,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columnSpacing: 24,
+                      headingRowColor: WidgetStateProperty.all(
+                        Colors.green.shade50,
+                      ),
+                      columns: const [
+                        DataColumn(
+                          label: Text(
+                            "Tanggal",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            "Nama Konsumen",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            "Satker",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            "Nomor Kendaraan",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            "Jumlah Liter",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            "Status",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            "Aksi",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                      rows: transaksiPage.map((t) {
+                        final jenis =
+                            t.jenisTransaksi?.trim().toLowerCase() ?? '';
+                        final belumReimburse = jenis == 'hutang';
+
+                        return DataRow(
+                          cells: [
+                            DataCell(
+                              Text(_formatDate(t.tanggalTransaksi)),
+                            ),
+                            DataCell(
+                              Text(t.namaKonsumen ?? '-'),
+                            ),
+                            DataCell(
+                              Text(t.satkerText ?? '-'),
+                            ),
+                            DataCell(
+                              Text(t.nomorKendaraanText ?? '-'),
+                            ),
+                            DataCell(
+                              Text('${t.jumlahLiter} L'),
+                            ),
+                            DataCell(
+                              Text(
+                                belumReimburse
+                                    ? 'Belum Reimburse'
+                                    : 'Sudah Reimburse',
+                              ),
+                            ),
+                            DataCell(
+                              belumReimburse
+                                  ? IconButton(
+                                      icon: const Icon(
+                                        Icons.currency_exchange,
+                                      ),
+                                      onPressed: () => _showReimburseDialog(
+                                        context,
+                                        t,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.check_circle,
+                                      color: Colors.green,
+                                    ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
                   ),
-                ]);
-              }).toList(),
+                ),
+              ),
             ),
-          ),
+            const SizedBox(height: 8),
+            _buildPaginationControls(context, TableType.transaksiHutang),
+          ],
         );
       },
     );
   }
 
-  Widget _buildPaginationControls(BuildContext context, bool isTransaksi) {
+  Widget _buildPaginationControls(
+    BuildContext context,
+    TableType tableType,
+  ) {
     return Consumer<TransaksiProvider>(
       builder: (context, provider, _) {
-        // Use filtered counts from state, not raw provider counts
-        final totalItems = isTransaksi
-            ? _filteredTransaksiCount
-            : _filteredKuponMinusCount;
-        final currentPage = isTransaksi
-            ? _currentPageTransaksi
-            : _currentPageKuponMinus;
+
+        final totalItems = switch (tableType) {
+          TableType.transaksi => _filteredTransaksiCount,
+          TableType.kuponMinus => _filteredKuponMinusCount,
+          TableType.transaksiHutang => _filteredTransaksiHutangCount,
+        };
+
+        final currentPage = switch (tableType) {
+          TableType.transaksi => _currentPageTransaksi,
+          TableType.kuponMinus => _currentPageKuponMinus,
+          TableType.transaksiHutang => _currentPageTransaksiHutang,
+        };
+
         final totalPages = (totalItems / _itemsPerPage).ceil();
 
-        if (totalItems == 0) return const SizedBox.shrink();
+        if (totalItems == 0) {
+          return const SizedBox.shrink();
+        }
 
         final startItem = (currentPage - 1) * _itemsPerPage + 1;
         final endItem = (currentPage * _itemsPerPage).clamp(0, totalItems);
@@ -2359,49 +2526,71 @@ class _TransactionPageState extends State<TransactionPage>
         return Card(
           elevation: 1,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 4,
+            ),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   Text(
                     '$startItem - $endItem dari $totalItems',
                     style: const TextStyle(fontSize: 12),
                   ),
+
                   const SizedBox(width: 12),
+
                   IconButton(
                     icon: const Icon(Icons.first_page),
                     iconSize: 18,
+                    tooltip: 'Pertama',
                     onPressed: currentPage > 1
                         ? () {
                             setState(() {
-                              if (isTransaksi) {
-                                _currentPageTransaksi = 1;
-                              } else {
-                                _currentPageKuponMinus = 1;
+                              switch (tableType) {
+                                case TableType.transaksi:
+                                  _currentPageTransaksi = 1;
+                                  break;
+
+                                case TableType.kuponMinus:
+                                  _currentPageKuponMinus = 1;
+                                  break;
+
+                                case TableType.transaksiHutang:
+                                  _currentPageTransaksiHutang = 1;
+                                  break;
                               }
                             });
                           }
                         : null,
-                    tooltip: 'Pertama',
                   ),
+
                   IconButton(
                     icon: const Icon(Icons.chevron_left),
                     iconSize: 18,
+                    tooltip: 'Sebelumnya',
                     onPressed: currentPage > 1
                         ? () {
                             setState(() {
-                              if (isTransaksi) {
-                                _currentPageTransaksi--;
-                              } else {
-                                _currentPageKuponMinus--;
+                              switch (tableType) {
+                                case TableType.transaksi:
+                                  _currentPageTransaksi--;
+                                  break;
+
+                                case TableType.kuponMinus:
+                                  _currentPageKuponMinus--;
+                                  break;
+
+                                case TableType.transaksiHutang:
+                                  _currentPageTransaksiHutang--;
+                                  break;
                               }
                             });
                           }
                         : null,
-                    tooltip: 'Sebelumnya',
                   ),
+
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -2419,37 +2608,55 @@ class _TransactionPageState extends State<TransactionPage>
                       ),
                     ),
                   ),
+
                   IconButton(
                     icon: const Icon(Icons.chevron_right),
                     iconSize: 18,
+                    tooltip: 'Berikutnya',
                     onPressed: currentPage < totalPages
                         ? () {
                             setState(() {
-                              if (isTransaksi) {
-                                _currentPageTransaksi++;
-                              } else {
-                                _currentPageKuponMinus++;
+                              switch (tableType) {
+                                case TableType.transaksi:
+                                  _currentPageTransaksi++;
+                                  break;
+
+                                case TableType.kuponMinus:
+                                  _currentPageKuponMinus++;
+                                  break;
+
+                                case TableType.transaksiHutang:
+                                  _currentPageTransaksiHutang++;
+                                  break;
                               }
                             });
                           }
                         : null,
-                    tooltip: 'Berikutnya',
                   ),
+
                   IconButton(
                     icon: const Icon(Icons.last_page),
                     iconSize: 18,
+                    tooltip: 'Terakhir',
                     onPressed: currentPage < totalPages
                         ? () {
                             setState(() {
-                              if (isTransaksi) {
-                                _currentPageTransaksi = totalPages;
-                              } else {
-                                _currentPageKuponMinus = totalPages;
+                              switch (tableType) {
+                                case TableType.transaksi:
+                                  _currentPageTransaksi = totalPages;
+                                  break;
+
+                                case TableType.kuponMinus:
+                                  _currentPageKuponMinus = totalPages;
+                                  break;
+
+                                case TableType.transaksiHutang:
+                                  _currentPageTransaksiHutang = totalPages;
+                                  break;
                               }
                             });
                           }
                         : null,
-                    tooltip: 'Terakhir',
                   ),
                 ],
               ),
