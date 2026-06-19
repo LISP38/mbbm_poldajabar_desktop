@@ -209,10 +209,12 @@ class TransaksiProvider extends ChangeNotifier {
   Future<void> reimburseTransaksi({
     required int transaksiId,
     required int kuponId,
+    required String tanggalTransaksi,
   }) async {
     await _transaksiRepository.reimburseTransaksi(
       transaksiId: transaksiId,
       kuponId: kuponId,
+      tanggalTransaksi: tanggalTransaksi,
     );
 
     // Refresh lists in proper order
