@@ -23,4 +23,9 @@ abstract class TransaksiRepository {
   Future<List<String>> getDistinctTahunTerbit();
   Future<List<String>> getDistinctBulanTerbit();
   Future<List<String>> getDistinctJenisBbm();
+  Future<List<TransaksiEntity>> getTransaksiHutang();
+  Future<void> reimburseTransaksi({
+    required int transaksiId,
+    required int kuponId,
+  });
 }

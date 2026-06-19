@@ -6,3 +6,4 @@ windows/flutter/ephemeral/
 .flutter-plugins-dependencies
 UIUXAlokasi/
 reference/
+*.db

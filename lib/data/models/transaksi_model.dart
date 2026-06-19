@@ -1,31 +1,5 @@
 import '../../domain/entities/transaksi_entity.dart';
 
-/// Data model for fuel transactions.
-///
-/// This model represents a single BBM (fuel) transaction in the system,
-/// extending [TransaksiEntity]. Each transaction records fuel usage
-/// from a specific kupon (coupon).
-///
-/// Key fields:
-/// - [kuponId]: The coupon used for this transaction
-/// - [jumlahLiter]: Amount of fuel (in liters) used
-/// - [tanggalTransaksi]: Date when the transaction occurred
-/// - [isDeleted]: Soft delete flag (0 = active, 1 = deleted)
-///
-/// Example usage:
-/// ```dart
-/// final transaksi = TransaksiModel(
-///   transaksiId: 0, // 0 for new transaction
-///   kuponId: 1,
-///   nomorKupon: '001',
-///   namaSatker: 'SATKER A',
-///   jenisBbmId: 1,
-///   jenisKuponId: 1,
-///   tanggalTransaksi: '2025-01-05',
-///   jumlahLiter: 25.0,
-///   createdAt: DateTime.now().toIso8601String(),
-/// );
-/// ```
 class TransaksiModel extends TransaksiEntity {
   const TransaksiModel({
     required super.transaksiId,
@@ -55,8 +29,8 @@ class TransaksiModel extends TransaksiEntity {
       kuponId: (map['kupon_key'] ?? map['kupon_id'] ?? 0) as int,
       nomorKupon: (map['kupon_nomor'] ?? map['nomor_kupon'] ?? '-') as String,
       namaSatker: (map['kupon_satker'] ?? map['nama_satker'] ?? map['satker_text'] ?? '-') as String,
-      jenisBbmId: (map['kupon_jenis_bbm'] ?? map['jenis_bbm_id'] ?? 0) as int,
-      jenisKuponId: (map['kupon_jenis_kupon'] ?? map['jenis_kupon_id'] ?? 0) as int,
+      jenisBbmId: (map['kupon_jenis_bbm'] as int?) ?? (map['jenis_bbm_id'] as int?) ?? 0,
+      jenisKuponId: (map['kupon_jenis_kupon'] as int?) ?? (map['jenis_kupon_id'] as int?) ?? 0,
       tanggalTransaksi: map['tanggal_transaksi'] as String,
       jumlahLiter: (map['jumlah_liter'] as num).toDouble(),
       createdAt: map['created_at'] as String,

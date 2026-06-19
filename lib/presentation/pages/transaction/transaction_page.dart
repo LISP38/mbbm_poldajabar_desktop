@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:kupon_bbm_app/domain/entities/transaksi_entity.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 // import 'package:get_it/get_it.dart';
@@ -19,6 +20,12 @@ class TransactionPage extends StatefulWidget {
   State<TransactionPage> createState() => _TransactionPageState();
 }
 
+enum TableType {
+  transaksi,
+  kuponMinus,
+  transaksiHutang,
+}
+
 class _TransactionPageState extends State<TransactionPage>
     with SingleTickerProviderStateMixin {
   // Map jenis kupon untuk tampilan
@@ -28,14 +35,20 @@ class _TransactionPageState extends State<TransactionPage>
   DateTime? _filterTanggalMulai;
   DateTime? _filterTanggalSelesai;
 
+  String? nomorKupon;
+  int? selectedPeriod;
+  KuponEntity? selectedKupon;
+
   // Pagination
   int _currentPageTransaksi = 1;
   int _currentPageKuponMinus = 1;
+  int _currentPageTransaksiHutang = 1;
   final int _itemsPerPage = 20;
 
   // Track filtered item counts for pagination
   int _filteredTransaksiCount = 0;
   int _filteredKuponMinusCount = 0;
+  int _filteredTransaksiHutangCount = 0;
 
   // Tab Controller
   late TabController _tabController;
@@ -170,7 +183,7 @@ class _TransactionPageState extends State<TransactionPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
 
     // Auto-filter ke hari ini
     final today = DateTime.now();
@@ -191,7 +204,12 @@ class _TransactionPageState extends State<TransactionPage>
       final dash = Provider.of<DashboardProvider>(context, listen: false);
       dash.fetchAllKuponsUnfiltered();
       dash.fetchSatkers();
-    });
+      Provider.of<TransaksiProvider>(context, listen: false).fetchTransaksiHutang();
+      context.read<TransaksiProvider>().fetchTransaksiHutang();
+      selectedPeriod = DateTime.now().month == 12
+        ? 1
+        : DateTime.now().month + 1;
+      });
   }
 
   @override
@@ -268,6 +286,224 @@ class _TransactionPageState extends State<TransactionPage>
     }
   }
 
+  Future<void> _showReimburseDialog(BuildContext context, TransaksiEntity transaksi) async {
+    // Reset selected kupon when opening
+    selectedKupon = null;
+    // Default periode = bulan transaksi + 1 (bulan terbit kupon)
+    int? initialYear;
+    try {
+      final txnDate = DateTime.parse(transaksi.tanggalTransaksi);
+      final txnMonth = txnDate.month;
+      final txnYear = txnDate.year;
+      final nextMonth = txnMonth == 12 ? 1 : txnMonth + 1;
+      final nextYear = txnMonth == 12 ? txnYear + 1 : txnYear;
+      selectedPeriod = nextMonth;
+      initialYear = nextYear;
+      // set provider filters for initial fetch
+      final dashInit = Provider.of<DashboardProvider>(context, listen: false);
+      dashInit.nomorKupon = null;
+      dashInit.jenisBBM = null;
+      dashInit.jenisKupon = null;
+      dashInit.nopol = null;
+      dashInit.jenisRanmor = null;
+      dashInit.bulanTerbit = selectedPeriod;
+      dashInit.tahunTerbit = initialYear;
+      dashInit.satker = transaksi.satkerText;
+      try {
+        await dashInit.fetchKupons(forceRefresh: true);
+      } catch (_) {}
+    } catch (e) {
+      // fallback to next month from now
+      selectedPeriod = (DateTime.now().month % 12) + 1;
+    }
+
+    final bulanNames = {
+      1: 'Januari',
+      2: 'Februari',
+      3: 'Maret',
+      4: 'April',
+      5: 'Mei',
+      6: 'Juni',
+      7: 'Juli',
+      8: 'Agustus',
+      9: 'September',
+      10: 'Oktober',
+      11: 'November',
+      12: 'Desember',
+    };
+
+    final jenisKuponMap = _jenisKuponMap;
+
+    final dashboardProvider = Provider.of<DashboardProvider>(
+      context,
+      listen: false,
+    );
+
+    // initial fetch done above; dashboardProvider holds current filtered kupon list
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            // Use provider's filtered kupon list (fetchKupons populates kuponList)
+            final normalizedSatker = (transaksi.satkerText ?? '').trim().toLowerCase();
+            final kuponOptions = dashboardProvider.kuponList.where((k) {
+              final kSatker = (k.namaSatker ?? '').trim().toLowerCase();
+              final monthMatch = selectedPeriod == null ? true : k.bulanTerbit == selectedPeriod;
+              final satkerMatch = kSatker == normalizedSatker;
+              return satkerMatch && monthMatch && (k.kuotaSisa > 0);
+            }).toList();
+
+            String _formatKupon(KuponEntity k) {
+              final jenisName = jenisKuponMap[k.jenisKuponId] ?? k.jenisKuponId.toString();
+              return '${k.nomorKupon}/${k.bulanTerbit}/${k.tahunTerbit}/${k.namaSatker}/$jenisName (${k.kuotaSisa.toInt()} L)';
+            }
+
+            return AlertDialog(
+              title: const Text('Reimburse'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Nama Konsumen: ${transaksi.namaKonsumen ?? '-'}'),
+                    Text('Satker: ${transaksi.satkerText ?? '-'}'),
+                    Text('Nomor Kendaraan: ${transaksi.nomorKendaraanText ?? '-'}'),
+                    Text('Jumlah Liter: ${transaksi.jumlahLiter.toInt()} L'),
+                    const SizedBox(height: 12),
+                    // Periode dropdown
+                    DropdownButtonFormField<int>(
+                      value: selectedPeriod,
+                      decoration: const InputDecoration(labelText: 'Periode'),
+                      items: List.generate(12, (i) => i + 1).map((m) {
+                        return DropdownMenuItem<int>(
+                          value: m,
+                          child: Text(bulanNames[m] ?? m.toString()),
+                        );
+                      }).toList(),
+                      onChanged: (val) async {
+                        setState(() {
+                          selectedPeriod = val;
+                          selectedKupon = null;
+                        });
+                        final dash = Provider.of<DashboardProvider>(context, listen: false);
+                        if (val != null) {
+                          // compute year relative to transaction date
+                          try {
+                            final txnDate = DateTime.parse(transaksi.tanggalTransaksi);
+                            final txnMonth = txnDate.month;
+                            final txnYear = txnDate.year;
+                            final year = (txnMonth == 12 && val == 1) ? txnYear + 1 : txnYear;
+                            dash.bulanTerbit = val;
+                            dash.tahunTerbit = year;
+                          } catch (_) {
+                            dash.bulanTerbit = val;
+                            dash.tahunTerbit = DateTime.now().year;
+                          }
+                          dash.satker = transaksi.satkerText;
+                          try {
+                            await dash.fetchKupons(forceRefresh: true);
+                          } catch (_) {}
+                          if (mounted) setState(() {});
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    // Kupon autocomplete
+                    if (kuponOptions.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text('Tidak ada kupon tersedia untuk satker/periode ini.'),
+                      )
+                    else
+                      Autocomplete<KuponEntity>(
+                        optionsBuilder: (TextEditingValue txt) {
+                          // show all options if user hasn't typed anything
+                          if (txt.text.isEmpty) return kuponOptions;
+                          final q = txt.text.toLowerCase().trim();
+                          return kuponOptions.where((k) {
+                            return k.nomorKupon.toLowerCase().contains(q) ||
+                                k.namaSatker.toLowerCase().contains(q);
+                          });
+                        },
+                        displayStringForOption: (k) => _formatKupon(k),
+                        onSelected: (k) {
+                          setState(() {
+                            selectedKupon = k;
+                          });
+                        },
+                        fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                          return TextFormField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            decoration: const InputDecoration(
+                              labelText: 'Nomor Kupon',
+                            ),
+                          );
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    // Reset selection
+                    setState(() {
+                      selectedKupon = null;
+                      selectedPeriod = null;
+                    });
+                    Navigator.of(ctx).pop();
+                  },
+                  child: const Text('Batal'),
+                ),
+                ElevatedButton(
+                  onPressed: selectedKupon == null
+                      ? null
+                      : () async {
+                          try {
+                            await context.read<TransaksiProvider>().reimburseTransaksi(
+                                  transaksiId: transaksi.transaksiId,
+                                  kuponId: selectedKupon!.kuponId,
+                                );
+
+                            // Refresh dashboard kupons
+                            final dash = Provider.of<DashboardProvider>(context, listen: false);
+                            await dash.fetchKupons();
+                            await dash.fetchAllKuponsUnfiltered();
+
+                            if (!mounted) return;
+                            // Reset
+                            setState(() {
+                              selectedKupon = null;
+                              selectedPeriod = null;
+                            });
+                            Navigator.of(ctx).pop();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Reimburse berhasil')),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Gagal reimburse: $e')),
+                              );
+                            }
+                          }
+                        },
+                  child: const Text('Reimburse'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -291,6 +527,7 @@ class _TransactionPageState extends State<TransactionPage>
           tabs: const [
             Tab(icon: Icon(Icons.list_alt), text: 'Data Transaksi'),
             Tab(icon: Icon(Icons.warning), text: 'Kupon Minus'),
+            Tab(icon: Icon(Icons.account_balance), text: 'Transaksi Hutang'),
           ],
         ),
       ),
@@ -485,7 +722,6 @@ class _TransactionPageState extends State<TransactionPage>
               ],
             ),
             const SizedBox(height: 16),
-            // TAB VIEW: DATA TRANSAKSI dan KUPON MINUS
             Expanded(
               child: TabBarView(
                 controller: _tabController,
@@ -494,6 +730,8 @@ class _TransactionPageState extends State<TransactionPage>
                   _buildTransaksiTable(context),
                   // TAB 2: KUPON MINUS
                   _buildKuponMinusTable(context),
+                  // TAB 3: HUTANG
+                  _buildTransaksiHutangTable(context),
                 ],
               ),
             ),
@@ -503,7 +741,6 @@ class _TransactionPageState extends State<TransactionPage>
     );
   }
 
-  // Summary cards for transaction expenditure per fuel type
   Widget _buildTransactionSummaryCards() {
     return Consumer<TransaksiProvider>(
       builder: (context, provider, _) {
@@ -1219,8 +1456,13 @@ class _TransactionPageState extends State<TransactionPage>
                           t.updatedAt ?? DateTime.now().toIso8601String(),
                       isDeleted: t.isDeleted,
                       status: t.status,
+                      jenisTransaksi: t.jenisTransaksi,
                     ),
             )
+            .where((t) {
+              final jenis = t.jenisTransaksi?.trim().toLowerCase() ?? '';
+              return jenis != 'hutang';
+            })
             .toList();
 
         // Apply date filter if set
@@ -1488,7 +1730,7 @@ class _TransactionPageState extends State<TransactionPage>
                 ),
                 const SizedBox(width: 12),
                 // Pagination controls - wrap in Flexible to prevent overflow
-                Flexible(child: _buildPaginationControls(context, true)),
+                Flexible(child: _buildPaginationControls(context, TableType.transaksi)),
               ],
             ),
           ],
@@ -2047,26 +2289,236 @@ class _TransactionPageState extends State<TransactionPage>
               ),
             ),
             const SizedBox(height: 8),
-            _buildPaginationControls(context, false),
+            _buildPaginationControls(context, TableType.kuponMinus),
           ],
         );
       },
     );
   }
 
-  Widget _buildPaginationControls(BuildContext context, bool isTransaksi) {
+  // Widget _buildTransaksiHutangTable(BuildContext context) {
+  //   return Consumer<TransaksiProvider>(
+  //     builder: (_, provider, __) {
+  //       final hutang = provider.transaksiHutang;
+
+  //       if (hutang.isEmpty) {
+  //         return const Center(child: Text('Tidak ada transaksi hutang'));
+  //       }
+
+  //       return Card(
+  //         child: SingleChildScrollView(
+  //           scrollDirection: Axis.horizontal,
+  //           child: DataTable(
+  //             columns: const [
+  //               DataColumn(label: Text("Tanggal")),
+  //               DataColumn(label: Text("Nama Konsumen")),
+  //               DataColumn(label: Text("Satker")),
+  //               DataColumn(label: Text("Nomor Kendaraan")),
+  //               DataColumn(label: Text("Jumlah Liter")),
+  //               DataColumn(label: Text("Status")),
+  //               DataColumn(label: Text("Aksi")),
+  //             ],
+  //             rows: hutang.map((t) {
+  //               final jenis = t.jenisTransaksi?.trim().toLowerCase() ?? '';
+  //               final belumReimburse = jenis == 'hutang';
+  //               return DataRow(cells: [
+  //                 DataCell(Text(_formatDate(t.tanggalTransaksi))),
+  //                 DataCell(Text(t.namaKonsumen ?? '-')),
+  //                 DataCell(Text(t.satkerText ?? '-')),
+  //                 DataCell(Text(t.nomorKendaraanText ?? '-')),
+  //                 DataCell(Text('${t.jumlahLiter} L')),
+  //                 DataCell(Text(
+  //                   belumReimburse ? 'Belum Reimburse' : 'Sudah Reimburse',
+  //                 )),
+  //                 DataCell(
+  //                   belumReimburse
+  //                       ? IconButton(
+  //                           icon: const Icon(Icons.currency_exchange),
+  //                           onPressed: () => _showReimburseDialog(context, t),
+  //                         ) 
+  //                       : const Icon(Icons.check_circle, color: Colors.green),
+  //                 ),
+  //               ]);
+  //             }).toList(),
+  //           ),
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
+
+  Widget _buildTransaksiHutangTable(BuildContext context) {
     return Consumer<TransaksiProvider>(
-      builder: (context, provider, _) {
-        // Use filtered counts from state, not raw provider counts
-        final totalItems = isTransaksi
-            ? _filteredTransaksiCount
-            : _filteredKuponMinusCount;
-        final currentPage = isTransaksi
-            ? _currentPageTransaksi
-            : _currentPageKuponMinus;
+      builder: (_, provider, __) {
+        final hutang = provider.transaksiHutang;
+
+        _filteredTransaksiHutangCount = hutang.length;
+
+        if (hutang.isEmpty) {
+          return const Center(
+            child: Text('Tidak ada transaksi hutang'),
+          );
+        }
+
+        // Pagination
+        final totalItems = hutang.length;
         final totalPages = (totalItems / _itemsPerPage).ceil();
 
-        if (totalItems == 0) return const SizedBox.shrink();
+        if (_currentPageTransaksiHutang > totalPages) {
+          _currentPageTransaksiHutang = totalPages;
+        }
+        if (_currentPageTransaksiHutang < 1) {
+          _currentPageTransaksiHutang = 1;
+        }
+
+        final startIndex = (_currentPageTransaksiHutang - 1) * _itemsPerPage;
+        final endIndex = (startIndex + _itemsPerPage).clamp(0, totalItems);
+
+        final transaksiPage = hutang.sublist(startIndex, endIndex);
+
+        return Column(
+          children: [
+            Expanded(
+              child: Card(
+                elevation: 2,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.vertical,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columnSpacing: 24,
+                      headingRowColor: WidgetStateProperty.all(
+                        Colors.green.shade50,
+                      ),
+                      columns: const [
+                        DataColumn(
+                          label: Text(
+                            "Tanggal",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            "Nama Konsumen",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            "Satker",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            "Nomor Kendaraan",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            "Jumlah Liter",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            "Status",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        DataColumn(
+                          label: Text(
+                            "Aksi",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                      rows: transaksiPage.map((t) {
+                        final jenis =
+                            t.jenisTransaksi?.trim().toLowerCase() ?? '';
+                        final belumReimburse = jenis == 'hutang';
+
+                        return DataRow(
+                          cells: [
+                            DataCell(
+                              Text(_formatDate(t.tanggalTransaksi)),
+                            ),
+                            DataCell(
+                              Text(t.namaKonsumen ?? '-'),
+                            ),
+                            DataCell(
+                              Text(t.satkerText ?? '-'),
+                            ),
+                            DataCell(
+                              Text(t.nomorKendaraanText ?? '-'),
+                            ),
+                            DataCell(
+                              Text('${t.jumlahLiter} L'),
+                            ),
+                            DataCell(
+                              Text(
+                                belumReimburse
+                                    ? 'Belum Reimburse'
+                                    : 'Sudah Reimburse',
+                              ),
+                            ),
+                            DataCell(
+                              belumReimburse
+                                  ? IconButton(
+                                      icon: const Icon(
+                                        Icons.currency_exchange,
+                                      ),
+                                      onPressed: () => _showReimburseDialog(
+                                        context,
+                                        t,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.check_circle,
+                                      color: Colors.green,
+                                    ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildPaginationControls(context, TableType.transaksiHutang),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPaginationControls(
+    BuildContext context,
+    TableType tableType,
+  ) {
+    return Consumer<TransaksiProvider>(
+      builder: (context, provider, _) {
+
+        final totalItems = switch (tableType) {
+          TableType.transaksi => _filteredTransaksiCount,
+          TableType.kuponMinus => _filteredKuponMinusCount,
+          TableType.transaksiHutang => _filteredTransaksiHutangCount,
+        };
+
+        final currentPage = switch (tableType) {
+          TableType.transaksi => _currentPageTransaksi,
+          TableType.kuponMinus => _currentPageKuponMinus,
+          TableType.transaksiHutang => _currentPageTransaksiHutang,
+        };
+
+        final totalPages = (totalItems / _itemsPerPage).ceil();
+
+        if (totalItems == 0) {
+          return const SizedBox.shrink();
+        }
 
         final startItem = (currentPage - 1) * _itemsPerPage + 1;
         final endItem = (currentPage * _itemsPerPage).clamp(0, totalItems);
@@ -2074,49 +2526,71 @@ class _TransactionPageState extends State<TransactionPage>
         return Card(
           elevation: 1,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 4,
+            ),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   Text(
                     '$startItem - $endItem dari $totalItems',
                     style: const TextStyle(fontSize: 12),
                   ),
+
                   const SizedBox(width: 12),
+
                   IconButton(
                     icon: const Icon(Icons.first_page),
                     iconSize: 18,
+                    tooltip: 'Pertama',
                     onPressed: currentPage > 1
                         ? () {
                             setState(() {
-                              if (isTransaksi) {
-                                _currentPageTransaksi = 1;
-                              } else {
-                                _currentPageKuponMinus = 1;
+                              switch (tableType) {
+                                case TableType.transaksi:
+                                  _currentPageTransaksi = 1;
+                                  break;
+
+                                case TableType.kuponMinus:
+                                  _currentPageKuponMinus = 1;
+                                  break;
+
+                                case TableType.transaksiHutang:
+                                  _currentPageTransaksiHutang = 1;
+                                  break;
                               }
                             });
                           }
                         : null,
-                    tooltip: 'Pertama',
                   ),
+
                   IconButton(
                     icon: const Icon(Icons.chevron_left),
                     iconSize: 18,
+                    tooltip: 'Sebelumnya',
                     onPressed: currentPage > 1
                         ? () {
                             setState(() {
-                              if (isTransaksi) {
-                                _currentPageTransaksi--;
-                              } else {
-                                _currentPageKuponMinus--;
+                              switch (tableType) {
+                                case TableType.transaksi:
+                                  _currentPageTransaksi--;
+                                  break;
+
+                                case TableType.kuponMinus:
+                                  _currentPageKuponMinus--;
+                                  break;
+
+                                case TableType.transaksiHutang:
+                                  _currentPageTransaksiHutang--;
+                                  break;
                               }
                             });
                           }
                         : null,
-                    tooltip: 'Sebelumnya',
                   ),
+
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -2134,37 +2608,55 @@ class _TransactionPageState extends State<TransactionPage>
                       ),
                     ),
                   ),
+
                   IconButton(
                     icon: const Icon(Icons.chevron_right),
                     iconSize: 18,
+                    tooltip: 'Berikutnya',
                     onPressed: currentPage < totalPages
                         ? () {
                             setState(() {
-                              if (isTransaksi) {
-                                _currentPageTransaksi++;
-                              } else {
-                                _currentPageKuponMinus++;
+                              switch (tableType) {
+                                case TableType.transaksi:
+                                  _currentPageTransaksi++;
+                                  break;
+
+                                case TableType.kuponMinus:
+                                  _currentPageKuponMinus++;
+                                  break;
+
+                                case TableType.transaksiHutang:
+                                  _currentPageTransaksiHutang++;
+                                  break;
                               }
                             });
                           }
                         : null,
-                    tooltip: 'Berikutnya',
                   ),
+
                   IconButton(
                     icon: const Icon(Icons.last_page),
                     iconSize: 18,
+                    tooltip: 'Terakhir',
                     onPressed: currentPage < totalPages
                         ? () {
                             setState(() {
-                              if (isTransaksi) {
-                                _currentPageTransaksi = totalPages;
-                              } else {
-                                _currentPageKuponMinus = totalPages;
+                              switch (tableType) {
+                                case TableType.transaksi:
+                                  _currentPageTransaksi = totalPages;
+                                  break;
+
+                                case TableType.kuponMinus:
+                                  _currentPageKuponMinus = totalPages;
+                                  break;
+
+                                case TableType.transaksiHutang:
+                                  _currentPageTransaksiHutang = totalPages;
+                                  break;
                               }
                             });
                           }
                         : null,
-                    tooltip: 'Terakhir',
                   ),
                 ],
               ),

@@ -224,6 +224,7 @@ class KuponRepositoryImpl implements KuponRepository {
         GROUP BY kupon_key
       ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
       WHERE dk.nomor_kupon = ? AND dk.is_current = 1
+      LIMIT 1
     ''',
       variables: [Variable.withString(nomorKupon)],
     ).getSingleOrNull();
