@@ -4,6 +4,9 @@ import 'package:kupon_bbm_app/core/themes/app_theme.dart';
 import 'package:kupon_bbm_app/domain/entities/kupon_entity.dart';
 import 'package:kupon_bbm_app/presentation/providers/kupon_provider.dart';
 import 'package:kupon_bbm_app/core/di/dependency_injection.dart';
+import 'dart:io';
+import 'package:excel/excel.dart' hide Border;
+import 'package:file_picker/file_picker.dart';
 import 'package:kupon_bbm_app/domain/repositories/kendaraan_repository.dart';
 import 'package:kupon_bbm_app/domain/entities/kendaraan_entity.dart';
 
@@ -204,6 +207,116 @@ class _DataKuponPageState extends State<DataKuponPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _exportData() async {
+    final provider = context.read<KuponProvider>();
+    final allData = _getFilteredData(
+      provider.isRanjenMode ? provider.ranjenKupons : provider.dukunganKupons,
+      provider,
+    );
+
+    if (allData.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tidak ada data untuk diexport')),
+      );
+      return;
+    }
+
+    try {
+      var excel = Excel.createExcel();
+      var sheet = excel['Sheet1'];
+
+      final bool isRanjen = provider.isRanjenMode;
+
+      // Add Headers
+      List<String> headers = [
+        'Nomor',
+        'Nomor Kupon',
+        'Satuan Kerja',
+        'Jenis BBM',
+      ];
+      if (isRanjen) {
+        headers.addAll(['Nomor Polisi', 'Jenis Kendaraan']);
+      }
+      headers.addAll(['Bulan/Tahun', 'Kuota Sisa', 'Status']);
+      sheet.appendRow(headers.map((e) => TextCellValue(e)).toList());
+
+      // Add Rows
+      for (int i = 0; i < allData.length; i++) {
+        final kupon = allData[i];
+
+        String displayNomorKupon = kupon.nomorKupon;
+        if (!displayNomorKupon.contains('/')) {
+          displayNomorKupon =
+              '${kupon.nomorKupon}/${kupon.bulanTerbit}/${kupon.tahunTerbit}/LOGISTIK';
+        }
+
+        String jenisBBM = provider.jenisBbmMap[kupon.jenisBbmId] ?? '';
+        if (jenisBBM.isEmpty) {
+          jenisBBM = kupon.jenisBbmId == 1
+              ? 'PERTAMAX'
+              : (kupon.jenisBbmId == 2 ? 'PERTAMINA DEX' : 'SOLAR');
+        }
+
+        List<dynamic> row = [
+          (i + 1).toString(),
+          displayNomorKupon,
+          kupon.namaSatker,
+          jenisBBM,
+        ];
+
+        if (isRanjen) {
+          String nopol = '-';
+          String jenisK = '-';
+          if (kupon.kendaraanId != null) {
+            final kend = _kendaraanCache[kupon.kendaraanId];
+            if (kend != null) {
+              nopol = '${kend.noPolNomor}-${kend.noPolKode}';
+              jenisK = kend.jenisRanmor;
+            }
+          }
+          row.addAll([nopol, jenisK]);
+        }
+
+        row.addAll([
+          '${kupon.bulanTerbit}/${kupon.tahunTerbit}',
+          '${_formatNumber(kupon.kuotaSisa)} L',
+          kupon.status ?? 'Aktif',
+        ]);
+
+        sheet.appendRow(row.map((e) => TextCellValue(e.toString())).toList());
+      }
+
+      var fileBytes = excel.save();
+      if (fileBytes != null) {
+        String? outputFile = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save Excel File',
+          fileName:
+              'Data_Kupon_${isRanjen ? "Ranjen" : "Dukungan"}_${DateTime.now().millisecondsSinceEpoch}.xlsx',
+          type: FileType.custom,
+          allowedExtensions: ['xlsx'],
+        );
+
+        if (outputFile != null) {
+          File(outputFile)
+            ..createSync(recursive: true)
+            ..writeAsBytesSync(fileBytes);
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Data berhasil diexport ke $outputFile')),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal export data: $e')));
+      }
+    }
   }
 
   void _showDetailModal(BuildContext context, KuponEntity data) {
@@ -1044,9 +1157,7 @@ class _DataKuponPageState extends State<DataKuponPage> {
                               ),
                               const SizedBox(width: 24),
                               ElevatedButton.icon(
-                                onPressed: () {
-                                  // Export Data Action
-                                },
+                                onPressed: _exportData,
                                 icon: const Icon(Icons.download, size: 18),
                                 label: const Text('Export Data'),
                                 style: ElevatedButton.styleFrom(
