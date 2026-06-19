@@ -80,23 +80,40 @@ class SyncServerDatasource {
                });
             } else {
                // Non-Hutang
-               final noPolKode = t['no_pol_kode'];
-               final noPolNomor = t['no_pol_nomor'];
+               final kuponKey = t['kupon_key'];
                
-               // Look up kupon
-               final kendRes = await db.query('kendaraan', where: 'no_pol_kode = ? AND no_pol_nomor = ?', whereArgs: [noPolKode, noPolNomor]);
-               if (kendRes.isNotEmpty) {
-                 final kendaraan = kendRes.first;
-                 batch.insert('transaksi', {
-                   'kendaraan_id': kendaraan['kendaraan_id'],
-                   'jumlah_liter': jumlahLiter,
-                   'tanggal_transaksi': tanggalTransaksi,
-                   'jenis_transaksi': jenisTransaksi,
-                   'nama_petugas': namaPetugas,
-                   'created_by': namaPetugas,
-                 });
+               if (kuponKey != null) {
+                 final kuponResult = await db.rawQuery(
+                   'SELECT satker_id, jenis_bbm_id, jenis_kupon_id, kendaraan_id FROM kupon WHERE kupon_key = ? AND is_current = 1 LIMIT 1',
+                   [kuponKey]
+                 );
+
+                 if (kuponResult.isNotEmpty) {
+                   final row = kuponResult.first;
+                   batch.insert('transaksi', {
+                     'kupon_key': kuponKey,
+                     'jumlah_liter': jumlahLiter,
+                     'tanggal_transaksi': tanggalTransaksi,
+                     'jenis_transaksi': jenisTransaksi,
+                     'nama_petugas': namaPetugas,
+                     'created_by': namaPetugas,
+                     'satker_id': row['satker_id'],
+                     'jenis_bbm_id': row['jenis_bbm_id'],
+                     'jenis_kupon_id': row['jenis_kupon_id'],
+                     'kendaraan_id': row['kendaraan_id'],
+                   });
+                 } else {
+                   batch.insert('transaksi', {
+                     'kupon_key': kuponKey,
+                     'jumlah_liter': jumlahLiter,
+                     'tanggal_transaksi': tanggalTransaksi,
+                     'jenis_transaksi': jenisTransaksi,
+                     'nama_petugas': namaPetugas,
+                     'created_by': namaPetugas,
+                   });
+                 }
                } else {
-                 // Fallback if kupon not found (should rarely happen if synced)
+                 // Fallback if kupon_key not provided
                  batch.insert('transaksi', {
                    'jumlah_liter': jumlahLiter,
                    'tanggal_transaksi': tanggalTransaksi,
