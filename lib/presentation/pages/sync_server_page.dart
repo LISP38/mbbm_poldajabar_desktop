@@ -51,9 +51,9 @@ class _SyncServerPageState extends State<SyncServerPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Sinkronisasi Data',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Mazzard',
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
@@ -62,7 +62,7 @@ class _SyncServerPageState extends State<SyncServerPage> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Mulai server untuk sinkronisasi data dengan aplikasi mobile',
+                'Sinkronisasi Koneksi untuk Transfer Data Kupon dan Data Transaksi Untuk Perangkat Mobile-Desktop BBM Polda Jawa Barat',
                 style: TextStyle(
                   fontFamily: 'Mazzard',
                   fontSize: 16,
@@ -76,116 +76,84 @@ class _SyncServerPageState extends State<SyncServerPage> {
         // Content
         Expanded(
           child: Center(
-            child: Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(48.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (_serverUrl != null) ...[
-                      const Text(
-                        'Server Sinkronisasi Aktif',
-                        style: TextStyle(
-                          fontFamily: 'Mazzard',
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
+            child: Padding(
+              padding: const EdgeInsets.all(48.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (_serverUrl != null) ...[
+                    // QR Code
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Scan QR Code ini menggunakan Aplikasi Mobile',
-                        style: TextStyle(fontFamily: 'Mazzard', fontSize: 16),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // QR Code
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade200, width: 2),
-                        ),
-                        child: QrImageView(
-                          data: _serverUrl!,
-                          version: QrVersions.auto,
-                          size: 250.0,
-                          backgroundColor: Colors.white,
-                        ),
-                      ),
-
-                      const SizedBox(height: 24),
-                      SelectableText(
-                        _serverUrl!,
-                        style: const TextStyle(
-                          fontFamily: 'Mazzard',
-                          fontSize: 18,
-                          color: Colors.blue,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ] else ...[
-                      Icon(
-                        Icons.sync_disabled,
-                        size: 80,
-                        color: Colors.grey.shade400,
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Server Offline',
-                        style: TextStyle(
-                          fontFamily: 'Mazzard',
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-
-                    const SizedBox(height: 48),
-
-                    SizedBox(
-                      width: 240,
-                      height: 56,
-                      child: ElevatedButton.icon(
-                        onPressed: _isLoading ? null : _toggleServer,
-                        icon: _isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Icon(_server.isRunning ? Icons.stop : Icons.play_arrow),
-                        label: Text(
-                          _isLoading
-                              ? 'Memproses...'
-                              : (_server.isRunning ? 'HENTIKAN SERVER' : 'MULAI SERVER'),
-                          style: const TextStyle(
-                            fontFamily: 'Mazzard',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _server.isRunning
-                              ? Colors.red
-                              : const Color(0xFFF28C28), // AppTheme.primaryOrange
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
+                      child: QrImageView(
+                        data: _serverUrl!,
+                        version: QrVersions.auto,
+                        size: 250.0,
+                        backgroundColor: Colors.white,
                       ),
                     ),
+
+                    const SizedBox(height: 16),
+                    SelectableText(
+                      'IP Address: $_serverUrl',
+                      style: const TextStyle(
+                        fontFamily: 'Mazzard',
+                        fontSize: 24,
+                        color: Colors.black87,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ] else ...[
+                    Image.asset(
+                      'assets/images/carbon_connection-signal.png',
+                      width: 150,
+                      height: 150,
+                    ),
                   ],
-                ),
+
+                  const SizedBox(height: 48),
+
+                  SizedBox(
+                    width: 280,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _toggleServer,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _server.isRunning
+                            ? const Color(0xFFDC2626) // Red
+                            : const Color(0xFF2563EB), // Blue
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              _server.isRunning
+                                  ? 'Nonaktifkan Koneksi'
+                                  : 'Aktifkan Koneksi',
+                              style: const TextStyle(
+                                fontFamily: 'Mazzard',
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
