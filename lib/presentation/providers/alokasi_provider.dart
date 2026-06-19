@@ -23,6 +23,7 @@ class AlokasiProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   int _currentYear = DateTime.now().year;
+  int _hariKerjaSelectedTahun = DateTime.now().year;
 
   // RPD data
   List<RpdEntity> _rpdAcuan = [];
@@ -57,6 +58,7 @@ class AlokasiProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   int get currentYear => _currentYear;
+  int get hariKerjaSelectedTahun => _hariKerjaSelectedTahun;
 
   List<RpdEntity> get rpdAcuan => _rpdAcuan;
   double get dipa => _dipa;
@@ -134,7 +136,7 @@ class AlokasiProvider extends ChangeNotifier {
         _repository.getRpdAcuan(_currentYear),
         _repository.getKendaraanKategori(),
         _repository.getIndexNorma(),
-        _repository.getHariKerja(_currentYear),
+        _repository.getHariKerja(_hariKerjaSelectedTahun),
         _repository.getDipa(_currentYear),
       ]);
 
@@ -241,16 +243,109 @@ class AlokasiProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> addKendaraanKategori(KendaraanKategoriEntity entity) async {
+    try {
+      await _repository.addKendaraanKategori(entity);
+      _kategoriList = await _repository.getKendaraanKategori();
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Gagal menambah kategori: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateKendaraanKategori(KendaraanKategoriEntity entity) async {
+    try {
+      await _repository.updateKendaraanKategori(entity);
+      _kategoriList = await _repository.getKendaraanKategori();
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Gagal mengedit kategori: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteKendaraanKategori(int kategoriId) async {
+    try {
+      await _repository.deleteKendaraanKategori(kategoriId);
+      _kategoriList = await _repository.getKendaraanKategori();
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Gagal menghapus kategori: $e';
+      notifyListeners();
+    }
+  }
+
+  // ── Index Norma Operations ────────────────────────────────────────────
+
+  Future<void> addIndexNorma(IndexNormaEntity entity) async {
+    try {
+      await _repository.addIndexNorma(entity);
+      _normaList = await _repository.getIndexNorma();
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Gagal menambah index norma: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateIndexNorma(IndexNormaEntity entity) async {
+    try {
+      await _repository.updateIndexNorma(entity);
+      _normaList = await _repository.getIndexNorma();
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Gagal mengedit index norma: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteIndexNorma(int normaId) async {
+    try {
+      await _repository.deleteIndexNorma(normaId);
+      _normaList = await _repository.getIndexNorma();
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Gagal menghapus index norma: $e';
+      notifyListeners();
+    }
+  }
+
   // ── Hari Kerja Operations ─────────────────────────────────────────────
 
   /// Update hari kerja for a specific month.
   Future<void> updateHariKerja(HariKerjaEntity data) async {
     try {
       await _repository.updateHariKerja(data);
-      _hariKerjaList = await _repository.getHariKerja(_currentYear);
+      _hariKerjaList = await _repository.getHariKerja(_hariKerjaSelectedTahun);
       notifyListeners();
     } catch (e) {
       _errorMessage = 'Gagal update hari kerja: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> changeHariKerjaYear(int tahun) async {
+    _hariKerjaSelectedTahun = tahun;
+    try {
+      _hariKerjaList = await _repository.getHariKerja(_hariKerjaSelectedTahun);
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Gagal load hari kerja: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> generateHariKerjaTahun() async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+      await _repository.generateHariKerja(_hariKerjaSelectedTahun, _hariKerjaOffset);
+      _hariKerjaList = await _repository.getHariKerja(_hariKerjaSelectedTahun);
+    } catch (e) {
+      _errorMessage = 'Gagal generate hari kerja: $e';
+    } finally {
+      _isLoading = false;
       notifyListeners();
     }
   }

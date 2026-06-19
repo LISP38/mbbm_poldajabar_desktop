@@ -26,41 +26,56 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
 
   @override
   Future<List<RpdEntity>> getRpdAcuan(int tahun) async {
-    final results = await (_dao.select(_dao.rpdAcuan)
-          ..where((t) => t.tahun.equals(tahun))
-          ..orderBy([
-            (t) => OrderingTerm(expression: t.bulan, mode: OrderingMode.asc),
-            (t) => OrderingTerm(expression: t.jenisBbm, mode: OrderingMode.asc),
-          ]))
-        .get();
-        
-    return results.map((row) => RpdEntity(
-      rpdId: row.rpdId,
-      tahun: row.tahun,
-      bulan: row.bulan,
-      jenisBbm: row.jenisBbm,
-      kuantitasLiter: row.kuantitasLiter,
-      estimasiHarga: row.estimasiHarga,
-      jumlahHarga: row.jumlahHarga,
-    )).toList();
+    final results =
+        await (_dao.select(_dao.rpdAcuan)
+              ..where((t) => t.tahun.equals(tahun))
+              ..orderBy([
+                (t) =>
+                    OrderingTerm(expression: t.bulan, mode: OrderingMode.asc),
+                (t) => OrderingTerm(
+                  expression: t.jenisBbm,
+                  mode: OrderingMode.asc,
+                ),
+              ]))
+            .get();
+
+    return results
+        .map(
+          (row) => RpdEntity(
+            rpdId: row.rpdId,
+            tahun: row.tahun,
+            bulan: row.bulan,
+            jenisBbm: row.jenisBbm,
+            kuantitasLiter: row.kuantitasLiter,
+            estimasiHarga: row.estimasiHarga,
+            jumlahHarga: row.jumlahHarga,
+          ),
+        )
+        .toList();
   }
 
   @override
   Future<void> saveRpdAcuan(List<RpdEntity> data, int tahun) async {
     await _db.transaction(() async {
-      await (_dao.delete(_dao.rpdAcuan)..where((t) => t.tahun.equals(tahun))).go();
+      await (_dao.delete(
+        _dao.rpdAcuan,
+      )..where((t) => t.tahun.equals(tahun))).go();
 
       await _dao.batch((batch) {
         batch.insertAll(
           _dao.rpdAcuan,
-          data.map((rpd) => RpdAcuanCompanion.insert(
-                tahun: rpd.tahun,
-                bulan: rpd.bulan,
-                jenisBbm: rpd.jenisBbm,
-                kuantitasLiter: rpd.kuantitasLiter,
-                estimasiHarga: rpd.estimasiHarga,
-                jumlahHarga: rpd.jumlahHarga,
-              )).toList(),
+          data
+              .map(
+                (rpd) => RpdAcuanCompanion.insert(
+                  tahun: rpd.tahun,
+                  bulan: rpd.bulan,
+                  jenisBbm: rpd.jenisBbm,
+                  kuantitasLiter: rpd.kuantitasLiter,
+                  estimasiHarga: rpd.estimasiHarga,
+                  jumlahHarga: rpd.jumlahHarga,
+                ),
+              )
+              .toList(),
         );
       });
     });
@@ -278,30 +293,40 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
 
   @override
   Future<List<KendaraanKategoriEntity>> getKendaraanKategori() async {
-    final results = await (_dao.select(_dao.alokasiKendaraanKategori)
-          ..orderBy([
-            (t) => OrderingTerm(expression: t.jenisBbm, mode: OrderingMode.asc),
-            (t) => OrderingTerm(expression: t.namaKategori, mode: OrderingMode.asc),
-          ]))
-        .get();
-        
-    return results.map((row) => KendaraanKategoriEntity(
-      kategoriId: row.kategoriId,
-      namaKategori: row.namaKategori,
-      jenisBbm: row.jenisBbm,
-      isPju: row.isPju == 1,
-      jumlahKendaraan: row.jumlahKendaraan ?? 0,
-    )).toList();
+    final results =
+        await (_dao.select(_dao.alokasiKendaraanKategori)..orderBy([
+              (t) =>
+                  OrderingTerm(expression: t.jenisBbm, mode: OrderingMode.asc),
+              (t) => OrderingTerm(
+                expression: t.namaKategori,
+                mode: OrderingMode.asc,
+              ),
+            ]))
+            .get();
+
+    return results
+        .map(
+          (row) => KendaraanKategoriEntity(
+            kategoriId: row.kategoriId,
+            namaKategori: row.namaKategori,
+            jenisBbm: row.jenisBbm,
+            isPju: row.isPju == 1,
+            jumlahKendaraan: row.jumlahKendaraan ?? 0,
+          ),
+        )
+        .toList();
   }
 
   @override
   Future<void> updateKendaraanKategoriCount(int kategoriId, int jumlah) async {
-    await (_dao.update(_dao.alokasiKendaraanKategori)
-          ..where((t) => t.kategoriId.equals(kategoriId)))
-        .write(AlokasiKendaraanKategoriCompanion(
-      jumlahKendaraan: Value(jumlah),
-      updatedAt: Value(DateTime.now().toIso8601String()),
-    ));
+    await (_dao.update(
+      _dao.alokasiKendaraanKategori,
+    )..where((t) => t.kategoriId.equals(kategoriId))).write(
+      AlokasiKendaraanKategoriCompanion(
+        jumlahKendaraan: Value(jumlah),
+        updatedAt: Value(DateTime.now().toIso8601String()),
+      ),
+    );
   }
 
   @override
@@ -314,10 +339,12 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
 
       for (final pattern in patterns) {
         // Fallback to raw query for the LIKE lookup across kendaraan
-        final result = await _db.customSelect(
-          'SELECT COUNT(*) as cnt FROM kendaraan WHERE LOWER(jenis_ranmor) LIKE ? AND status_aktif = 1',
-          variables: [Variable.withString('%${pattern.toLowerCase()}%')],
-        ).getSingle();
+        final result = await _db
+            .customSelect(
+              'SELECT COUNT(*) as cnt FROM kendaraan WHERE LOWER(jenis_ranmor) LIKE ? AND status_aktif = 1',
+              variables: [Variable.withString('%${pattern.toLowerCase()}%')],
+            )
+            .getSingle();
         count += (result.read<int>('cnt'));
       }
 
@@ -325,6 +352,37 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
         await updateKendaraanKategoriCount(cat.kategoriId, count);
       }
     }
+  }
+
+  @override
+  Future<void> addKendaraanKategori(KendaraanKategoriEntity entity) async {
+    await _dao.insertKategori(
+      AlokasiKendaraanKategoriCompanion.insert(
+        namaKategori: entity.namaKategori,
+        jenisBbm: entity.jenisBbm,
+        isPju: Value(entity.isPju ? 1 : 0),
+        jumlahKendaraan: Value(entity.jumlahKendaraan),
+      ),
+    );
+  }
+
+  @override
+  Future<void> updateKendaraanKategori(KendaraanKategoriEntity entity) async {
+    await _dao.updateKategori(
+      AlokasiKendaraanKategoriCompanion(
+        kategoriId: Value(entity.kategoriId),
+        namaKategori: Value(entity.namaKategori),
+        jenisBbm: Value(entity.jenisBbm),
+        isPju: Value(entity.isPju ? 1 : 0),
+        jumlahKendaraan: Value(entity.jumlahKendaraan),
+        updatedAt: Value(DateTime.now().toIso8601String()),
+      ),
+    );
+  }
+
+  @override
+  Future<void> deleteKendaraanKategori(int kategoriId) async {
+    await _dao.deleteKategori(kategoriId);
   }
 
   List<String> _getCategoryPatterns(String namaKategori) {
@@ -352,18 +410,27 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
 
   @override
   Future<List<IndexNormaEntity>> getIndexNorma() async {
-    final query = _dao.select(_dao.indexNorma).join([
-      innerJoin(
-        _dao.alokasiKendaraanKategori,
-        _dao.alokasiKendaraanKategori.kategoriId.equalsExp(_dao.indexNorma.kategoriId),
-      )
-    ])..orderBy([
-      OrderingTerm(expression: _dao.alokasiKendaraanKategori.jenisBbm, mode: OrderingMode.asc),
-      OrderingTerm(expression: _dao.alokasiKendaraanKategori.namaKategori, mode: OrderingMode.asc),
-    ]);
+    final query =
+        _dao.select(_dao.indexNorma).join([
+          innerJoin(
+            _dao.alokasiKendaraanKategori,
+            _dao.alokasiKendaraanKategori.kategoriId.equalsExp(
+              _dao.indexNorma.kategoriId,
+            ),
+          ),
+        ])..orderBy([
+          OrderingTerm(
+            expression: _dao.alokasiKendaraanKategori.jenisBbm,
+            mode: OrderingMode.asc,
+          ),
+          OrderingTerm(
+            expression: _dao.alokasiKendaraanKategori.namaKategori,
+            mode: OrderingMode.asc,
+          ),
+        ]);
 
     final results = await query.get();
-    
+
     return results.map((row) {
       final norma = row.readTable(_dao.indexNorma);
       final kategori = row.readTable(_dao.alokasiKendaraanKategori);
@@ -376,33 +443,106 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
     }).toList();
   }
 
+  @override
+  Future<void> addIndexNorma(IndexNormaEntity entity) async {
+    await _dao.insertIndexNorma(
+      IndexNormaCompanion.insert(
+        kategoriId: entity.kategoriId,
+        jumlahLiterPerHari: entity.jumlahLiterPerHari,
+      ),
+    );
+  }
+
+  @override
+  Future<void> updateIndexNorma(IndexNormaEntity entity) async {
+    await _dao.updateIndexNorma(
+      IndexNormaCompanion(
+        normaId: Value(entity.normaId),
+        kategoriId: Value(entity.kategoriId),
+        jumlahLiterPerHari: Value(entity.jumlahLiterPerHari),
+      ),
+    );
+  }
+
+  @override
+  Future<void> deleteIndexNorma(int normaId) async {
+    await _dao.deleteIndexNorma(normaId);
+  }
+
   // ── Hari Kerja ────────────────────────────────────────────────────────
 
   @override
   Future<List<HariKerjaEntity>> getHariKerja(int tahun) async {
-    final results = await (_dao.select(_dao.hariKerja)
-          ..where((t) => t.tahun.equals(tahun))
-          ..orderBy([(t) => OrderingTerm(expression: t.bulan, mode: OrderingMode.asc)]))
-        .get();
-        
-    return results.map((row) => HariKerjaEntity(
-      hariKerjaId: row.hariKerjaId,
-      tahun: row.tahun,
-      bulan: row.bulan,
-      hariKalender: row.hariKalender,
-      hariKerja: row.hariKerja,
-    )).toList();
+    final results =
+        await (_dao.select(_dao.hariKerja)
+              ..where((t) => t.tahun.equals(tahun))
+              ..orderBy([
+                (t) =>
+                    OrderingTerm(expression: t.bulan, mode: OrderingMode.asc),
+              ]))
+            .get();
+
+    return results
+        .map(
+          (row) => HariKerjaEntity(
+            hariKerjaId: row.hariKerjaId,
+            tahun: row.tahun,
+            bulan: row.bulan,
+            hariKalender: row.hariKalender,
+            hariKerja: row.hariKerja,
+          ),
+        )
+        .toList();
   }
 
   @override
   Future<void> updateHariKerja(HariKerjaEntity data) async {
-    await (_dao.update(_dao.hariKerja)
-          ..where((t) => t.hariKerjaId.equals(data.hariKerjaId)))
-        .write(HariKerjaCompanion(
-      hariKalender: Value(data.hariKalender),
-      hariKerja: Value(data.hariKerja),
-      updatedAt: Value(DateTime.now().toIso8601String()),
-    ));
+    await (_dao.update(
+      _dao.hariKerja,
+    )..where((t) => t.hariKerjaId.equals(data.hariKerjaId))).write(
+      HariKerjaCompanion(
+        hariKalender: Value(data.hariKalender),
+        hariKerja: Value(data.hariKerja),
+        updatedAt: Value(DateTime.now().toIso8601String()),
+      ),
+    );
+  }
+
+  @override
+  Future<void> generateHariKerja(int tahun, int offset) async {
+    await _db.transaction(() async {
+      await _dao.deleteHariKerjaByTahun(tahun);
+
+      for (int i = 1; i <= 12; i++) {
+        // Find number of days in month
+        final nextMonth = i == 12 ? 1 : i + 1;
+        final nextYear = i == 12 ? tahun + 1 : tahun;
+        final daysInMonth = DateTime(nextYear, nextMonth, 0).day;
+
+        // Calculate weekends
+        int weekends = 0;
+        for (int d = 1; d <= daysInMonth; d++) {
+          final date = DateTime(tahun, i, d);
+          if (date.weekday == DateTime.saturday ||
+              date.weekday == DateTime.sunday) {
+            weekends++;
+          }
+        }
+
+        final hariKalender = daysInMonth;
+        int hariKerja = hariKalender - weekends;
+        if (hariKerja < 0) hariKerja = 0;
+
+        await _dao.insertHariKerja(
+          HariKerjaCompanion.insert(
+            tahun: tahun,
+            bulan: i,
+            hariKalender: hariKalender,
+            hariKerja: hariKerja,
+          ),
+        );
+      }
+    });
   }
 
   // ── Configuration ─────────────────────────────────────────────────────
@@ -419,14 +559,16 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
 
   @override
   Future<void> saveAlokasiConfig(String key, String value) async {
-    await _dao.into(_dao.alokasiConfig).insert(
-      AlokasiConfigCompanion.insert(
-        configKey: key,
-        configValue: value,
-        updatedAt: Value(DateTime.now().toIso8601String()),
-      ),
-      mode: InsertMode.insertOrReplace,
-    );
+    await _dao
+        .into(_dao.alokasiConfig)
+        .insert(
+          AlokasiConfigCompanion.insert(
+            configKey: key,
+            configValue: value,
+            updatedAt: Value(DateTime.now().toIso8601String()),
+          ),
+          mode: InsertMode.insertOrReplace,
+        );
   }
 
   @override

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/utils/currency_formatter.dart';
 import '../../../providers/alokasi_provider.dart';
 
 class FormRekomendasiDialog extends StatefulWidget {
@@ -43,11 +45,18 @@ class _FormRekomendasiDialogState extends State<FormRekomendasiDialog> {
   void initState() {
     super.initState();
     final provider = context.read<AlokasiProvider>();
+
+    final formatter = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: '',
+      decimalDigits: 0,
+    );
+
     _pxController = TextEditingController(
-      text: provider.hargaPertamax.toInt().toString(),
+      text: formatter.format(provider.hargaPertamax.toInt()).trim(),
     );
     _pdxController = TextEditingController(
-      text: provider.hargaDexlite.toInt().toString(),
+      text: formatter.format(provider.hargaDexlite.toInt()).trim(),
     );
     _cadanganPxController = TextEditingController(
       text: provider.cadanganPxPercent.toString(),
@@ -55,9 +64,13 @@ class _FormRekomendasiDialogState extends State<FormRekomendasiDialog> {
     _cadanganPdxController = TextEditingController(
       text: provider.cadanganPdxPercent.toString(),
     );
-    _sisaAnggaranController = TextEditingController(
-      text: provider.dipa > 0 ? '' : '',
-    ); // Ask user to input
+
+    String sisaAnggaranText = '';
+    if (provider.dipa > 0) {
+      sisaAnggaranText = formatter.format(provider.dipa.toInt()).trim();
+    }
+
+    _sisaAnggaranController = TextEditingController(text: sisaAnggaranText);
     _selectedOffset = provider.hariKerjaOffset;
   }
 
@@ -85,6 +98,7 @@ class _FormRekomendasiDialogState extends State<FormRekomendasiDialog> {
               TextFormField(
                 controller: _sisaAnggaranController,
                 keyboardType: TextInputType.number,
+                inputFormatters: [CurrencyInputFormatter()],
                 decoration: const InputDecoration(
                   labelText: 'Sisa Anggaran (Rp)',
                   border: OutlineInputBorder(),
@@ -94,7 +108,7 @@ class _FormRekomendasiDialogState extends State<FormRekomendasiDialog> {
                   if (value == null || value.isEmpty) {
                     return 'Sisa anggaran tidak boleh kosong';
                   }
-                  if (double.tryParse(value) == null) {
+                  if (parseFormattedCurrency(value) <= 0) {
                     return 'Input tidak valid';
                   }
                   return null;
@@ -111,6 +125,7 @@ class _FormRekomendasiDialogState extends State<FormRekomendasiDialog> {
               TextFormField(
                 controller: _pxController,
                 keyboardType: TextInputType.number,
+                inputFormatters: [CurrencyInputFormatter()],
                 decoration: const InputDecoration(
                   labelText: 'Harga Pertamax per Liter (Rp)',
                   border: OutlineInputBorder(),
@@ -127,6 +142,7 @@ class _FormRekomendasiDialogState extends State<FormRekomendasiDialog> {
               TextFormField(
                 controller: _pdxController,
                 keyboardType: TextInputType.number,
+                inputFormatters: [CurrencyInputFormatter()],
                 decoration: const InputDecoration(
                   labelText: 'Harga Pertamina Dex per Liter (Rp)',
                   border: OutlineInputBorder(),
@@ -142,7 +158,9 @@ class _FormRekomendasiDialogState extends State<FormRekomendasiDialog> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _cadanganPxController,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(
                   labelText: 'Persentase Dukungan Pertamax (%)',
                   border: OutlineInputBorder(),
@@ -152,13 +170,18 @@ class _FormRekomendasiDialogState extends State<FormRekomendasiDialog> {
                   if (value == null || value.isEmpty) {
                     return 'Persentase tidak boleh kosong';
                   }
+                  if (double.tryParse(value) == null) {
+                    return 'Format tidak valid';
+                  }
                   return null;
                 },
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _cadanganPdxController,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(
                   labelText: 'Persentase Dukungan Dexlite (%)',
                   border: OutlineInputBorder(),
@@ -167,6 +190,9 @@ class _FormRekomendasiDialogState extends State<FormRekomendasiDialog> {
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Persentase tidak boleh kosong';
+                  }
+                  if (double.tryParse(value) == null) {
+                    return 'Format tidak valid';
                   }
                   return null;
                 },
@@ -225,9 +251,11 @@ class _FormRekomendasiDialogState extends State<FormRekomendasiDialog> {
             if (_formKey.currentState!.validate()) {
               final provider = context.read<AlokasiProvider>();
               await provider.buatRekomendasi(
-                sisaAnggaran: double.parse(_sisaAnggaranController.text),
-                hargaPertamax: double.parse(_pxController.text),
-                hargaDexlite: double.parse(_pdxController.text),
+                sisaAnggaran: parseFormattedCurrency(
+                  _sisaAnggaranController.text,
+                ),
+                hargaPertamax: parseFormattedCurrency(_pxController.text),
+                hargaDexlite: parseFormattedCurrency(_pdxController.text),
                 hariKerjaOffset: _selectedOffset,
                 startBulan: _selectedStartBulan,
                 cadanganPxPercent: double.parse(_cadanganPxController.text),
