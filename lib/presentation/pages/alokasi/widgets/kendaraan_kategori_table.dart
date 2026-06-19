@@ -54,146 +54,150 @@ class KendaraanKategoriTable extends StatelessWidget {
                   padding: EdgeInsets.all(32.0),
                   child: Center(child: Text('Belum ada data kategori kendaraan')),
                 )
-              else
-                SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+              else ...[
+                // Table Header
+                Container(
+                  color: const Color(0xFFF28C28), // AppTheme.primaryOrange
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  child: const Row(
                     children: [
-                      // Table Header
-                      Container(
-                        color: Colors.grey.shade700,
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                        child: const Row(
-                          children: [
-                            Expanded(
-                              flex: 1,
-                              child: Text('No',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13)),
-                            ),
-                            Expanded(
-                              flex: 3,
-                              child: Text('Kategori Kendaraan',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13)),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Text('Jenis BBM',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13)),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Text('Jumlah Kendaraan',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13)),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Text('Aksi',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13)),
-                            ),
-                          ],
-                        ),
+                      Expanded(
+                        flex: 1,
+                        child: Text('No',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13)),
                       ),
-
-                      // Pertamax section
-                      if (pxCategories.isNotEmpty) ...[
-                        Container(
-                          color: Colors.amber.shade50,
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-                          child: Text(
-                            'Pertamax (PX)',
+                      Expanded(
+                        flex: 3,
+                        child: Text('Kategori Kendaraan',
                             style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.amber.shade800,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                        ...pxCategories.asMap().entries.map(
-                              (e) => _buildRow(context, e.key + 1, e.value, provider),
-                            ),
-                      ],
-
-                      // Dexlite section
-                      if (pdxCategories.isNotEmpty) ...[
-                        Container(
-                          color: Colors.green.shade50,
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-                          child: Text(
-                            'Pertamina Dex (PDX)',
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13)),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text('Jenis BBM',
+                            textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green.shade800,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                        ...pdxCategories.asMap().entries.map(
-                              (e) => _buildRow(
-                                  context,
-                                  pxCategories.length + e.key + 1,
-                                  e.value,
-                                  provider),
-                            ),
-                      ],
-
-                      // Total row
-                      Container(
-                        color: Colors.blue.shade50,
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-                        child: Row(
-                          children: [
-                            const Expanded(flex: 1, child: SizedBox()),
-                            const Expanded(
-                              flex: 3,
-                              child: Text(
-                                'Total',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 14),
-                              ),
-                            ),
-                            const Expanded(flex: 2, child: SizedBox()),
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                '${provider.jumlahKendaraan}',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                  color: Colors.blue.shade700,
-                                ),
-                              ),
-                            ),
-                            const Expanded(flex: 2, child: SizedBox()),
-                          ],
-                        ),
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13)),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text('Jumlah Kendaraan',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13)),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text('Aksi',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13)),
                       ),
                     ],
                   ),
                 ),
+
+                // Scrollable Data Rows
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Pertamax section
+                        if (pxCategories.isNotEmpty) ...[
+                          Container(
+                            color: Colors.amber.shade50,
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+                            child: Text(
+                              'Pertamax (PX)',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.amber.shade800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          ...pxCategories.asMap().entries.map(
+                                (e) => _buildRow(context, e.key + 1, e.value, provider),
+                              ),
+                        ],
+
+                        // Dexlite section
+                        if (pdxCategories.isNotEmpty) ...[
+                          Container(
+                            color: Colors.green.shade50,
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+                            child: Text(
+                              'Pertamina Dex (PDX)',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green.shade800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          ...pdxCategories.asMap().entries.map(
+                                (e) => _buildRow(
+                                    context,
+                                    pxCategories.length + e.key + 1,
+                                    e.value,
+                                    provider),
+                              ),
+                        ],
+
+                        // Total row
+                        Container(
+                          color: Colors.blue.shade50,
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                          child: Row(
+                            children: [
+                              const Expanded(flex: 1, child: SizedBox()),
+                              const Expanded(
+                                flex: 3,
+                                child: Text(
+                                  'Total',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
+                              ),
+                              const Expanded(flex: 2, child: SizedBox()),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  '${provider.jumlahKendaraan}',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: Colors.blue.shade700,
+                                  ),
+                                ),
+                              ),
+                              const Expanded(flex: 2, child: SizedBox()),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         );
@@ -209,6 +213,7 @@ class KendaraanKategoriTable extends StatelessWidget {
   ) {
     return Container(
       decoration: BoxDecoration(
+        color: no % 2 == 0 ? const Color(0xFFF9F9F9) : Colors.white,
         border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -347,95 +352,265 @@ class _KategoriFormDialogState extends State<_KategoriFormDialog> {
     super.dispose();
   }
 
+  Widget _buildBbmPill(String jenisBbm) {
+    if (jenisBbm == 'PX') {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF7D0),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: const Text(
+          'Pertamax (PX)',
+          style: TextStyle(
+            color: Color(0xFF964E00),
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
+        ),
+      );
+    } else {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.green.shade50,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          'Pertamina Dex (PDX)',
+          style: TextStyle(
+            color: Colors.green.shade800,
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.category != null;
-    return AlertDialog(
-      title: Text(isEdit ? 'Edit Kategori' : 'Tambah Kategori'),
-      content: SingleChildScrollView(
+    
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      backgroundColor: Colors.white,
+      child: Container(
+        width: 400,
+        padding: EdgeInsets.zero,
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TextField(
-              controller: _namaController,
-              decoration: const InputDecoration(
-                labelText: 'Nama Kategori',
-                border: OutlineInputBorder(),
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      isEdit ? 'Edit ${_namaController.text}' : 'Tambah Kategori',
+                      style: const TextStyle(
+                        fontFamily: 'Mazzard',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.grey, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(8),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: _jenisBbm,
-              decoration: const InputDecoration(
-                labelText: 'Jenis BBM',
-                border: OutlineInputBorder(),
+            Divider(height: 1, color: Colors.grey.shade200),
+            
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isEdit) ...[
+                    _buildBbmPill(_jenisBbm),
+                    const SizedBox(height: 20),
+                  ],
+                  if (!isEdit) ...[
+                    const Text(
+                      'Nama Kategori',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _namaController,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Jenis BBM',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: _jenisBbm,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'PX', child: Text('Pertamax (PX)')),
+                        DropdownMenuItem(value: 'PDX', child: Text('Pertamina Dex (PDX)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setState(() => _jenisBbm = val);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  
+                  const Text(
+                    'Jumlah Kendaraan',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black54,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _jumlahController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Perubahan akan langsung mempengaruhi perhitungan alokasi BBM.',
+                    style: TextStyle(
+                      color: Colors.grey.shade500,
+                      fontSize: 12,
+                    ),
+                  ),
+                  
+                  if (!isEdit) ...[
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Tandai sebagai PJU'),
+                      value: _isPju,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      onChanged: (val) {
+                        if (val != null) setState(() => _isPju = val);
+                      },
+                    ),
+                  ],
+                ],
               ),
-              items: const [
-                DropdownMenuItem(value: 'PX', child: Text('Pertamax (PX)')),
-                DropdownMenuItem(value: 'PDX', child: Text('Pertamina Dex (PDX)')),
-              ],
-              onChanged: (val) {
-                if (val != null) setState(() => _jenisBbm = val);
-              },
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _jumlahController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Jumlah Kendaraan',
-                border: OutlineInputBorder(),
+            
+            Divider(height: 1, color: Colors.grey.shade200),
+            
+            // Actions
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        side: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      child: const Text(
+                        'Batal',
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        final nama = _namaController.text.trim();
+                        final jumlah = int.tryParse(_jumlahController.text) ?? 0;
+                        
+                        if (!isEdit && nama.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Nama kategori tidak boleh kosong')),
+                          );
+                          return;
+                        }
+
+                        final entity = KendaraanKategoriEntity(
+                          kategoriId: widget.category?.kategoriId ?? 0,
+                          namaKategori: isEdit ? widget.category!.namaKategori : nama,
+                          jenisBbm: _jenisBbm,
+                          isPju: _isPju,
+                          jumlahKendaraan: jumlah,
+                        );
+
+                        if (isEdit) {
+                          widget.provider.updateKendaraanKategori(entity);
+                        } else {
+                          widget.provider.addKendaraanKategori(entity);
+                        }
+                        
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF335092), // Solid Blue
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'Simpan',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 8),
-            CheckboxListTile(
-              title: const Text('Tandai sebagai PJU'),
-              value: _isPju,
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              onChanged: (val) {
-                if (val != null) setState(() => _isPju = val);
-              },
             ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Batal'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            final nama = _namaController.text.trim();
-            final jumlah = int.tryParse(_jumlahController.text) ?? 0;
-            
-            if (nama.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Nama kategori tidak boleh kosong')),
-              );
-              return;
-            }
-
-            final entity = KendaraanKategoriEntity(
-              kategoriId: widget.category?.kategoriId ?? 0,
-              namaKategori: nama,
-              jenisBbm: _jenisBbm,
-              isPju: _isPju,
-              jumlahKendaraan: jumlah,
-            );
-
-            if (isEdit) {
-              widget.provider.updateKendaraanKategori(entity);
-            } else {
-              widget.provider.addKendaraanKategori(entity);
-            }
-            
-            Navigator.pop(context);
-          },
-          child: const Text('Simpan'),
-        ),
-      ],
     );
   }
 }

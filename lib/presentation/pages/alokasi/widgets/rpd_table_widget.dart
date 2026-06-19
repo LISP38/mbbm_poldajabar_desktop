@@ -122,7 +122,7 @@ class RpdTableWidget extends StatelessWidget {
                     children: [
                       // Header
                       Container(
-                        color: Colors.grey.shade700,
+                        color: const Color(0xFFF28C28), // primaryOrange
                         child: Row(
                           children: [
                             _headerCell('No', flex: 1),
@@ -134,7 +134,7 @@ class RpdTableWidget extends StatelessWidget {
                             Expanded(
                               flex: 3,
                               child: Container(
-                                color: Colors.grey.shade800,
+                                color: const Color(0xFFE57E1E), // darker orange
                                 child: Row(
                                   children: [
                                     _headerCell('K', flex: 1),
@@ -153,7 +153,7 @@ class RpdTableWidget extends StatelessWidget {
 
                       // Keterangan sub-header
                       Container(
-                        color: Colors.grey.shade600,
+                        color: const Color(0xFFD67318), // darkest orange
                         padding: const EdgeInsets.symmetric(vertical: 2),
                         child: Row(
                           children: [
@@ -194,6 +194,7 @@ class RpdTableWidget extends StatelessWidget {
 
                               return Container(
                                 decoration: BoxDecoration(
+                                  color: idx % 2 == 0 ? Colors.white : const Color(0xFFF9F9F9),
                                   border: Border(
                                     bottom: BorderSide(
                                       color: Colors.grey.shade200,

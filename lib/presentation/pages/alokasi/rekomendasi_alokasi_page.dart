@@ -89,118 +89,142 @@ class _RekomendasiAlokasiPageState extends State<RekomendasiAlokasiPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Rekomendasi Alokasi BBM',
-          style: GoogleFonts.stardosStencil(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+    return Theme(
+      data: Theme.of(context).copyWith(
+        textTheme: GoogleFonts.interTextTheme(Theme.of(context).textTheme),
       ),
-      body: Consumer<AlokasiProvider>(
-        builder: (context, provider, _) {
-          if (provider.isLoading && provider.rpdAcuan.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      child: Scaffold(
+        backgroundColor: Colors.transparent, // Background controlled by MainLayout
+        body: Consumer<AlokasiProvider>(
+          builder: (context, provider, _) {
+            if (provider.isLoading && provider.rpdAcuan.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          return Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                // Summary cards
-                const AlokasiSummaryCards(),
-                const SizedBox(height: 16),
+            return Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Page Header
+                  const Text(
+                    'Rekomendasi Alokasi',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Kelola parameter dan buat rekomendasi alokasi BBM berdasarkan RPD.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
 
-                // Action button row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (provider.hasResults)
-                      OutlinedButton.icon(
-                        onPressed: () => _showHasilRekomendasi(context),
-                        icon: const Icon(Icons.table_chart),
-                        label: const Text('Lihat Hasil Rekomendasi'),
-                        style: OutlinedButton.styleFrom(
+                  // Summary cards
+                  const AlokasiSummaryCards(),
+                  const SizedBox(height: 16),
+
+                  // Action button row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (provider.hasResults)
+                        OutlinedButton.icon(
+                          onPressed: () => _showHasilRekomendasi(context),
+                          icon: const Icon(Icons.table_chart),
+                          label: const Text('Lihat Hasil Rekomendasi'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 14,
+                            ),
+                          ),
+                        ),
+                      if (provider.hasResults) const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: () => _showFormRekomendasi(context),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Buat Rekomendasi Alokasi'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              Theme.of(context).colorScheme.primary,
+                          foregroundColor:
+                              Theme.of(context).colorScheme.onPrimary,
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
+                            horizontal: 24,
                             vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
                       ),
-                    if (provider.hasResults) const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: () => _showFormRekomendasi(context),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Buat Rekomendasi Alokasi'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            Theme.of(context).colorScheme.primary,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onPrimary,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 14,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Tab bar
+                  Container(
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Tab bar
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: TabBar(
-                    controller: _tabController,
-                    labelColor: Theme.of(context).colorScheme.primary,
-                    unselectedLabelColor: Colors.grey.shade600,
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    dividerColor: Colors.transparent,
-                    tabs: const [
-                      Tab(text: 'RPD yang Berlaku'),
-                      Tab(text: 'Data Kendaraan'),
-                      Tab(text: 'Index Norma'),
-                      Tab(text: 'Hari Kerja'),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Tab content
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      RpdTableWidget(
-                        onImportRpd: () async {
-                          await provider.importRpdFromExcel();
-                          if (provider.errorMessage != null) {
-                            _showMessage(provider.errorMessage!,
-                                isError: true);
-                            provider.clearError();
-                          } else {
-                            _showMessage('RPD berhasil diimport');
-                          }
-                        },
+                    child: TabBar(
+                      controller: _tabController,
+                      labelColor: Colors.white,
+                      unselectedLabelColor: Colors.grey.shade600,
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      dividerColor: Colors.transparent,
+                      indicator: BoxDecoration(
+                        color: const Color(0xFFF28C28), // AppTheme.primaryOrange
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      const KendaraanKategoriTable(),
-                      const IndexNormaTable(),
-                      const HariKerjaTable(),
-                    ],
+                      indicatorPadding: const EdgeInsets.all(4),
+                      labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                      tabs: const [
+                        Tab(text: 'RPD yang Berlaku'),
+                        Tab(text: 'Data Kendaraan'),
+                        Tab(text: 'Index Norma'),
+                        Tab(text: 'Hari Kerja'),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          );
-        },
+                  const SizedBox(height: 8),
+
+                  // Tab content
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        RpdTableWidget(
+                          onImportRpd: () async {
+                            await provider.importRpdFromExcel();
+                            if (provider.errorMessage != null) {
+                              _showMessage(provider.errorMessage!,
+                                  isError: true);
+                              provider.clearError();
+                            } else {
+                              _showMessage('RPD berhasil diimport');
+                            }
+                          },
+                        ),
+                        const KendaraanKategoriTable(),
+                        const IndexNormaTable(),
+                        const HariKerjaTable(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

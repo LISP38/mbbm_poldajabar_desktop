@@ -18,10 +18,10 @@ class AlokasiSummaryCards extends StatelessWidget {
         );
         final now = DateTime.now();
         final namaBulan = _getBulanName(now.month);
+        final currentYearStr = provider.currentYear.toString();
 
         return Column(
           children: [
-            // Row 1: Basic info cards
             Row(
               children: [
                 Expanded(
@@ -30,44 +30,40 @@ class AlokasiSummaryCards extends StatelessWidget {
                     value: '${provider.jumlahKendaraan}',
                     subtitle: 'Unit',
                     icon: Icons.directions_car,
-                    iconColor: Colors.red.shade400,
+                    iconColor: Colors.red.shade600,
                     iconBgColor: Colors.red.shade50,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 16),
                 Expanded(
                   child: _SummaryCard(
-                    title: 'Harga BBM Terakhir (Pertamax)',
+                    title: 'Harga BBM (Pertamax)',
                     value: provider.hargaPertamax > 0
                         ? currencyFormat.format(provider.hargaPertamax)
                         : '-',
-                    subtitle: provider.hargaPertamax > 0
-                        ? '${now.day} $namaBulan ${now.year}'
-                        : 'Belum diset',
+                    subtitle: '${now.day} $namaBulan ${now.year}',
                     icon: Icons.local_gas_station,
                     iconColor: Colors.amber.shade700,
                     iconBgColor: Colors.amber.shade50,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 16),
                 Expanded(
                   child: _SummaryCard(
-                    title: 'Harga BBM Terakhir (Pertamina Dex)',
+                    title: 'Harga BBM (Pertamina Dex)',
                     value: provider.hargaDexlite > 0
                         ? currencyFormat.format(provider.hargaDexlite)
                         : '-',
-                    subtitle: provider.hargaDexlite > 0
-                        ? '${now.day} $namaBulan ${now.year}'
-                        : 'Belum diset',
+                    subtitle: '${now.day} $namaBulan ${now.year}',
                     icon: Icons.local_gas_station,
                     iconColor: Colors.green.shade600,
                     iconBgColor: Colors.green.shade50,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 16),
                 Expanded(
                   child: _SummaryCard(
-                    title: 'Hari Kerja',
+                    title: 'Hari Kerja Bulan Ini',
                     value: '${provider.hariKerjaBulanIni}',
                     subtitle: '$namaBulan ${now.year}',
                     icon: Icons.calendar_today,
@@ -77,51 +73,49 @@ class AlokasiSummaryCards extends StatelessWidget {
                 ),
               ],
             ),
-
-            // Row 2: Budget info cards (shown when RPD is loaded)
-            if (provider.rpdAcuan.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _SummaryCard(
-                      title: 'Hari Kerja Sisa',
-                      value: '${provider.totalHariKerjaSisa}',
-                      subtitle: '${provider.currentYear}',
-                      icon: Icons.schedule,
-                      iconColor: Colors.teal.shade600,
-                      iconBgColor: Colors.teal.shade50,
-                    ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _SummaryCard(
+                    title: 'Hari Kerja Sisa',
+                    value: '${provider.totalHariKerjaSisa}',
+                    subtitle: currentYearStr,
+                    icon: Icons.calendar_today,
+                    iconColor: Colors.teal.shade600,
+                    iconBgColor: Colors.teal.shade50,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _SummaryCard(
-                      title: 'Anggaran Sisa',
-                      value: provider.sisaAnggaran > 0
-                          ? _formatCurrencyShort(provider.sisaAnggaran)
-                          : '-',
-                      subtitle: '${provider.currentYear}',
-                      icon: Icons.account_balance_wallet,
-                      iconColor: Colors.orange.shade600,
-                      iconBgColor: Colors.orange.shade50,
-                    ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _SummaryCard(
+                    title: 'Anggaran Sisa',
+                    value: provider.sisaAnggaran > 0
+                        ? _formatCurrencyShort(provider.sisaAnggaran)
+                        : '-',
+                    subtitle: currentYearStr,
+                    icon: Icons.account_balance_wallet,
+                    iconColor: Colors.orange.shade600,
+                    iconBgColor: Colors.orange.shade50,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _SummaryCard(
-                      title: 'Total Anggaran (DIPA)',
-                      value: provider.dipa > 0
-                          ? _formatCurrencyShort(provider.dipa)
-                          : '-',
-                      subtitle: '${provider.currentYear}',
-                      icon: Icons.monetization_on,
-                      iconColor: Colors.purple.shade600,
-                      iconBgColor: Colors.purple.shade50,
-                    ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _SummaryCard(
+                    title: 'Total Anggaran (DIPA)',
+                    value: provider.dipa > 0
+                        ? _formatCurrencyShort(provider.dipa)
+                        : '-',
+                    subtitle: currentYearStr,
+                    icon: Icons.account_balance_wallet,
+                    iconColor: Colors.purple.shade600,
+                    iconBgColor: Colors.purple.shade50,
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(width: 16),
+                const Expanded(child: SizedBox()), // Placeholder to align exactly like the top row
+              ],
+            ),
           ],
         );
       },
@@ -130,11 +124,11 @@ class AlokasiSummaryCards extends StatelessWidget {
 
   String _formatCurrencyShort(double value) {
     if (value >= 1e12) {
-      return 'Rp${(value / 1e12).toStringAsFixed(1)}T';
+      return 'Rp${(value / 1e12).toStringAsFixed(1).replaceAll('.', ',')}T';
     } else if (value >= 1e9) {
-      return 'Rp${(value / 1e9).toStringAsFixed(1)}M';
+      return 'Rp${(value / 1e9).toStringAsFixed(1).replaceAll('.', ',')}M';
     } else if (value >= 1e6) {
-      return 'Rp${(value / 1e6).toStringAsFixed(1)}Jt';
+      return 'Rp${(value / 1e6).toStringAsFixed(1).replaceAll('.', ',')}Jt';
     } else {
       return NumberFormat.currency(
         locale: 'id_ID',
@@ -173,21 +167,19 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: iconBgColor,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: iconColor, size: 24),
+              child: Icon(icon, color: iconColor, size: 28),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,7 +187,7 @@ class _SummaryCard extends StatelessWidget {
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       color: Colors.grey.shade600,
                       fontWeight: FontWeight.w500,
                     ),
@@ -204,16 +196,16 @@ class _SummaryCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     value,
-                    style: TextStyle(
-                      fontSize: 18,
+                    style: const TextStyle(
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: iconColor,
+                      color: Color(0xFF333333),
                     ),
                   ),
                   Text(
                     subtitle,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       color: Colors.grey.shade500,
                     ),
                   ),
