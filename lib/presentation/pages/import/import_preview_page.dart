@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../data/models/kupon_model.dart';
 import '../../../data/models/kendaraan_model.dart';
 import '../../../data/datasources/excel_datasource.dart';
+import 'dart:math';
 
 class ImportPreviewItem {
   final KuponModel kupon;
@@ -17,7 +18,7 @@ class ImportPreviewItem {
   });
 }
 
-class ImportPreviewPage extends StatelessWidget {
+class ImportPreviewPage extends StatefulWidget {
   final ExcelParseResult parseResult;
   final String fileName;
   final VoidCallback onConfirmImport;
@@ -31,26 +32,30 @@ class ImportPreviewPage extends StatelessWidget {
     required this.onCancel,
   });
 
+  @override
+  State<ImportPreviewPage> createState() => _ImportPreviewPageState();
+}
+
+class _ImportPreviewPageState extends State<ImportPreviewPage> {
+  int _validationCurrentPage = 0;
+  int? _validationItemsPerPage = 10;
+
   List<ImportPreviewItem> _buildPreviewItems() {
     final items = <ImportPreviewItem>[];
 
     // Add new items
-    for (int i = 0; i < parseResult.kupons.length; i++) {
-      final kupon = parseResult.kupons[i];
+    for (int i = 0; i < widget.parseResult.kupons.length; i++) {
+      final kupon = widget.parseResult.kupons[i];
 
-      // PERBAIKAN: Cari kendaraan berdasarkan kendaraanId, bukan satkerId
-      // Karena satu satker bisa punya banyak kendaraan dengan nomor polisi berbeda
       KendaraanModel? kendaraan;
       if (kupon.jenisKuponId == 1 && kupon.kendaraanId != null) {
-        // Kupon RANJEN - cari kendaraan yang sesuai berdasarkan kendaraanId
-        for (final k in parseResult.newKendaraans) {
+        for (final k in widget.parseResult.newKendaraans) {
           if (k.kendaraanId == kupon.kendaraanId) {
             kendaraan = k;
             break;
           }
         }
       }
-      // Kupon DUKUNGAN (jenisKuponId == 2) tidak punya kendaraan
 
       items.add(
         ImportPreviewItem(
@@ -63,21 +68,18 @@ class ImportPreviewPage extends StatelessWidget {
     }
 
     // Add duplicate items
-    for (int i = 0; i < parseResult.duplicateKupons.length; i++) {
-      final kupon = parseResult.duplicateKupons[i];
+    for (int i = 0; i < widget.parseResult.duplicateKupons.length; i++) {
+      final kupon = widget.parseResult.duplicateKupons[i];
 
-      // PERBAIKAN: Cari kendaraan berdasarkan kendaraanId, bukan satkerId
       KendaraanModel? kendaraan;
       if (kupon.jenisKuponId == 1 && kupon.kendaraanId != null) {
-        // Kupon RANJEN duplicate - cari kendaraan yang sesuai berdasarkan kendaraanId
-        for (final k in parseResult.duplicateKendaraans) {
+        for (final k in widget.parseResult.duplicateKendaraans) {
           if (k.kendaraanId == kupon.kendaraanId) {
             kendaraan = k;
             break;
           }
         }
       }
-      // Kupon DUKUNGAN duplicate tidak punya kendaraan
 
       items.add(
         ImportPreviewItem(
@@ -95,12 +97,14 @@ class ImportPreviewPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = _buildPreviewItems();
-    final newCount = parseResult.kupons.length;
-    final duplicateCount = parseResult.duplicateKupons.length;
+    final newCount = widget.parseResult.kupons.length;
+    final duplicateCount = widget.parseResult.duplicateKupons.length;
     final totalCount = newCount + duplicateCount;
 
-    // Extract unique values from all kupons (new + duplicate)
-    final allKupons = [...parseResult.kupons, ...parseResult.duplicateKupons];
+    final allKupons = [
+      ...widget.parseResult.kupons,
+      ...widget.parseResult.duplicateKupons,
+    ];
     final uniqueJenisBbm = _getUniqueJenisBbm(allKupons);
     final uniqueSatker = _getUniqueSatker(allKupons);
     final uniqueJenisKupon = _getUniqueJenisKupon(allKupons);
@@ -113,12 +117,10 @@ class ImportPreviewPage extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // Summary Card
           Expanded(
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  // File & Count Summary
                   Container(
                     margin: const EdgeInsets.all(16),
                     padding: const EdgeInsets.all(16),
@@ -131,7 +133,7 @@ class ImportPreviewPage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'File: $fileName',
+                          'File: ${widget.fileName}',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -154,7 +156,6 @@ class ImportPreviewPage extends StatelessWidget {
                     ),
                   ),
 
-                  // Data Summary Section (Jenis BBM, Satker, Jenis Kupon)
                   Container(
                     margin: const EdgeInsets.symmetric(horizontal: 16),
                     padding: const EdgeInsets.all(16),
@@ -174,8 +175,6 @@ class ImportPreviewPage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 12),
-
-                        // Jenis BBM
                         _buildCategoryRow(
                           icon: Icons.local_gas_station,
                           label: 'Jenis BBM',
@@ -183,8 +182,6 @@ class ImportPreviewPage extends StatelessWidget {
                           color: Colors.purple,
                         ),
                         const SizedBox(height: 10),
-
-                        // Satker
                         _buildCategoryRow(
                           icon: Icons.business,
                           label: 'Satuan Kerja',
@@ -192,8 +189,6 @@ class ImportPreviewPage extends StatelessWidget {
                           color: Colors.teal,
                         ),
                         const SizedBox(height: 10),
-
-                        // Jenis Kupon
                         _buildCategoryRow(
                           icon: Icons.confirmation_number,
                           label: 'Jenis Kupon',
@@ -204,86 +199,11 @@ class ImportPreviewPage extends StatelessWidget {
                     ),
                   ),
 
-                  // Validation Messages - Collapsible
-                  if (parseResult.validationMessages.isNotEmpty)
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red.shade200),
-                      ),
-                      child: Theme(
-                        data: Theme.of(
-                          context,
-                        ).copyWith(dividerColor: Colors.transparent),
-                        child: ExpansionTile(
-                          initiallyExpanded: false,
-                          tilePadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 0,
-                          ),
-                          childrenPadding: const EdgeInsets.only(
-                            left: 12,
-                            right: 12,
-                            bottom: 12,
-                          ),
-                          leading: Icon(
-                            Icons.warning_amber,
-                            color: Colors.red.shade700,
-                            size: 20,
-                          ),
-                          title: Text(
-                            'Pesan Validasi (${parseResult.validationMessages.length})',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.red.shade800,
-                            ),
-                          ),
-                          subtitle: Text(
-                            'Klik untuk melihat detail',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.red.shade500,
-                            ),
-                          ),
-                          iconColor: Colors.red.shade700,
-                          collapsedIconColor: Colors.red.shade700,
-                          children: [
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: parseResult.validationMessages
-                                    .map(
-                                      (msg) => Padding(
-                                        padding: const EdgeInsets.only(top: 4),
-                                        child: Text(
-                                          '• $msg',
-                                          style: TextStyle(
-                                            color: Colors.red.shade700,
-                                            fontSize: 12,
-                                          ),
-                                          textAlign: TextAlign.left,
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  if (widget.parseResult.validationMessages.isNotEmpty)
+                    _buildValidationMessagesSection(),
 
                   const SizedBox(height: 8),
 
-                  // Column Headers
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -346,7 +266,6 @@ class ImportPreviewPage extends StatelessWidget {
                     ),
                   ),
 
-                  // Data List
                   if (items.isEmpty)
                     const Padding(
                       padding: EdgeInsets.all(32),
@@ -367,7 +286,6 @@ class ImportPreviewPage extends StatelessWidget {
             ),
           ),
 
-          // Action Buttons
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -378,14 +296,14 @@ class ImportPreviewPage extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: onCancel,
+                    onPressed: widget.onCancel,
                     child: const Text('Batal'),
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: newCount > 0 ? onConfirmImport : null,
+                    onPressed: newCount > 0 ? widget.onConfirmImport : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
@@ -405,14 +323,173 @@ class ImportPreviewPage extends StatelessWidget {
     );
   }
 
-  // Helper: Get unique Jenis BBM names
+  Widget _buildValidationMessagesSection() {
+    final allMessages = widget.parseResult.validationMessages;
+    final totalMessages = allMessages.length;
+
+    // Pagination Logic
+    final int itemsPerPage = _validationItemsPerPage ?? totalMessages;
+    final int totalPages = (totalMessages / itemsPerPage).ceil();
+
+    // Ensure current page is valid
+    if (_validationCurrentPage >= totalPages && totalPages > 0) {
+      _validationCurrentPage = totalPages - 1;
+    }
+
+    final int startIndex = _validationCurrentPage * itemsPerPage;
+    final int endIndex = min(startIndex + itemsPerPage, totalMessages);
+    final paginatedMessages = allMessages.sublist(startIndex, endIndex);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: false,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+          childrenPadding: const EdgeInsets.only(
+            left: 12,
+            right: 12,
+            bottom: 12,
+          ),
+          leading: Icon(
+            Icons.warning_amber,
+            color: Colors.red.shade700,
+            size: 20,
+          ),
+          title: Text(
+            'Pesan Validasi & Duplikat ($totalMessages)',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: Colors.red.shade800,
+            ),
+          ),
+          subtitle: Text(
+            'Klik untuk melihat detail pesan',
+            style: TextStyle(fontSize: 11, color: Colors.red.shade500),
+          ),
+          iconColor: Colors.red.shade700,
+          collapsedIconColor: Colors.red.shade700,
+          children: [
+            // Pagination controls
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Tampilkan: ',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.red.shade900,
+                      ),
+                    ),
+                    DropdownButton<int?>(
+                      value: _validationItemsPerPage,
+                      isDense: true,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.red.shade900,
+                      ),
+                      dropdownColor: Colors.red.shade50,
+                      underline: const SizedBox(),
+                      items: const [
+                        DropdownMenuItem(value: 10, child: Text('10')),
+                        DropdownMenuItem(value: 25, child: Text('25')),
+                        DropdownMenuItem(value: 50, child: Text('50')),
+                        DropdownMenuItem(value: 100, child: Text('100')),
+                        DropdownMenuItem(value: null, child: Text('All')),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _validationItemsPerPage = value;
+                          _validationCurrentPage = 0; // Reset to page 1
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                if (_validationItemsPerPage != null && totalPages > 1)
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        color: Colors.red.shade700,
+                        onPressed: _validationCurrentPage > 0
+                            ? () {
+                                setState(() {
+                                  _validationCurrentPage--;
+                                });
+                              }
+                            : null,
+                      ),
+                      Text(
+                        '${_validationCurrentPage + 1} / $totalPages',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.red.shade900,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        color: Colors.red.shade700,
+                        onPressed: _validationCurrentPage < totalPages - 1
+                            ? () {
+                                setState(() {
+                                  _validationCurrentPage++;
+                                });
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+            const Divider(color: Colors.red),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: paginatedMessages
+                    .map(
+                      (msg) => Padding(
+                        padding: const EdgeInsets.only(top: 4, bottom: 4),
+                        child: Text(
+                          '• $msg',
+                          style: TextStyle(
+                            color: Colors.red.shade900,
+                            fontSize: 12,
+                          ),
+                          textAlign: TextAlign.left,
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<String> _getUniqueJenisBbm(List<KuponModel> kupons) {
     final Map<int, String> bbmNames = {1: 'Pertamax', 2: 'Pertamina Dex'};
     final uniqueIds = kupons.map((k) => k.jenisBbmId).toSet();
     return uniqueIds.map((id) => bbmNames[id] ?? 'BBM ID: $id').toList();
   }
 
-  // Helper: Get unique Satker names
   List<String> _getUniqueSatker(List<KuponModel> kupons) {
     return kupons
         .map((k) => k.namaSatker)
@@ -421,13 +498,11 @@ class ImportPreviewPage extends StatelessWidget {
         .toList();
   }
 
-  // Helper: Get unique Jenis Kupon names
   List<String> _getUniqueJenisKupon(List<KuponModel> kupons) {
     final uniqueIds = kupons.map((k) => k.jenisKuponId).toSet();
     return uniqueIds.map((id) => _getJenisKuponText(id)).toList();
   }
 
-  // Helper: Build category row with chips
   Widget _buildCategoryRow({
     required IconData icon,
     required String label,
@@ -581,8 +656,6 @@ class ImportPreviewPage extends StatelessWidget {
   }
 
   String _formatNomorKupon(KuponModel kupon) {
-    // Format: nokupon/bulan/tahun/LOGISTIK
-    // Convert month number to Roman numeral
     final romanMonths = [
       '',
       'I',

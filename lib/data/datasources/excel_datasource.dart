@@ -23,12 +23,19 @@ class ExcelParseResult {
   });
 }
 
-class ExcelDatasource {
+abstract class ExcelDatasource {
+  Future<ExcelParseResult> parseExcelFile(
+    String filePath,
+    List<KuponModel> existingKupons,
+  );
+}
+
+class ExcelDatasourceImpl implements ExcelDatasource {
   final KuponValidator _kuponValidator;
   final AppDatabase _db;
   static const String _defaultKodeNopol = 'VIII';
 
-  ExcelDatasource(this._kuponValidator, this._db);
+  ExcelDatasourceImpl(this._kuponValidator, this._db);
 
   // Helper untuk konversi angka romawi ke integer
   int? _parseRomanNumeral(String roman) {
@@ -306,8 +313,12 @@ class ExcelDatasource {
               if (kendaraan != null) {
                 duplicateKendaraans.add(kendaraan);
               }
+              final cell0 = _getCellString(row, 0);
+              final jenisKupon = cell0.isNotEmpty ? cell0 : 'DUKUNGAN';
+              final jenisBBM = _getCellString(row, 8);
+              
               validationMessages.add(
-                'Baris $rowNumber: DUPLIKAT - Kupon ${kupon.nomorKupon} sudah ada di database',
+                'Baris $rowNumber: DUPLIKAT - Kupon ${kupon.nomorKupon} ${kupon.bulanTerbit}-${kupon.tahunTerbit} $jenisKupon $jenisBBM sudah ada di database',
               );
             } else {
               // PERBAIKAN: Kategorikan error - beberapa bisa diabaikan untuk tetap melanjutkan proses

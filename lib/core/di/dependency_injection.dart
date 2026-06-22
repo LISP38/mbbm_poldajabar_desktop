@@ -39,23 +39,23 @@ Future<void> initializeDependencies() async {
 
   // Repositories
   getIt.registerLazySingleton<TransaksiRepositoryImpl>(
-    () => TransaksiRepositoryImpl(getIt<AppDatabase>()), 
+    () => TransaksiRepositoryImpl(getIt<AppDatabase>()),
   );
 
   getIt.registerLazySingleton<KendaraanRepository>(
-    () => KendaraanRepositoryImpl(getIt<AppDatabase>()), 
+    () => KendaraanRepositoryImpl(getIt<AppDatabase>()),
   );
 
   getIt.registerLazySingleton<KuponRepository>(
-    () => KuponRepositoryImpl(getIt<AppDatabase>()), 
+    () => KuponRepositoryImpl(getIt<AppDatabase>()),
   );
 
   getIt.registerLazySingleton<MasterDataRepository>(
-    () => MasterDataRepositoryImpl(getIt<AppDatabase>()), 
+    () => MasterDataRepositoryImpl(getIt<AppDatabase>()),
   );
 
   getIt.registerLazySingleton<AlokasiRepository>(
-    () => AlokasiRepositoryImpl(getIt<AppDatabase>()), 
+    () => AlokasiRepositoryImpl(getIt<AppDatabase>()),
   );
 
   getIt.registerLazySingleton<AnalysisRepositoryImpl>(
@@ -71,7 +71,7 @@ Future<void> initializeDependencies() async {
 
   // Excel datasource
   getIt.registerLazySingleton<ExcelDatasource>(
-    () => ExcelDatasource(getIt<KuponValidator>(), getIt<AppDatabase>()),
+    () => ExcelDatasourceImpl(getIt<KuponValidator>(), getIt<AppDatabase>()),
   );
 
   // Enhanced Import Service
@@ -79,7 +79,6 @@ Future<void> initializeDependencies() async {
     () => EnhancedImportService(
       excelDatasource: getIt<ExcelDatasource>(),
       kuponRepository: getIt<KuponRepository>(),
-      db: getIt<AppDatabase>(),
     ),
   );
 

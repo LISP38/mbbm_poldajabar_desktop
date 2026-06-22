@@ -511,4 +511,124 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
       variables: variables,
     );
   }
+
+  @override
+  Future<int> syncBulkTransaksi(List<dynamic> rawJsonData) async {
+    try {
+      int count = 0;
+      await _db.transaction(() async {
+        // 1. Pre-fetching logic (Optimized Lookup)
+        final uniqueKuponKeys = <String>{};
+        for (var t in rawJsonData) {
+          final jenisTransaksi = t['jenis_transaksi'] ?? 'Non-Hutang';
+          if (jenisTransaksi != 'Hutang' && t['kupon_key'] != null) {
+            uniqueKuponKeys.add(t['kupon_key'].toString());
+          }
+        }
+
+        final kuponMap = <String, Map<String, dynamic>>{};
+        if (uniqueKuponKeys.isNotEmpty) {
+          // Note: SQLite has a limit on variables (usually 999), 
+          // we assume batch chunks are smaller than this limit for sync
+          final placeholders = List.filled(uniqueKuponKeys.length, '?').join(',');
+          final variables = uniqueKuponKeys.map((k) => Variable.withString(k)).toList();
+
+          final kuponResult = await _db.customSelect(
+            'SELECT kupon_key, satker_id, jenis_bbm_id, jenis_kupon_id, kendaraan_id FROM kupon WHERE kupon_key IN ($placeholders) AND is_current = 1',
+            variables: variables,
+          ).get();
+
+          for (var row in kuponResult) {
+            kuponMap[row.read<String>('kupon_key')] = row.data;
+          }
+        }
+
+        // 2. Iterate and Custom Insert within Transaction
+        for (var t in rawJsonData) {
+          final jenisTransaksi = t['jenis_transaksi'] ?? 'Non-Hutang';
+          final jumlahLiter = t['jumlah_liter'];
+          final tanggalTransaksi = t['tanggal_transaksi'] ?? DateTime.now().toIso8601String();
+          final namaPetugas = t['nama_petugas'] ?? 'Sync User';
+
+          if (jenisTransaksi == 'Hutang') {
+            final namaKonsumen = t['nama_konsumen'] ?? '';
+            final satkerText = t['satker'] ?? '';
+            final nopolText = t['nomor_kendaraan'] ?? '';
+
+            await _db.customInsert(
+              'INSERT INTO transaksi (jumlah_liter, tanggal_transaksi, jenis_transaksi, nama_petugas, created_by, nama_konsumen, satker_text, nomor_kendaraan_text, created_at, updated_at, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)',
+              variables: [
+                Variable(jumlahLiter),
+                Variable.withString(tanggalTransaksi),
+                Variable.withString(jenisTransaksi),
+                Variable.withString(namaPetugas),
+                Variable.withString(namaPetugas),
+                Variable.withString(namaKonsumen),
+                Variable.withString(satkerText),
+                Variable.withString(nopolText),
+                Variable.withString(DateTime.now().toIso8601String()),
+                Variable.withString(DateTime.now().toIso8601String()),
+              ],
+            );
+          } else {
+            // Non-Hutang
+            final kuponKey = t['kupon_key']?.toString();
+            if (kuponKey != null) {
+              final kuponData = kuponMap[kuponKey];
+              if (kuponData != null) {
+                await _db.customInsert(
+                  'INSERT INTO transaksi (kupon_key, jumlah_liter, tanggal_transaksi, jenis_transaksi, nama_petugas, created_by, satker_id, jenis_bbm_id, jenis_kupon_id, kendaraan_id, created_at, updated_at, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)',
+                  variables: [
+                    Variable.withString(kuponKey),
+                    Variable(jumlahLiter),
+                    Variable.withString(tanggalTransaksi),
+                    Variable.withString(jenisTransaksi),
+                    Variable.withString(namaPetugas),
+                    Variable.withString(namaPetugas),
+                    Variable.withInt(kuponData['satker_id'] as int),
+                    Variable.withInt(kuponData['jenis_bbm_id'] as int),
+                    Variable.withInt(kuponData['jenis_kupon_id'] as int),
+                    Variable(kuponData['kendaraan_id']), // can be null
+                    Variable.withString(DateTime.now().toIso8601String()),
+                    Variable.withString(DateTime.now().toIso8601String()),
+                  ],
+                );
+              } else {
+                 await _db.customInsert(
+                  'INSERT INTO transaksi (kupon_key, jumlah_liter, tanggal_transaksi, jenis_transaksi, nama_petugas, created_by, created_at, updated_at, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)',
+                  variables: [
+                    Variable.withString(kuponKey),
+                    Variable(jumlahLiter),
+                    Variable.withString(tanggalTransaksi),
+                    Variable.withString(jenisTransaksi),
+                    Variable.withString(namaPetugas),
+                    Variable.withString(namaPetugas),
+                    Variable.withString(DateTime.now().toIso8601String()),
+                    Variable.withString(DateTime.now().toIso8601String()),
+                  ],
+                );
+              }
+            } else {
+                 await _db.customInsert(
+                  'INSERT INTO transaksi (jumlah_liter, tanggal_transaksi, jenis_transaksi, nama_petugas, created_by, created_at, updated_at, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, 0)',
+                  variables: [
+                    Variable(jumlahLiter),
+                    Variable.withString(tanggalTransaksi),
+                    Variable.withString(jenisTransaksi),
+                    Variable.withString(namaPetugas),
+                    Variable.withString(namaPetugas),
+                    Variable.withString(DateTime.now().toIso8601String()),
+                    Variable.withString(DateTime.now().toIso8601String()),
+                  ],
+                );
+            }
+          }
+          count++;
+        }
+      });
+      return count;
+    } catch (e) {
+      throw Exception('Failed to sync bulk transaksi: $e');
+    }
+  }
 }

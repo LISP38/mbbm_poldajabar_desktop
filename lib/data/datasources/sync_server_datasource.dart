@@ -4,10 +4,12 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:get_it/get_it.dart';
+import '../../domain/repositories/transaksi_repository.dart';
 import '../../core/di/drift_sqflite_adapter.dart';
 
 class SyncServerDatasource {
   HttpServer? _server;
+  final TransaksiRepository _transaksiRepository = GetIt.I<TransaksiRepository>();
   final DriftSqfliteAdapter _db = GetIt.I<DriftSqfliteAdapter>();
 
   // START SERVER
@@ -53,80 +55,7 @@ class SyncServerDatasource {
           final payload = await request.readAsString();
           final List<dynamic> transactions = json.decode(payload);
 
-          final db = await _db.database;
-          final batch = db.batch();
-
-          int count = 0;
-          for (var t in transactions) {
-            final jenisTransaksi = t['jenis_transaksi'] ?? 'Non-Hutang';
-            final jumlahLiter = t['jumlah_liter'];
-            final tanggalTransaksi = t['tanggal_transaksi'];
-            final namaPetugas = t['nama_petugas'];
-            
-            if (jenisTransaksi == 'Hutang') {
-               final namaKonsumen = t['nama_konsumen'];
-               final satkerText = t['satker'];
-               final nopolText = t['nomor_kendaraan'];
-               
-               batch.insert('transaksi', {
-                 'jumlah_liter': jumlahLiter,
-                 'tanggal_transaksi': tanggalTransaksi,
-                 'jenis_transaksi': jenisTransaksi,
-                 'nama_petugas': namaPetugas,
-                 'created_by': namaPetugas,
-                 'nama_konsumen': namaKonsumen,
-                 'satker_text': satkerText,
-                 'nomor_kendaraan_text': nopolText,
-               });
-            } else {
-               // Non-Hutang
-               final kuponKey = t['kupon_key'];
-               
-               if (kuponKey != null) {
-                 final kuponResult = await db.rawQuery(
-                   'SELECT satker_id, jenis_bbm_id, jenis_kupon_id, kendaraan_id FROM kupon WHERE kupon_key = ? AND is_current = 1 LIMIT 1',
-                   [kuponKey]
-                 );
-
-                 if (kuponResult.isNotEmpty) {
-                   final row = kuponResult.first;
-                   batch.insert('transaksi', {
-                     'kupon_key': kuponKey,
-                     'jumlah_liter': jumlahLiter,
-                     'tanggal_transaksi': tanggalTransaksi,
-                     'jenis_transaksi': jenisTransaksi,
-                     'nama_petugas': namaPetugas,
-                     'created_by': namaPetugas,
-                     'satker_id': row['satker_id'],
-                     'jenis_bbm_id': row['jenis_bbm_id'],
-                     'jenis_kupon_id': row['jenis_kupon_id'],
-                     'kendaraan_id': row['kendaraan_id'],
-                   });
-                 } else {
-                   batch.insert('transaksi', {
-                     'kupon_key': kuponKey,
-                     'jumlah_liter': jumlahLiter,
-                     'tanggal_transaksi': tanggalTransaksi,
-                     'jenis_transaksi': jenisTransaksi,
-                     'nama_petugas': namaPetugas,
-                     'created_by': namaPetugas,
-                   });
-                 }
-               } else {
-                 // Fallback if kupon_key not provided
-                 batch.insert('transaksi', {
-                   'jumlah_liter': jumlahLiter,
-                   'tanggal_transaksi': tanggalTransaksi,
-                   'jenis_transaksi': jenisTransaksi,
-                   'nama_petugas': namaPetugas,
-                   'created_by': namaPetugas,
-                 });
-               }
-            }
-            count++;
-          }
-
-          await batch.commit(noResult: true);
+          final count = await _transaksiRepository.syncBulkTransaksi(transactions);
 
           return Response.ok(
             json.encode({'message': 'Synced $count transactions'}),

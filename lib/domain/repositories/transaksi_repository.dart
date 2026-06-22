@@ -29,4 +29,5 @@ abstract class TransaksiRepository {
     required int kuponId,
     required String tanggalTransaksi,
   });
+  Future<int> syncBulkTransaksi(List<dynamic> rawJsonData);
 }
