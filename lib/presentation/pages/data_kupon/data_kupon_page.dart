@@ -11,7 +11,8 @@ import 'package:kupon_bbm_app/domain/repositories/kendaraan_repository.dart';
 import 'package:kupon_bbm_app/domain/entities/kendaraan_entity.dart';
 
 class DataKuponPage extends StatefulWidget {
-  const DataKuponPage({super.key});
+  final int selectedSubIndex;
+  const DataKuponPage({super.key, required this.selectedSubIndex});
 
   @override
   State<DataKuponPage> createState() => _DataKuponPageState();
@@ -82,6 +83,17 @@ class _DataKuponPageState extends State<DataKuponPage> {
   }
 
   @override
+  void didUpdateWidget(covariant DataKuponPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedSubIndex != widget.selectedSubIndex) {
+      final isRanjen = widget.selectedSubIndex == 0;
+      context.read<KuponProvider>().isRanjenMode = isRanjen;
+      _fetchKuponData(isRanjenMode: isRanjen);
+      _resetFilters();
+    }
+  }
+
+  @override
   void dispose() {
     _headerScrollController.dispose();
     _bodyScrollController.dispose();
@@ -143,63 +155,54 @@ class _DataKuponPageState extends State<DataKuponPage> {
   Widget _buildSummaryCard({
     required String title,
     required String value,
-    required String subtitle,
+    String? subtitle,
     required IconData icon,
     required Color color,
   }) {
-    return Expanded(
+    return Card(
+      elevation: 2,
       child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: color, size: 32),
+              child: Icon(icon, color: color, size: 24),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontSize: 14,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 2),
                   Text(
                     value,
-                    style: const TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontSize: 24,
+                    style: TextStyle(
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
+                      color: color,
                     ),
                   ),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontSize: 12,
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -356,7 +359,7 @@ class _DataKuponPageState extends State<DataKuponPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
                 SizedBox(
                   height: MediaQuery.of(context).size.height * 0.6,
                   child: SingleChildScrollView(
@@ -418,7 +421,7 @@ class _DataKuponPageState extends State<DataKuponPage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -507,109 +510,83 @@ class _DataKuponPageState extends State<DataKuponPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // HEADER
-              Container(
-                padding: const EdgeInsets.all(24),
-                color: Colors.white,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Data Kupon',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Data Kupon BBM Polda Jawa Barat',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // SUMMARY CARDS
-                    Row(
-                      children: [
-                        _buildSummaryCard(
-                          title: 'Total Kupon',
-                          value: '${provider.totalKupon}',
-                          subtitle: 'Kupon',
-                          icon: Icons.confirmation_number,
-                          color: Colors.red,
-                        ),
-                        const SizedBox(width: 16),
-                        _buildSummaryCard(
-                          title: 'Total Kuota',
-                          value: '${_formatNumber(provider.totalKuotaAwal)}',
-                          subtitle: 'Liter',
-                          icon: Icons.local_gas_station,
-                          color: Colors.amber,
-                        ),
-                        const SizedBox(width: 16),
-                        _buildSummaryCard(
-                          title: 'Total Terpakai',
-                          value: '${_formatNumber(provider.totalTerpakai)}',
-                          subtitle: 'Liter',
-                          icon: Icons.trending_down,
-                          color: Colors.green,
-                        ),
-                        const SizedBox(width: 16),
-                        _buildSummaryCard(
-                          title: 'Total Saldo',
-                          value: '${_formatNumber(provider.totalSaldo)}',
-                          subtitle: 'Liter',
-                          icon: Icons.account_balance_wallet,
-                          color: Colors.blue,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24.0),
+                  padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 20.0, bottom: 24.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // TAB SWITCHER
-                      Row(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildTabButton(
-                            title: 'Data Ranjen',
-                            isSelected: provider.isRanjenMode,
-                            onTap: () {
-                              if (!provider.isRanjenMode) {
-                                provider.isRanjenMode = true;
-                                _fetchKuponData(isRanjenMode: true);
-                                setState(() {
-                                  _resetFilters();
-                                });
-                              }
-                            },
+                          const Text(
+                            'Data Kupon',
+                            style: TextStyle(
+                              fontFamily: 'Mazzard',
+                              fontSize: 24,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1E293B),
+                            ),
                           ),
-                          const SizedBox(width: 16),
-                          _buildTabButton(
-                            title: 'Data Dukungan',
-                            isSelected: !provider.isRanjenMode,
-                            onTap: () {
-                              if (provider.isRanjenMode) {
-                                provider.isRanjenMode = false;
-                                _fetchKuponData(isRanjenMode: false);
-                                setState(() {
-                                  _resetFilters();
-                                });
-                              }
-                            },
+                          const SizedBox(height: 8),
+                          Text(
+                            'Data Kupon BBM Polda Jawa Barat',
+                            style: TextStyle(
+                              fontFamily: 'Mazzard',
+                              fontSize: 16,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // SUMMARY CARDS
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildSummaryCard(
+                                  title: 'Total Kupon',
+                                  value: '${provider.totalKupon}',
+                                  subtitle: 'Kupon',
+                                  icon: Icons.confirmation_number,
+                                  color: Colors.red,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildSummaryCard(
+                                  title: 'Total Kuota',
+                                  value: '${_formatNumber(provider.totalKuotaAwal)}',
+                                  subtitle: 'Liter',
+                                  icon: Icons.local_gas_station,
+                                  color: Colors.amber,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildSummaryCard(
+                                  title: 'Total Terpakai',
+                                  value: '${_formatNumber(provider.totalTerpakai)}',
+                                  subtitle: 'Liter',
+                                  icon: Icons.trending_down,
+                                  color: Colors.green,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildSummaryCard(
+                                  title: 'Total Saldo',
+                                  value: '${_formatNumber(provider.totalSaldo)}',
+                                  subtitle: 'Liter',
+                                  icon: Icons.account_balance_wallet,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 12),
 
                       // FILTER SECTION
                       Container(
@@ -797,7 +774,7 @@ class _DataKuponPageState extends State<DataKuponPage> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 12),
 
                       // DATA TABLE
                       Container(
@@ -1064,7 +1041,7 @@ class _DataKuponPageState extends State<DataKuponPage> {
                       ),
 
                       // Footer & Pagination Section
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 12),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -1118,7 +1095,7 @@ class _DataKuponPageState extends State<DataKuponPage> {
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 16),
+                              const SizedBox(width: 12),
                               // Pagination Controls
                               Row(
                                 children: [

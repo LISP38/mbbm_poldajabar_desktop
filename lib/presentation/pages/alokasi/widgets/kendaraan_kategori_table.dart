@@ -19,35 +19,35 @@ class KendaraanKategoriTable extends StatelessWidget {
         final pdxCategories =
             categories.where((c) => c.jenisBbm == 'PDX').toList();
 
-        return Card(
-          elevation: 1,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header & Add Button
-              Container(
-                color: Colors.grey.shade100,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Kategori Kendaraan',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () => _showFormDialog(context, null, provider),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Tambah Kategori Kendaraan'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF335092),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    ElevatedButton.icon(
-                      onPressed: () => _showFormDialog(context, null, provider),
-                      icon: const Icon(Icons.add, size: 16),
-                      label: const Text('Tambah'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Card(
+              elevation: 1,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
 
               if (categories.isEmpty)
                 const Padding(
@@ -111,11 +111,9 @@ class KendaraanKategoriTable extends StatelessWidget {
                 ),
 
                 // Scrollable Data Rows
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                         // Pertamax section
                         if (pxCategories.isNotEmpty) ...[
                           Container(
@@ -195,11 +193,11 @@ class KendaraanKategoriTable extends StatelessWidget {
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ],
-            ],
-          ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         );
       },
     );

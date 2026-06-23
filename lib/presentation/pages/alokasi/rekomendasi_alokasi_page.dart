@@ -12,32 +12,26 @@ import 'widgets/form_rekomendasi_dialog.dart';
 import 'widgets/hasil_rekomendasi_dialog.dart';
 
 class RekomendasiAlokasiPage extends StatefulWidget {
-  const RekomendasiAlokasiPage({super.key});
+  final int selectedSubIndex;
+  
+  const RekomendasiAlokasiPage({
+    super.key, 
+    required this.selectedSubIndex,
+  });
 
   @override
   State<RekomendasiAlokasiPage> createState() =>
       _RekomendasiAlokasiPageState();
 }
 
-class _RekomendasiAlokasiPageState extends State<RekomendasiAlokasiPage>
-    with TickerProviderStateMixin {
-  late TabController _tabController;
-
+class _RekomendasiAlokasiPageState extends State<RekomendasiAlokasiPage> {
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<AlokasiProvider>();
       provider.initialize();
     });
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   void _showFormRekomendasi(BuildContext context) {
@@ -87,6 +81,46 @@ class _RekomendasiAlokasiPageState extends State<RekomendasiAlokasiPage>
     );
   }
 
+  String _getPageTitle() {
+    switch (widget.selectedSubIndex) {
+      case 0:
+        return 'Rekomendasi Alokasi BBM - RPD yang Berlaku';
+      case 1:
+        return 'Rekomendasi Alokasi BBM - Data Kendaraan';
+      case 2:
+        return 'Rekomendasi Alokasi BBM - Index Norma (Liter/Hari)';
+      case 3:
+        return 'Rekomendasi Alokasi BBM - Hari Kerja';
+      default:
+        return 'Rekomendasi Alokasi BBM';
+    }
+  }
+
+  Widget _buildSubPageContent(AlokasiProvider provider) {
+    switch (widget.selectedSubIndex) {
+      case 0:
+        return RpdTableWidget(
+          onImportRpd: () async {
+            await provider.importRpdFromExcel();
+            if (provider.errorMessage != null) {
+              _showMessage(provider.errorMessage!, isError: true);
+              provider.clearError();
+            } else {
+              _showMessage('RPD berhasil diimport');
+            }
+          },
+        );
+      case 1:
+        return const KendaraanKategoriTable();
+      case 2:
+        return const IndexNormaTable();
+      case 3:
+        return const HariKerjaTable();
+      default:
+        return const SizedBox();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Theme(
@@ -101,32 +135,37 @@ class _RekomendasiAlokasiPageState extends State<RekomendasiAlokasiPage>
               return const Center(child: CircularProgressIndicator());
             }
 
-            return Padding(
-              padding: const EdgeInsets.all(24.0),
+            return SingleChildScrollView(
+              key: ValueKey(widget.selectedSubIndex), 
+              
+              padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Page Header
-                  const Text(
-                    'Rekomendasi Alokasi',
-                    style: TextStyle(
+                  Text(
+                    _getPageTitle(),
+                    style: const TextStyle(
+                      fontFamily: 'Mazzard',
                       fontSize: 24,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1E293B),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Kelola parameter dan buat rekomendasi alokasi BBM berdasarkan RPD.',
+                  Text(
+                    'Kelola Parameter dan Buat Rekomendasi Alokasi BBM berdasarkan RPD',
                     style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
+                      fontFamily: 'Mazzard',
+                      fontSize: 16,
+                      color: Colors.grey.shade600,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 12),
 
                   // Summary cards
                   const AlokasiSummaryCards(),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
                   // Action button row
                   Row(
@@ -165,61 +204,10 @@ class _RekomendasiAlokasiPageState extends State<RekomendasiAlokasiPage>
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
-                  // Tab bar
-                  Container(
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: TabBar(
-                      controller: _tabController,
-                      labelColor: Colors.white,
-                      unselectedLabelColor: Colors.grey.shade600,
-                      indicatorSize: TabBarIndicatorSize.tab,
-                      dividerColor: Colors.transparent,
-                      indicator: BoxDecoration(
-                        color: const Color(0xFFF28C28), // AppTheme.primaryOrange
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      indicatorPadding: const EdgeInsets.all(4),
-                      labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-                      tabs: const [
-                        Tab(text: 'RPD yang Berlaku'),
-                        Tab(text: 'Data Kendaraan'),
-                        Tab(text: 'Index Norma'),
-                        Tab(text: 'Hari Kerja'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Tab content
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        RpdTableWidget(
-                          onImportRpd: () async {
-                            await provider.importRpdFromExcel();
-                            if (provider.errorMessage != null) {
-                              _showMessage(provider.errorMessage!,
-                                  isError: true);
-                              provider.clearError();
-                            } else {
-                              _showMessage('RPD berhasil diimport');
-                            }
-                          },
-                        ),
-                        const KendaraanKategoriTable(),
-                        const IndexNormaTable(),
-                        const HariKerjaTable(),
-                      ],
-                    ),
-                  ),
+                  _buildSubPageContent(provider),
+                  
                 ],
               ),
             );
