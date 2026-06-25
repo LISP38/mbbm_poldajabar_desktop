@@ -237,21 +237,32 @@ class _ImportPageState extends State<ImportPage> {
     return Consumer<EnhancedImportProvider>(
       builder: (context, provider, child) {
         return Scaffold(
-          appBar: AppBar(
-            title: Text(
-              'Import Kupon dari Excel',
-              style: GoogleFonts.stardosStencil(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
           body: Padding(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(20.0),
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const Text(
+                    'Import Excel',
+                    style: TextStyle(
+                      fontFamily: 'Mazzard',
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Import dari Excel untuk Data Kupon BBM Polda Jawa Barat',
+                    style: TextStyle(
+                      fontFamily: 'Mazzard',
+                      fontSize: 16,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
                   // File Selection Area
                   Card(
                     child: Padding(

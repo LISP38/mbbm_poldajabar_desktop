@@ -22,6 +22,7 @@ class AlokasiSummaryCards extends StatelessWidget {
 
         return Column(
           children: [
+            // === BARIS ATAS: 3 CARD ===
             Row(
               children: [
                 Expanded(
@@ -34,7 +35,7 @@ class AlokasiSummaryCards extends StatelessWidget {
                     iconBgColor: Colors.red.shade50,
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _SummaryCard(
                     title: 'Harga BBM (Pertamax)',
@@ -47,7 +48,7 @@ class AlokasiSummaryCards extends StatelessWidget {
                     iconBgColor: Colors.amber.shade50,
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _SummaryCard(
                     title: 'Harga BBM (Pertamina Dex)',
@@ -60,7 +61,14 @@ class AlokasiSummaryCards extends StatelessWidget {
                     iconBgColor: Colors.green.shade50,
                   ),
                 ),
-                const SizedBox(width: 16),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // === BARIS BAWAH: 4 CARD ===
+            Row(
+              children: [
                 Expanded(
                   child: _SummaryCard(
                     title: 'Hari Kerja Bulan Ini',
@@ -71,11 +79,9 @@ class AlokasiSummaryCards extends StatelessWidget {
                     iconBgColor: Colors.blue.shade50,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
+
+                const SizedBox(width: 12),
+
                 Expanded(
                   child: _SummaryCard(
                     title: 'Hari Kerja Sisa',
@@ -86,7 +92,7 @@ class AlokasiSummaryCards extends StatelessWidget {
                     iconBgColor: Colors.teal.shade50,
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _SummaryCard(
                     title: 'Anggaran Sisa',
@@ -99,7 +105,7 @@ class AlokasiSummaryCards extends StatelessWidget {
                     iconBgColor: Colors.orange.shade50,
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _SummaryCard(
                     title: 'Total Anggaran (DIPA)',
@@ -112,8 +118,6 @@ class AlokasiSummaryCards extends StatelessWidget {
                     iconBgColor: Colors.purple.shade50,
                   ),
                 ),
-                const SizedBox(width: 16),
-                const Expanded(child: SizedBox()), // Placeholder to align exactly like the top row
               ],
             ),
           ],
@@ -167,19 +171,21 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
+      elevation: 2,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: iconBgColor,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: iconColor, size: 28),
+              child: Icon(icon, color: iconColor, size: 24),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -187,28 +193,27 @@ class _SummaryCard extends StatelessWidget {
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                      color: Colors.grey[600],
                       fontWeight: FontWeight.w500,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     value,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF333333),
-                    ),
-                  ),
-                  Text(
-                    subtitle,
                     style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade500,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: iconColor,
                     ),
                   ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                    ),
+                  ],
                 ],
               ),
             ),

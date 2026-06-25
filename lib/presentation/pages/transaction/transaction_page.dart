@@ -15,7 +15,9 @@ import '../../../core/themes/app_theme.dart';
 import '../export/export_preview_page.dart';
 
 class TransactionPage extends StatefulWidget {
-  const TransactionPage({super.key});
+  final int selectedSubIndex;
+
+  const TransactionPage({super.key, required this.selectedSubIndex});
 
   @override
   State<TransactionPage> createState() => _TransactionPageState();
@@ -23,8 +25,7 @@ class TransactionPage extends StatefulWidget {
 
 enum TableType { transaksi, kuponMinus, transaksiHutang }
 
-class _TransactionPageState extends State<TransactionPage>
-    with SingleTickerProviderStateMixin {
+class _TransactionPageState extends State<TransactionPage> {
   // Map jenis kupon untuk tampilan
   final Map<int, String> _jenisKuponMap = {1: 'RANJEN', 2: 'DUKUNGAN'};
 
@@ -52,8 +53,8 @@ class _TransactionPageState extends State<TransactionPage>
   int _filteredKuponMinusCount = 0;
   int _filteredTransaksiHutangCount = 0;
 
-  // Tab Controller
-  late TabController _tabController;
+  // // Tab Controller
+  // late TabController _tabController;
 
   // Helper method untuk mendapatkan nama BBM
   String _getJenisBbmName(int jenisBbmId) {
@@ -185,7 +186,6 @@ class _TransactionPageState extends State<TransactionPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
 
     // Auto-filter ke hari ini
     final today = DateTime.now();
@@ -219,7 +219,6 @@ class _TransactionPageState extends State<TransactionPage>
 
   @override
   void dispose() {
-    _tabController.dispose();
     super.dispose();
   }
 
@@ -637,119 +636,82 @@ class _TransactionPageState extends State<TransactionPage>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Column(
+        padding: const EdgeInsets.all(20.0),
+        child: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) {
+            return [
+              SliverToBoxAdapter(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Data Transaksi',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Data Transaksi',
+                              style: TextStyle(
+                                fontFamily: 'Mazzard',
+                                fontSize: 24,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1E293B),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Data Transaksi BBM Polda Jawa Barat',
+                              style: TextStyle(
+                                fontFamily: 'Mazzard',
+                                fontSize: 16,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.history),
+                          tooltip: 'Riwayat Transaksi Terhapus',
+                          onPressed: () => _showDeletedTransaksiDialog(context),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.orange.withOpacity(0.1),
+                            foregroundColor: Colors.orange,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Data Transaksi Pengisian BBM Polda Jawa Barat',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
-                    ),
+                    const SizedBox(height: 12),
+                    // SUMMARY CARDS - Expenditure per fuel type
+                    _buildTransactionSummaryCards(),
+                    // _buildCustomTabBar(),
+                    const SizedBox(height: 12),
                   ],
                 ),
-                IconButton(
-                  icon: const Icon(Icons.history),
-                  tooltip: 'Riwayat Transaksi Terhapus',
-                  onPressed: () => _showDeletedTransaksiDialog(context),
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.orange.withOpacity(0.1),
-                    foregroundColor: Colors.orange,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            // SUMMARY CARDS - Expenditure per fuel type
-            _buildTransactionSummaryCards(),
-            const SizedBox(height: 16),
-            _buildCustomTabBar(),
-            const SizedBox(height: 16),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _buildTab1Content(context),
-                  _buildTab2Content(context),
-                  _buildTab3Content(context),
-                ],
               ),
-            ),
-          ],
+            ];
+          },
+          body: _buildSubPageContent(context),
         ),
       ),
     );
   }
 
-  Widget _buildCustomTabBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[200],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: TabBar(
-        controller: _tabController,
-        isScrollable: true,
-        tabAlignment: TabAlignment.center,
-        indicator: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(6),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        labelColor: Colors.blue,
-        unselectedLabelColor: Colors.grey[600],
-        dividerColor: Colors.transparent,
-        onTap: (index) {
-          setState(() {});
-        },
-        tabs: const [
-          Tab(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 150.0),
-              child: Text('Data Transaksi'),
-            ),
-          ),
-          Tab(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 150.0),
-              child: Text('Kupon Minus'),
-            ),
-          ),
-          Tab(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 150.0),
-              child: Text('Transaksi Hutang'),
-            ),
-          ),
-        ],
-      ),
-    );
+  Widget _buildSubPageContent(BuildContext context) {
+    switch (widget.selectedSubIndex) {
+      case 0:
+        return _buildTab1Content(context);
+      case 1:
+        return _buildTab2Content(context);
+      case 2:
+        return _buildTab3Content(context);
+      default:
+        return const SizedBox();
+    }
   }
 
   Widget _buildFilterAccordion(BuildContext context, {bool showJenis = true}) {

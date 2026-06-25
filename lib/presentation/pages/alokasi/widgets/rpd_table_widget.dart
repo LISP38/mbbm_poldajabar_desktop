@@ -110,71 +110,73 @@ class RpdTableWidget extends StatelessWidget {
             const SizedBox(height: 8),
 
             // Table
-            Expanded(
-              child: Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      // Header
-                      Container(
-                        color: const Color(0xFFF28C28), // primaryOrange
-                        child: Row(
-                          children: [
-                            _headerCell('No', flex: 1),
-                            _headerCell('Bulan', flex: 2),
-                            _headerCell('Jenis BBM', flex: 2),
-                            _headerCell('Kuantitas', flex: 2),
-                            _headerCell('Estimasi Harga', flex: 2),
-                            _headerCell('Jumlah Harga', flex: 3),
-                            Expanded(
-                              flex: 3,
-                              child: Container(
-                                color: const Color(0xFFE57E1E), // darker orange
-                                child: Row(
-                                  children: [
-                                    _headerCell('K', flex: 1),
-                                    _headerCell('HK', flex: 1),
-                                    _headerCell(
-                                      '-${provider.hariKerjaOffset}',
-                                      flex: 1,
+            Card(
+              elevation: 1,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  // Header
+                  IntrinsicHeight(
+                    child: Container(
+                      color: const Color(0xFFF28C28), // primaryOrange
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _headerCell('No', flex: 1),
+                          _headerCell('Bulan', flex: 2),
+                          _headerCell('Jenis BBM', flex: 2),
+                          _headerCell('Kuantitas', flex: 2),
+                          _headerCell('Estimasi Harga', flex: 2),
+                          _headerCell('Jumlah Harga', flex: 3),
+                          Expanded(
+                            flex: 3,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // Keterangan Sub-Header (Tier 1)
+                                Container(
+                                  color: const Color(0xFFD67318), // darkest orange
+                                  padding: const EdgeInsets.symmetric(vertical: 6),
+                                  alignment: Alignment.center,
+                                  child: const Text(
+                                    'Keterangan',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Keterangan sub-header
-                      Container(
-                        color: const Color(0xFFD67318), // darkest orange
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: Row(
-                          children: [
-                            const Expanded(flex: 12, child: SizedBox()),
-                            Expanded(
-                              flex: 3,
-                              child: Center(
-                                child: Text(
-                                  'Keterangan',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                              ),
+                                // Sub-kolom (Tier 2)
+                                Expanded(
+                                  child: Container(
+                                    color: const Color(0xFFE57E1E), // darker orange
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        _headerCell('K', flex: 1),
+                                        _headerCell('HK', flex: 1),
+                                        _headerCell(
+                                          '-${provider.hariKerjaOffset}',
+                                          flex: 1,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
+                    ),
+                  ),
 
+                  Column(
+                    children: [
                       // Data rows
                       ...bulanGroups.entries.map((entry) {
                         final bulan = entry.key;
@@ -319,7 +321,7 @@ class RpdTableWidget extends StatelessWidget {
                       ),
                     ],
                   ),
-                ),
+                ],
               ),
             ),
           ],
@@ -331,8 +333,9 @@ class RpdTableWidget extends StatelessWidget {
   Widget _headerCell(String text, {int flex = 1}) {
     return Expanded(
       flex: flex,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      child: Container(
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
         child: Text(
           text,
           textAlign: TextAlign.center,

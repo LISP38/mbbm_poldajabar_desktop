@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-class DashboardPage extends StatelessWidget {
-  const DashboardPage({super.key});
+class GenerateLaporanPage extends StatelessWidget {
+  const GenerateLaporanPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +16,7 @@ class DashboardPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Dashboard',
+                  'Generate Laporan',
                   style: TextStyle(
                     fontFamily: 'Mazzard',
                     fontSize: 24,
@@ -26,7 +26,7 @@ class DashboardPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Analisis Visualisasi Data BBM Polda Jawa Barat',
+                  'Generate Laporan BBM Polda Jawa Barat',
                   style: TextStyle(
                     fontFamily: 'Mazzard',
                     fontSize: 16,
