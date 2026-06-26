@@ -57,11 +57,21 @@ class GenerateKuponService {
     {'label': 'Template Pertamax 3', 'file': 'Template Pertamax 3.xlsm'},
     {'label': 'Template Pertamax 4', 'file': 'Template Pertamax 4.xlsm'},
     {'label': 'Template Pertamax 5', 'file': 'Template Pertamax 5.xlsm'},
+    {'label': 'Template Pertamax 6', 'file': 'Template Pertamax 6.xlsm'},
+    {'label': 'Template Pertamax 7', 'file': 'Template Pertamax 7.xlsm'},
+    {'label': 'Template Pertamax 8', 'file': 'Template Pertamax 8.xlsm'},
+    {'label': 'Template Pertamax 9', 'file': 'Template Pertamax 9.xlsm'},
+    {'label': 'Template Pertamax 10', 'file': 'Template Pertamax 10.xlsm'},
     {'label': 'Template Pertamina Dex 1', 'file': 'Template Pertamina Dex 1.xlsm'},
     {'label': 'Template Pertamina Dex 2', 'file': 'Template Pertamina Dex 2.xlsm'},
     {'label': 'Template Pertamina Dex 3', 'file': 'Template Pertamina Dex 3.xlsm'},
     {'label': 'Template Pertamina Dex 4', 'file': 'Template Pertamina Dex 4.xlsm'},
     {'label': 'Template Pertamina Dex 5', 'file': 'Template Pertamina Dex 5.xlsm'},
+    {'label': 'Template Pertamina Dex 6', 'file': 'Template Pertamina Dex 6.xlsm'},
+    {'label': 'Template Pertamina Dex 7', 'file': 'Template Pertamina Dex 7.xlsm'},
+    {'label': 'Template Pertamina Dex 8', 'file': 'Template Pertamina Dex 8.xlsm'},
+    {'label': 'Template Pertamina Dex 9', 'file': 'Template Pertamina Dex 9.xlsm'},
+    {'label': 'Template Pertamina Dex 10', 'file': 'Template Pertamina Dex 10.xlsm'},
   ];
 
   static Future<String> generateKupon({
