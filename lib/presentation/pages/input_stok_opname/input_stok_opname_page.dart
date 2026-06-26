@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../providers/kupon_provider.dart';
+import '../../providers/laporan_provider.dart';
 
 class InputStokOpnamePage extends StatefulWidget {
   const InputStokOpnamePage({super.key});
@@ -25,9 +27,19 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
     _pertamaxController.addListener(_onInputChanged);
     _dexController.addListener(_onInputChanged);
 
-    Future.microtask(() {
+    Future.microtask(() async {
       if (!mounted) return;
       context.read<KuponProvider>().fetchAllKuponsUnfiltered();
+      await context.read<LaporanProvider>().loadLastStokOpname();
+      // Pre-fill dengan data stok opname terakhir jika ada
+      if (!mounted) return;
+      final last = context.read<LaporanProvider>().lastStokOpname;
+      if (last != null) {
+        final px = (last['stok_fisik_pertamax'] as num?)?.toDouble() ?? 0.0;
+        final dex = (last['stok_fisik_dex'] as num?)?.toDouble() ?? 0.0;
+        if (px > 0) _pertamaxController.text = px.toStringAsFixed(0);
+        if (dex > 0) _dexController.text = dex.toStringAsFixed(0);
+      }
     });
   }
 
@@ -47,7 +59,7 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
     super.dispose();
   }
 
-  void _simpanStokOpname() {
+  void _simpanStokOpname() async {
     final pertamax =
         double.tryParse(_pertamaxController.text.replaceAll(',', '.'));
     final dex = double.tryParse(_dexController.text.replaceAll(',', '.'));
@@ -62,15 +74,36 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
       return;
     }
 
+    // Ambil stok sistem saat ini dari provider
+    final kuponProvider = context.read<KuponProvider>();
+    final allKupons = kuponProvider.allKuponsForDropdown;
+    final stokSistemPx = allKupons
+        .where((k) => k.jenisBbmId == 1 && k.isDeleted == 0)
+        .fold(0.0, (sum, k) => sum + k.kuotaSisa);
+    final stokSistemDex = allKupons
+        .where((k) => k.jenisBbmId == 2 && k.isDeleted == 0)
+        .fold(0.0, (sum, k) => sum + k.kuotaSisa);
+
+    final tanggal = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    await context.read<LaporanProvider>().simpanStokOpname(
+          tanggal: tanggal,
+          stokFisikPertamax: pertamax,
+          stokFisikDex: dex,
+          stokSistemPertamax: stokSistemPx,
+          stokSistemDex: stokSistemDex,
+        );
+
     setState(() {
       _stokFisikPertamax = pertamax;
       _stokFisikDex = dex;
       _sudahSimpan = true;
     });
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Stok opname berhasil disimpan.'),
+        content: Text('Stok opname berhasil disimpan ke database.'),
         backgroundColor: Colors.green,
       ),
     );

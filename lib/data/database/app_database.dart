@@ -42,13 +42,14 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase({QueryExecutor? e}) : super(e ?? _openConnection());
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration {
     return MigrationStrategy(
       onCreate: (Migrator m) async {
         await m.createAll();
+        await _createLaporanTables();
       },
       onUpgrade: (Migrator m, int from, int to) async {
         if (from < 14) {
@@ -61,8 +62,35 @@ class AppDatabase extends _$AppDatabase {
           await m.issueCustomQuery('ALTER TABLE dim_kupon RENAME TO kupon;');
           await m.issueCustomQuery('ALTER TABLE fact_transaksi RENAME TO transaksi;');
         }
+        if (from < 15) {
+          await _createLaporanTables();
+        }
       },
     );
+  }
+
+  Future<void> _createLaporanTables() async {
+    await customStatement('''
+      CREATE TABLE IF NOT EXISTS stok_opname (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tanggal TEXT NOT NULL,
+        stok_fisik_pertamax REAL NOT NULL DEFAULT 0,
+        stok_fisik_dex REAL NOT NULL DEFAULT 0,
+        stok_sistem_pertamax REAL NOT NULL DEFAULT 0,
+        stok_sistem_dex REAL NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    ''');
+    await customStatement('''
+      CREATE TABLE IF NOT EXISTS penerimaan_bbm (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tanggal TEXT NOT NULL,
+        jumlah_liter_pertamax REAL NOT NULL DEFAULT 0,
+        jumlah_liter_dex REAL NOT NULL DEFAULT 0,
+        keterangan TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    ''');
   }
 }
 
