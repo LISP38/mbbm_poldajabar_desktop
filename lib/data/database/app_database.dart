@@ -12,6 +12,7 @@ import 'daos/kupon_dao.dart';
 import 'daos/transaksi_dao.dart';
 import 'daos/reporting_dao.dart';
 import 'daos/alokasi_dao.dart';
+import 'daos/dashboard_dao.dart';
 
 part 'app_database.g.dart';
 
@@ -36,6 +37,7 @@ part 'app_database.g.dart';
     TransaksiDao,
     ReportingDao,
     AlokasiDao,
+    DashboardDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -115,3 +117,4 @@ LazyDatabase _openConnection() {
     return NativeDatabase.createInBackground(file);
   });
 }
+

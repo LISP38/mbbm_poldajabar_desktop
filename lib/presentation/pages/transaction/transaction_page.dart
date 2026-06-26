@@ -2865,57 +2865,6 @@ class _TransactionPageState extends State<TransactionPage> {
     );
   }
 
-  // Widget _buildTransaksiHutangTable(BuildContext context) {
-  //   return Consumer<TransaksiProvider>(
-  //     builder: (_, provider, __) {
-  //       final hutang = provider.transaksiHutang;
-
-  //       if (hutang.isEmpty) {
-  //         return const Center(child: Text('Tidak ada transaksi hutang'));
-  //       }
-
-  //       return Card(
-  //         child: SingleChildScrollView(
-  //           scrollDirection: Axis.horizontal,
-  //           child: DataTable(
-  //             columns: const [
-  //               DataColumn(label: Text("Tanggal")),
-  //               DataColumn(label: Text("Nama Konsumen")),
-  //               DataColumn(label: Text("Satker")),
-  //               DataColumn(label: Text("Nomor Kendaraan")),
-  //               DataColumn(label: Text("Jumlah Liter")),
-  //               DataColumn(label: Text("Status")),
-  //               DataColumn(label: Text("Aksi")),
-  //             ],
-  //             rows: hutang.map((t) {
-  //               final jenis = t.jenisTransaksi?.trim().toLowerCase() ?? '';
-  //               final belumReimburse = jenis == 'hutang';
-  //               return DataRow(cells: [
-  //                 DataCell(Text(_formatDate(t.tanggalTransaksi))),
-  //                 DataCell(Text(t.namaKonsumen ?? '-')),
-  //                 DataCell(Text(t.satkerText ?? '-')),
-  //                 DataCell(Text(t.nomorKendaraanText ?? '-')),
-  //                 DataCell(Text('${t.jumlahLiter} L')),
-  //                 DataCell(Text(
-  //                   belumReimburse ? 'Belum Reimburse' : 'Sudah Reimburse',
-  //                 )),
-  //                 DataCell(
-  //                   belumReimburse
-  //                       ? IconButton(
-  //                           icon: const Icon(Icons.currency_exchange),
-  //                           onPressed: () => _showReimburseDialog(context, t),
-  //                         )
-  //                       : const Icon(Icons.check_circle, color: Colors.green),
-  //                 ),
-  //               ]);
-  //             }).toList(),
-  //           ),
-  //         ),
-  //       );
-  //     },
-  //   );
-  // }
-
   Widget _buildTransaksiHutangTable(BuildContext context) {
     return Consumer<TransaksiProvider>(
       builder: (_, provider, __) {

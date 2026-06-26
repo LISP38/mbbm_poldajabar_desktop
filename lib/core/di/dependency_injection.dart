@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import 'package:kupon_bbm_app/data/database/daos/dashboard_dao.dart';
 
 import 'package:kupon_bbm_app/data/datasources/excel_datasource.dart';
 import 'package:kupon_bbm_app/data/validators/kupon_validator.dart';
@@ -13,7 +14,6 @@ import 'package:kupon_bbm_app/domain/repositories/transaksi_repository_impl.dart
 import 'package:kupon_bbm_app/presentation/providers/enhanced_import_provider.dart';
 import 'package:kupon_bbm_app/domain/repositories/alokasi_repository.dart';
 import 'package:kupon_bbm_app/domain/repositories/alokasi_repository_impl.dart';
-import 'package:kupon_bbm_app/domain/repositories/analysis_repository_impl.dart';
 import 'package:kupon_bbm_app/domain/repositories/jenis_bbm_repository.dart';
 import 'package:kupon_bbm_app/domain/repositories/jenis_bbm_repository_impl.dart';
 import 'package:kupon_bbm_app/domain/repositories/laporan_repository.dart';
@@ -31,8 +31,6 @@ Future<void> initializeDependencies() async {
   getIt.registerLazySingleton(() => getIt<AppDatabase>().transaksiDao);
   getIt.registerLazySingleton(() => getIt<AppDatabase>().reportingDao);
   getIt.registerLazySingleton(() => getIt<AppDatabase>().alokasiDao);
-
-  // Drift Sqflite Adapter
 
   // Drift Sqflite Adapter
   getIt.registerLazySingleton<DriftSqfliteAdapter>(
@@ -58,10 +56,6 @@ Future<void> initializeDependencies() async {
 
   getIt.registerLazySingleton<AlokasiRepository>(
     () => AlokasiRepositoryImpl(getIt<AppDatabase>()), 
-  );
-
-  getIt.registerLazySingleton<AnalysisRepositoryImpl>(
-    () => AnalysisRepositoryImpl(getIt<AppDatabase>()),
   );
 
   getIt.registerLazySingleton<JenisBbmRepository>(
@@ -93,4 +87,21 @@ Future<void> initializeDependencies() async {
   getIt.registerFactory<EnhancedImportProvider>(
     () => EnhancedImportProvider(getIt<EnhancedImportService>()),
   );
+
+  getIt.registerLazySingleton<DashboardRepositoryImpl>(
+    () => DashboardRepositoryImpl(
+      getIt<DashboardDao>(),
+    ),
+  );
+
+  getIt.registerFactory<DashboardController>(
+    () => DashboardController(
+      getIt<DashboardRepositoryImpl>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<DashboardDao>(
+    () => getIt<AppDatabase>().dashboardDao,
+  );
+
 }
