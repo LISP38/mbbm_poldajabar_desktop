@@ -149,12 +149,45 @@ class LaporanProvider extends ChangeNotifier {
     final akhirPx = jumlahPx - keluarPx;
     final akhirDex = jumlahDex - keluarDex;
 
-    return 'Tanggal,Awal_PX,Terima_PX,Jumlah_PX,Keluar_PX,Akhir_PX,'
-        'Awal_PDX,Terima_PDX,Jumlah_PDX,Keluar_PDX,Akhir_PDX\n'
-        '$mulaiStr,${_n(awalPx)},${_n(terimaPx)},${_n(jumlahPx)},'
-        '${_n(keluarPx)},${_n(akhirPx)},'
-        '${_n(awalDex)},${_n(terimaDex)},${_n(jumlahDex)},'
-        '${_n(keluarDex)},${_n(akhirDex)}\n';
+    // Header
+    final header = 'Awal_PX_T1,Terima_PX_T1,Jumlah_PX_T1,Keluar_PX_T1,Akhir_PX_T1,'
+        'Awal_PDX_T1,Terima_PDX_T1,Jumlah_PDX_T1,Keluar_PDX_T1,Akhir_PDX_T1,'
+        'Awal_PX_T2,Terima_PX_T2,Jumlah_PX_T2,Keluar_PX_T2,Akhir_PX_T2,'
+        'Awal_PDX_T2,Terima_PDX_T2,Jumlah_PDX_T2,Keluar_PDX_T2,Akhir_PDX_T2';
+
+    // Isi data T1 dengan data rekap. T2 diisi dengan 0.
+    final row = '${_n(awalPx)},${_n(terimaPx)},${_n(jumlahPx)},${_n(keluarPx)},${_n(akhirPx)},'
+        '${_n(awalDex)},${_n(terimaDex)},${_n(jumlahDex)},${_n(keluarDex)},${_n(akhirDex)},'
+        '0,0,0,0,0,0,0,0,0,0';
+
+    return '$header\n$row\n';
+  }
+
+  Future<String> _buildMingguanCsv(String mulaiStr, String selesaiStr) async {
+    final stokAwal = await _repo.getLastStokOpnameBeforeDate(mulaiStr);
+    final awalPx = (stokAwal?['stok_fisik_pertamax'] as num?)?.toDouble() ?? 0.0;
+    final awalDex = (stokAwal?['stok_fisik_dex'] as num?)?.toDouble() ?? 0.0;
+
+    final terimaPx = await _repo.getPenerimaanPertamaxByPeriod(mulaiStr, selesaiStr);
+    final terimaDex = await _repo.getPenerimaanDexByPeriod(mulaiStr, selesaiStr);
+    final keluarPx = await _repo.getPengeluaranPertamaxByPeriod(mulaiStr, selesaiStr);
+    final keluarDex = await _repo.getPengeluaranDexByPeriod(mulaiStr, selesaiStr);
+    
+    final sisaPx = (awalPx + terimaPx) - keluarPx;
+    final sisaDex = (awalDex + terimaDex) - keluarDex;
+
+    // Header
+    final header = 'Awal_PX_T1,Terima_PX_T1,Keluar_PX_T1,Jumlah_PX_T1,'
+        'Awal_PDX_T1,Terima_PDX_T1,Keluar_PDX_T1,Jumlah_PDX_T1,'
+        'Awal_PX_T2,Terima_PX_T2,Keluar_PX_T2,Jumlah_PX_T2,'
+        'Awal_PDX_T2,Terima_PDX_T2,Keluar_PDX_T2,Jumlah_PDX_T2';
+
+    // Isi data T1. T2 diisi dengan 0.
+    final row = '${_n(awalPx)},${_n(terimaPx)},${_n(keluarPx)},${_n(sisaPx)},'
+        '${_n(awalDex)},${_n(terimaDex)},${_n(keluarDex)},${_n(sisaDex)},'
+        '0,0,0,0,0,0,0,0';
+
+    return '$header\n$row\n';
   }
 
   Future<String> _buildRekapHarianCsv(String mulaiStr, String selesaiStr) async {
@@ -190,29 +223,6 @@ class LaporanProvider extends ChangeNotifier {
     }
 
     return buffer.toString();
-  }
-
-  Future<String> _buildMingguanCsv(String mulaiStr, String selesaiStr) async {
-    final stokAwal = await _repo.getLastStokOpnameBeforeDate(mulaiStr);
-    final awalPx = (stokAwal?['stok_fisik_pertamax'] as num?)?.toDouble() ?? 0.0;
-    final awalDex = (stokAwal?['stok_fisik_dex'] as num?)?.toDouble() ?? 0.0;
-
-    final terimaPx = await _repo.getPenerimaanPertamaxByPeriod(mulaiStr, selesaiStr);
-    final terimaDex = await _repo.getPenerimaanDexByPeriod(mulaiStr, selesaiStr);
-    final keluarPx = await _repo.getPengeluaranPertamaxByPeriod(mulaiStr, selesaiStr);
-    final keluarDex = await _repo.getPengeluaranDexByPeriod(mulaiStr, selesaiStr);
-
-    final jumlahPx = awalPx + terimaPx;
-    final jumlahDex = awalDex + terimaDex;
-    final akhirPx = jumlahPx - keluarPx;
-    final akhirDex = jumlahDex - keluarDex;
-
-    return 'Tanggal_Mulai,Tanggal_Selesai,Awal_PX,Terima_PX,Jumlah_PX,Keluar_PX,Akhir_PX,'
-        'Awal_PDX,Terima_PDX,Jumlah_PDX,Keluar_PDX,Akhir_PDX\n'
-        '$mulaiStr,$selesaiStr,${_n(awalPx)},${_n(terimaPx)},${_n(jumlahPx)},'
-        '${_n(keluarPx)},${_n(akhirPx)},'
-        '${_n(awalDex)},${_n(terimaDex)},${_n(jumlahDex)},'
-        '${_n(keluarDex)},${_n(akhirDex)}\n';
   }
 
   Future<String> _buildBulananCsv(DateTime bulan) async {
