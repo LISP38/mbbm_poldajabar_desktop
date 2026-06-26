@@ -16,8 +16,8 @@ import 'package:kupon_bbm_app/domain/repositories/alokasi_repository.dart';
 import 'package:kupon_bbm_app/domain/repositories/alokasi_repository_impl.dart';
 import 'package:kupon_bbm_app/domain/repositories/jenis_bbm_repository.dart';
 import 'package:kupon_bbm_app/domain/repositories/jenis_bbm_repository_impl.dart';
-import 'package:kupon_bbm_app/domain/repositories/dashboard_repository_impl.dart';
-import 'package:kupon_bbm_app/presentation/providers/dashboard_controller.dart';
+import 'package:kupon_bbm_app/domain/repositories/laporan_repository.dart';
+import 'package:kupon_bbm_app/domain/repositories/laporan_repository_impl.dart';
 import 'package:kupon_bbm_app/data/database/app_database.dart';
 import 'package:kupon_bbm_app/core/di/drift_sqflite_adapter.dart';
 
@@ -60,6 +60,10 @@ Future<void> initializeDependencies() async {
 
   getIt.registerLazySingleton<JenisBbmRepository>(
     () => JenisBbmRepositoryImpl(getIt<AppDatabase>()),
+  );
+
+  getIt.registerLazySingleton<LaporanRepository>(
+    () => LaporanRepositoryImpl(getIt<AppDatabase>()),
   );
 
   // Validators

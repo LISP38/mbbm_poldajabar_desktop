@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../providers/kupon_provider.dart';
+import '../../providers/laporan_provider.dart';
 
 class InputStokOpnamePage extends StatefulWidget {
   const InputStokOpnamePage({super.key});
@@ -12,65 +14,182 @@ class InputStokOpnamePage extends StatefulWidget {
 }
 
 class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
-  final _pertamaxController = TextEditingController();
-  final _dexController = TextEditingController();
+  // ── Stok Fisik ────────────────────────────────────────────────────────────
+  final _pertamaxFisikController = TextEditingController();
+  final _dexFisikController = TextEditingController();
 
+  // ── Stok Penerimaan ───────────────────────────────────────────────────────
+  final _pertamaxPenerimaanController = TextEditingController(text: '0');
+  final _dexPenerimaanController = TextEditingController(text: '0');
+
+  // ── Stok Sistem (editable) ────────────────────────────────────────────────
+  final _pertamaxSistemController = TextEditingController(text: '0');
+  final _dexSistemController = TextEditingController(text: '0');
+
+  // Live values untuk grafik & kalkulasi
   double _stokFisikPertamax = 0;
   double _stokFisikDex = 0;
+  double _stokSistemPertamax = 0;
+  double _stokSistemDex = 0;
   bool _sudahSimpan = false;
 
   @override
   void initState() {
     super.initState();
-    _pertamaxController.addListener(_onInputChanged);
-    _dexController.addListener(_onInputChanged);
+    _pertamaxFisikController.addListener(_onInputChanged);
+    _dexFisikController.addListener(_onInputChanged);
+    _pertamaxPenerimaanController.addListener(_onInputChanged);
+    _dexPenerimaanController.addListener(_onInputChanged);
+    _pertamaxSistemController.addListener(_onSistemChanged);
+    _dexSistemController.addListener(_onSistemChanged);
 
-    Future.microtask(() {
+    Future.microtask(() async {
       if (!mounted) return;
-      context.read<KuponProvider>().fetchAllKuponsUnfiltered();
+      // Await agar data kupon tersedia sebelum dipakai sebagai default
+      await context.read<KuponProvider>().fetchAllKuponsUnfiltered();
+      await context.read<LaporanProvider>().loadLastStokOpname();
+      if (!mounted) return;
+
+      // Default stok sistem = kalkulasi dari transaksi (KuponProvider)
+      final allKupons = context.read<KuponProvider>().allKuponsForDropdown;
+      final kalkulasiPx = allKupons
+          .where((k) => k.jenisBbmId == 1 && k.isDeleted == 0)
+          .fold(0.0, (sum, k) => sum + k.kuotaSisa);
+      final kalkulasiDex = allKupons
+          .where((k) => k.jenisBbmId == 2 && k.isDeleted == 0)
+          .fold(0.0, (sum, k) => sum + k.kuotaSisa);
+      _pertamaxSistemController.text = kalkulasiPx.toStringAsFixed(0);
+      _dexSistemController.text = kalkulasiDex.toStringAsFixed(0);
+
+      // Pre-fill stok fisik & penerimaan dari stok opname terakhir
+      final last = context.read<LaporanProvider>().lastStokOpname;
+      if (last != null) {
+        final px = (last['stok_fisik_pertamax'] as num?)?.toDouble() ?? 0.0;
+        final dex = (last['stok_fisik_dex'] as num?)?.toDouble() ?? 0.0;
+        final pxPenerimaan =
+            (last['stok_penerimaan_pertamax'] as num?)?.toDouble() ?? 0.0;
+        final dexPenerimaan =
+            (last['stok_penerimaan_dex'] as num?)?.toDouble() ?? 0.0;
+        if (px > 0) _pertamaxFisikController.text = px.toStringAsFixed(0);
+        if (dex > 0) _dexFisikController.text = dex.toStringAsFixed(0);
+        if (pxPenerimaan > 0)
+          _pertamaxPenerimaanController.text =
+              pxPenerimaan.toStringAsFixed(0);
+        if (dexPenerimaan > 0)
+          _dexPenerimaanController.text = dexPenerimaan.toStringAsFixed(0);
+      }
     });
   }
 
   void _onInputChanged() {
     setState(() {
-      _stokFisikPertamax =
-          double.tryParse(_pertamaxController.text.replaceAll(',', '.')) ?? 0;
+      _stokFisikPertamax = double.tryParse(
+              _pertamaxFisikController.text.replaceAll(',', '.')) ??
+          0;
       _stokFisikDex =
-          double.tryParse(_dexController.text.replaceAll(',', '.')) ?? 0;
+          double.tryParse(_dexFisikController.text.replaceAll(',', '.')) ?? 0;
+    });
+  }
+
+  void _onSistemChanged() {
+    setState(() {
+      _stokSistemPertamax = double.tryParse(
+              _pertamaxSistemController.text.replaceAll(',', '.')) ??
+          0;
+      _stokSistemDex =
+          double.tryParse(_dexSistemController.text.replaceAll(',', '.')) ?? 0;
+    });
+  }
+
+  /// Reset stok sistem = stok fisik + stok penerimaan
+  void _resetSistemPertamax() {
+    final fisik = double.tryParse(
+            _pertamaxFisikController.text.replaceAll(',', '.')) ??
+        0;
+    final penerimaan = double.tryParse(
+            _pertamaxPenerimaanController.text.replaceAll(',', '.')) ??
+        0;
+    setState(() {
+      _pertamaxSistemController.text = (fisik + penerimaan).toStringAsFixed(0);
+      _stokSistemPertamax = fisik + penerimaan;
+    });
+  }
+
+  void _resetSistemDex() {
+    final fisik =
+        double.tryParse(_dexFisikController.text.replaceAll(',', '.')) ?? 0;
+    final penerimaan = double.tryParse(
+            _dexPenerimaanController.text.replaceAll(',', '.')) ??
+        0;
+    setState(() {
+      _dexSistemController.text = (fisik + penerimaan).toStringAsFixed(0);
+      _stokSistemDex = fisik + penerimaan;
     });
   }
 
   @override
   void dispose() {
-    _pertamaxController.dispose();
-    _dexController.dispose();
+    _pertamaxFisikController.dispose();
+    _dexFisikController.dispose();
+    _pertamaxPenerimaanController.dispose();
+    _dexPenerimaanController.dispose();
+    _pertamaxSistemController.dispose();
+    _dexSistemController.dispose();
     super.dispose();
   }
 
-  void _simpanStokOpname() {
-    final pertamax =
-        double.tryParse(_pertamaxController.text.replaceAll(',', '.'));
-    final dex = double.tryParse(_dexController.text.replaceAll(',', '.'));
+  void _simpanStokOpname() async {
+    final pertamaxFisik = double.tryParse(
+        _pertamaxFisikController.text.replaceAll(',', '.'));
+    final dexFisik =
+        double.tryParse(_dexFisikController.text.replaceAll(',', '.'));
+    final pertamaxPenerimaan = double.tryParse(
+            _pertamaxPenerimaanController.text.replaceAll(',', '.')) ??
+        0;
+    final dexPenerimaan = double.tryParse(
+            _dexPenerimaanController.text.replaceAll(',', '.')) ??
+        0;
+    final pertamaxSistem = double.tryParse(
+            _pertamaxSistemController.text.replaceAll(',', '.')) ??
+        0;
+    final dexSistem =
+        double.tryParse(_dexSistemController.text.replaceAll(',', '.')) ?? 0;
 
-    if (pertamax == null || dex == null) {
+    if (pertamaxFisik == null || dexFisik == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Masukkan nilai stok fisik yang valid untuk semua jenis BBM.'),
+          content: Text(
+              'Masukkan nilai stok fisik yang valid untuk semua jenis BBM.'),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
+    final tanggal = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    await context.read<LaporanProvider>().simpanStokOpname(
+          tanggal: tanggal,
+          stokFisikPertamax: pertamaxFisik,
+          stokFisikDex: dexFisik,
+          stokPenerimaanPertamax: pertamaxPenerimaan,
+          stokPenerimaanDex: dexPenerimaan,
+          stokSistemPertamax: pertamaxSistem,
+          stokSistemDex: dexSistem,
+        );
+
     setState(() {
-      _stokFisikPertamax = pertamax;
-      _stokFisikDex = dex;
+      _stokFisikPertamax = pertamaxFisik;
+      _stokFisikDex = dexFisik;
+      _stokSistemPertamax = pertamaxSistem;
+      _stokSistemDex = dexSistem;
       _sudahSimpan = true;
     });
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Stok opname berhasil disimpan.'),
+        content: Text('Stok opname berhasil disimpan ke database.'),
         backgroundColor: Colors.green,
       ),
     );
@@ -82,21 +201,28 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
       builder: (context, kuponProvider, _) {
         final allKupons = kuponProvider.allKuponsForDropdown;
 
-        final stokSistemPertamax = allKupons
+        // Stok sistem kalkulasi dari transaksi (dipakai sebagai default field & sebelum simpan)
+        final stokSistemKalkulasiPx = allKupons
             .where((k) => k.jenisBbmId == 1 && k.isDeleted == 0)
             .fold(0.0, (sum, k) => sum + k.kuotaSisa);
-        final stokSistemDex = allKupons
+        final stokSistemKalkulasiDex = allKupons
             .where((k) => k.jenisBbmId == 2 && k.isDeleted == 0)
             .fold(0.0, (sum, k) => sum + k.kuotaSisa);
 
-        final selisihPertamax = _stokFisikPertamax - stokSistemPertamax;
-        final selisihDex = _stokFisikDex - stokSistemDex;
-        final pctPertamax = stokSistemPertamax == 0
+        // Setelah simpan: gunakan nilai dari field; sebelum simpan: gunakan kalkulasi
+        final effectiveSistemPx =
+            _sudahSimpan ? _stokSistemPertamax : stokSistemKalkulasiPx;
+        final effectiveSistemDex =
+            _sudahSimpan ? _stokSistemDex : stokSistemKalkulasiDex;
+
+        final selisihPertamax = _stokFisikPertamax - effectiveSistemPx;
+        final selisihDex = _stokFisikDex - effectiveSistemDex;
+        final pctPertamax = effectiveSistemPx == 0
             ? 0.0
-            : (selisihPertamax / stokSistemPertamax) * 100;
-        final pctDex = stokSistemDex == 0
+            : (selisihPertamax / effectiveSistemPx) * 100;
+        final pctDex = effectiveSistemDex == 0
             ? 0.0
-            : (selisihDex / stokSistemDex) * 100;
+            : (selisihDex / effectiveSistemDex) * 100;
 
         return Scaffold(
           body: SingleChildScrollView(
@@ -115,7 +241,7 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Pencatatan Stok Fisik BBM pada Tangki Penyimpanan dan Perbandingan dengan Stok Hasil Perhitungan Transaksi',
+                  'Pencatatan Stok Fisik, Penerimaan, dan Stok Sistem BBM pada Tangki Penyimpanan',
                   style: TextStyle(
                     fontFamily: 'Mazzard',
                     fontSize: 14,
@@ -124,14 +250,14 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
                 ),
                 const SizedBox(height: 24),
 
-                // ── Input Stok Fisik
-                _buildInputBlock(stokSistemPertamax, stokSistemDex),
+                // ── Input Stok ────────────────────────────────────────────
+                _buildInputBlock(),
                 const SizedBox(height: 24),
 
-                // ── Analisis
+                // ── Analisis ──────────────────────────────────────────────
                 _buildAnalisisBlock(
-                  stokSistemPertamax: stokSistemPertamax,
-                  stokSistemDex: stokSistemDex,
+                  stokSistemPertamax: effectiveSistemPx,
+                  stokSistemDex: effectiveSistemDex,
                   selisihPertamax: selisihPertamax,
                   selisihDex: selisihDex,
                   pctPertamax: pctPertamax,
@@ -145,7 +271,7 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
     );
   }
 
-  Widget _buildInputBlock(double stokSistemPx, double stokSistemDex) {
+  Widget _buildInputBlock() {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -169,7 +295,7 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
                   color: Colors.blue.shade700, size: 20),
               const SizedBox(width: 8),
               const Text(
-                'Input Stok Fisik Tangki',
+                'Input Stok BBM',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -180,29 +306,32 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Masukkan hasil pengukuran stok fisik tangki BBM pada masing-masing jenis.',
+            'Masukkan stok fisik tangki, penerimaan BBM, dan stok sistem untuk masing-masing jenis BBM.',
             style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
           ),
           const SizedBox(height: 20),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: _buildBbmCard(
                   label: 'Pertamax',
-                  icon: Icons.local_gas_station,
                   color: Colors.blue,
-                  controller: _pertamaxController,
-                  stokSistem: stokSistemPx,
+                  fisikController: _pertamaxFisikController,
+                  penerimaanController: _pertamaxPenerimaanController,
+                  sistemController: _pertamaxSistemController,
+                  onReset: _resetSistemPertamax,
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: _buildBbmCard(
                   label: 'Pertamina Dex',
-                  icon: Icons.local_gas_station,
                   color: Colors.orange,
-                  controller: _dexController,
-                  stokSistem: stokSistemDex,
+                  fisikController: _dexFisikController,
+                  penerimaanController: _dexPenerimaanController,
+                  sistemController: _dexSistemController,
+                  onReset: _resetSistemDex,
                 ),
               ),
             ],
@@ -234,14 +363,15 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
 
   Widget _buildBbmCard({
     required String label,
-    required IconData icon,
-    required Color color,
-    required TextEditingController controller,
-    required double stokSistem,
+    required MaterialColor color,
+    required TextEditingController fisikController,
+    required TextEditingController penerimaanController,
+    required TextEditingController sistemController,
+    required VoidCallback onReset,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
+        color: color.withOpacity(0.04),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withOpacity(0.3)),
       ),
@@ -249,15 +379,16 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: color, size: 22),
+                child: Icon(Icons.local_gas_station, color: color, size: 20),
               ),
               const SizedBox(width: 10),
               Text(
@@ -270,37 +401,156 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: controller,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+          const SizedBox(height: 14),
+
+          // Stok Fisik
+          _buildStokField(
+            controller: fisikController,
+            label: 'Stok Fisik Tangki',
+            color: color,
+            icon: Icons.science_outlined,
+          ),
+          const SizedBox(height: 10),
+
+          // Stok Penerimaan
+          _buildStokField(
+            controller: penerimaanController,
+            label: 'Stok Penerimaan',
+            color: color,
+            icon: Icons.local_shipping_outlined,
+          ),
+          const SizedBox(height: 10),
+
+          // Stok Sistem + Reset button
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.storage_outlined, size: 14, color: Colors.grey.shade500),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Stok Sistem',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                  const Spacer(),
+                  // Reset button
+                  InkWell(
+                    onTap: onReset,
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                        border:
+                            Border.all(color: color.withOpacity(0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.refresh_rounded,
+                              size: 12, color: color.shade700),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Reset (Fisik + Penerimaan)',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: color.shade700,
+                                fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              TextFormField(
+                controller: sistemController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                ],
+                decoration: InputDecoration(
+                  suffixText: 'Liter',
+                  suffixStyle: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        BorderSide(color: color.withOpacity(0.5)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        BorderSide(color: color.withOpacity(0.4)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: color, width: 2),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                ),
+              ),
             ],
-            decoration: InputDecoration(
-              labelText: 'Stok Fisik Tangki',
-              suffixText: 'Liter',
-              suffixStyle: TextStyle(
-                  color: Colors.grey.shade600, fontWeight: FontWeight.w500),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: color.withOpacity(0.5)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: color.withOpacity(0.4)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: color, width: 2),
-              ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStokField({
+    required TextEditingController controller,
+    required String label,
+    required MaterialColor color,
+    required IconData icon,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 14, color: Colors.grey.shade500),
+            const SizedBox(width: 4),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12, color: Colors.grey.shade600)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        TextFormField(
+          controller: controller,
+          keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+          ],
+          decoration: InputDecoration(
+            suffixText: 'Liter',
+            suffixStyle: TextStyle(
+                color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: color.withOpacity(0.5)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: color.withOpacity(0.4)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: color, width: 2),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+        ),
+      ],
     );
   }
 
