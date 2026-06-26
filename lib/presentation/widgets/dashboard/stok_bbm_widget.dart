@@ -27,20 +27,16 @@ class StokIndicator extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.grey.shade300,
-        ),
+        border: Border.all(color: Colors.grey.shade300),
       ),
       child: Column(
         children: [
-
           SizedBox(
             width: 95,
             height: 95,
             child: Stack(
               alignment: Alignment.center,
               children: [
-
                 SizedBox(
                   width: 95,
                   height: 95,
@@ -68,20 +64,14 @@ class StokIndicator extends StatelessWidget {
 
           Text(
             nama,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
           ),
 
           const SizedBox(height: 8),
 
           Text(
             "${stok.toStringAsFixed(0)} Liter",
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
           ),
 
           const SizedBox(height: 10),
@@ -90,21 +80,13 @@ class StokIndicator extends StatelessWidget {
 
           const SizedBox(height: 10),
 
-          Text(
-            "Kapasitas",
-            style: TextStyle(
-              color: Colors.grey.shade600,
-            ),
-          ),
+          Text("Kapasitas", style: TextStyle(color: Colors.grey.shade600)),
 
           const SizedBox(height: 4),
 
           Text(
             "${kapasitas.toStringAsFixed(0)} Liter",
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
           ),
         ],
       ),
@@ -123,9 +105,7 @@ class StokBBMWidget extends StatelessWidget {
           return const Card(
             child: SizedBox(
               height: 200,
-              child: Center(
-                child: CircularProgressIndicator(),
-              ),
+              child: Center(child: CircularProgressIndicator()),
             ),
           );
         }
@@ -134,9 +114,7 @@ class StokBBMWidget extends StatelessWidget {
           return const Card(
             child: SizedBox(
               height: 200,
-              child: Center(
-                child: Text("Belum ada data stok BBM"),
-              ),
+              child: Center(child: Text("Belum ada data stok BBM")),
             ),
           );
         }
@@ -150,45 +128,41 @@ class StokBBMWidget extends StatelessWidget {
           child: SizedBox(
             width: double.infinity,
             child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Stok BBM per Jenis",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Stok BBM per Jenis",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                ),
 
-                const SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
-                Center(
-                  child: Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 32,
-                    runSpacing: 32,
-                    children: controller.stokBbm.map((item) {
+                  Center(
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 32,
+                      runSpacing: 32,
+                      children: controller.stokBbm.map((item) {
+                        final kapasitas = item.totalLiter * 2;
 
-                      final kapasitas = item.totalLiter * 2;
-
-                      return StokIndicator(
-                        nama: item.namaBbm,
-                        stok: item.totalLiter,
-                        kapasitas: kapasitas,
-                        color: item.namaBbm.toLowerCase().contains("dex")
-                            ? Colors.green
-                            : Colors.blue,
-                      );
-
-                    }).toList(),
+                        return StokIndicator(
+                          nama: item.namaBbm,
+                          stok: item.totalLiter,
+                          kapasitas: kapasitas,
+                          color: item.namaBbm.toLowerCase().contains("dex")
+                              ? Colors.green
+                              : Colors.blue,
+                        );
+                      }).toList(),
+                    ),
                   ),
-                )
-              ],
+                ],
+              ),
             ),
           ),
-        ));
+        );
       },
     );
   }

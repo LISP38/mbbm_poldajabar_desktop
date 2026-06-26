@@ -14,38 +14,70 @@ class DashboardPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Page Header
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
+    return ChangeNotifierProvider(
+      create: (_) {
+        final controller = getIt<DashboardController>();
+        controller.loadDashboard();
+        return controller;
+      },
+
+      child: Scaffold(
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
                   'Dashboard',
-                  style: TextStyle(
-                    fontFamily: 'Mazzard',
-                    fontSize: 24,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1E293B),
-                  ),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Analisis Visualisasi Data BBM Polda Jawa Barat',
-                  style: TextStyle(
-                    fontFamily: 'Mazzard',
-                    fontSize: 16,
-                    color: Colors.grey.shade600,
-                  ),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Analisis Visualisasi Data BBM Polda Jawa Barat.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
                 ),
-              ],
-            ),
+              ),
+
+              const SizedBox(height: 16),
+
+              const DashboardFilterWidget(),
+
+              const SizedBox(height: 16),
+
+              const StokBBMWidget(),
+
+              const SizedBox(height: 16),
+
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: const PolaBelanjaChartWidget()),
+
+                  const SizedBox(width: 16),
+
+                  Expanded(child: const TransaksiHarianChartWidget()),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: const PenyerapanSatkerChartWidget()),
+
+                  const SizedBox(width: 16),
+
+                  Expanded(child: const KuponCadanganChartWidget()),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
