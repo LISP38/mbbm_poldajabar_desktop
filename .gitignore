@@ -9,3 +9,4 @@ reference/
 *.db
 static/generate_result/
 static/templates/laporan/
+static/templates/kupon/
