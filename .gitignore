@@ -7,3 +7,5 @@ windows/flutter/ephemeral/
 Revamp_UIUX/
 reference/
 *.db
+static/generate_result/
+static/templates/laporan/
