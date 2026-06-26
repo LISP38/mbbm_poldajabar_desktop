@@ -47,7 +47,7 @@ class _SyncServerPageState extends State<SyncServerPage> {
       children: [
         // Page Header
         Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -55,7 +55,7 @@ class _SyncServerPageState extends State<SyncServerPage> {
                 'Sinkronisasi Data',
                 style: TextStyle(
                   fontFamily: 'Mazzard',
-                  fontSize: 28,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF1E293B),
                 ),

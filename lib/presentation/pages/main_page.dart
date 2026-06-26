@@ -8,6 +8,9 @@ import 'package:kupon_bbm_app/presentation/providers/kupon_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:kupon_bbm_app/presentation/pages/alokasi/rekomendasi_alokasi_page.dart';
 import 'package:kupon_bbm_app/presentation/pages/data_kupon/data_kupon_page.dart';
+import 'package:kupon_bbm_app/presentation/pages/generate_kupon_laporan/generate_kupon_laporan_page.dart';
+import 'package:kupon_bbm_app/presentation/pages/input_stok_opname/input_stok_opname_page.dart';
+import 'package:kupon_bbm_app/presentation/widgets/notification_widget.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -18,17 +21,52 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int _selectedIndex = 0;
+  int _selectedSubIndex = 0;
+  final Set<int> _expandedMenus = {};
+  
   bool _isSidebarVisible = true;
   final GlobalKey _dashboardKey = GlobalKey();
 
   final List<Map<String, dynamic>> _menuItems = [
     {'title': 'Dashboard', 'icon': Icons.home},
-    {'title': 'Rekomendasi Alokasi', 'icon': Icons.analytics},
-    {'title': 'Generate Kupon dan Laporan', 'icon': Icons.assignment},
+    {
+      'title': 'Rekomendasi Alokasi',
+      'icon': Icons.analytics,
+      'subMenus': [
+        'RPD yang Berlaku',
+        'Data Kendaraan',
+        'Index Norma',
+        'Hari Kerja',
+      ]
+    },
+    {
+      'title': 'Generate Kupon dan Laporan',
+      'icon': Icons.assignment,
+      'subMenus': [
+        'Generate Kupon',
+        'Generate Laporan',
+      ]
+    },
     {'title': 'Import Excel', 'icon': Icons.download},
-    {'title': 'Data Kupon', 'icon': Icons.receipt},
-    {'title': 'Data Transaksi', 'icon': Icons.receipt_long},
-    {'title': 'Transfer Data', 'icon': Icons.sync_alt},
+    {
+      'title': 'Data Kupon',
+      'icon': Icons.receipt,
+      'subMenus': [
+        'Data Ranjen',
+        'Data Dukungan',
+      ]
+    },
+    {
+      'title': 'Data Transaksi',
+      'icon': Icons.receipt_long,
+      'subMenus': [
+        'Data Transaksi',
+        'Kupon Minus',
+        'Transaksi Hutang',
+      ]
+    },
+    {'title': 'Sinkronisasi Data', 'icon': Icons.sync_alt},
+    {'title': 'Input Stok Opname BBM', 'icon': Icons.local_gas_station},
   ];
 
   Widget _buildPage(int index) {
@@ -36,11 +74,9 @@ class _MainPageState extends State<MainPage> {
       case 0:
         return DashboardPage(key: _dashboardKey);
       case 1:
-        return const RekomendasiAlokasiPage();
+        return RekomendasiAlokasiPage(selectedSubIndex: _selectedSubIndex);
       case 2:
-        return const Center(
-          child: Text('Generate Kupon dan Laporan juga Belum Ada'),
-        );
+        return GenerateKuponLaporanPage(selectedSubIndex: _selectedSubIndex); 
       case 3:
         return ImportPage(
           onImportSuccess: () {
@@ -54,11 +90,13 @@ class _MainPageState extends State<MainPage> {
           },
         );
       case 4:
-        return const DataKuponPage();
+        return DataKuponPage(selectedSubIndex: _selectedSubIndex);
       case 5:
-        return const TransactionPage();
+        return TransactionPage(selectedSubIndex: _selectedSubIndex);
       case 6:
         return const SyncServerPage();
+      case 7:
+        return const InputStokOpnamePage();
       default:
         return const SizedBox();
     }
@@ -94,10 +132,10 @@ class _MainPageState extends State<MainPage> {
                               height: 48,
                               errorBuilder: (context, error, stackTrace) =>
                                   const Icon(
-                                    Icons.local_police,
-                                    color: Colors.white,
-                                    size: 48,
-                                  ),
+                                Icons.local_police,
+                                color: Colors.white,
+                                size: 48,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             const Expanded(
@@ -122,16 +160,62 @@ class _MainPageState extends State<MainPage> {
                           itemCount: _menuItems.length,
                           itemBuilder: (context, index) {
                             final item = _menuItems[index];
+                            final hasSubmenus = item.containsKey('subMenus');
+                            final isExpanded = _expandedMenus.contains(index);
                             final isSelected = _selectedIndex == index;
-                            return _buildMenuTile(
-                              title: item['title'] as String,
-                              icon: item['icon'] as IconData,
-                              isSelected: isSelected,
-                              onTap: () {
-                                setState(() {
-                                  _selectedIndex = index;
-                                });
-                              },
+
+                            return Column(
+                              children: [
+                                _buildMenuTile(
+                                  title: item['title'] as String,
+                                  icon: item['icon'] as IconData,
+                                  isSelected: isSelected,
+                                  isExpanded: hasSubmenus ? isExpanded : null,
+                                  onTap: () {
+                                    setState(() {
+                                      if (hasSubmenus) {
+                                        if (isExpanded) {
+                                          _expandedMenus.remove(index);
+                                        } else {
+                                          _expandedMenus.clear();
+                                          _expandedMenus.add(index);
+                                        }
+                                      } else {
+                                        _selectedIndex = index;
+                                        _expandedMenus.clear();
+                                      }
+                                    });
+                                  },
+                                ),
+                                AnimatedSize(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut,
+                                  child: Column(
+                                    children: (hasSubmenus && isExpanded)
+                                        ? (item['subMenus'] as List<String>)
+                                            .asMap()
+                                            .entries
+                                            .map((entry) {
+                                            final subIdx = entry.key;
+                                            final subTitle = entry.value;
+                                            final isSubSelected =
+                                                (isSelected && _selectedSubIndex == subIdx);
+
+                                            return _buildSubMenuTile(
+                                              title: subTitle,
+                                              isSelected: isSubSelected,
+                                              onTap: () {
+                                                setState(() {
+                                                  _selectedIndex = index;
+                                                  _selectedSubIndex = subIdx;
+                                                });
+                                              },
+                                            );
+                                          }).toList()
+                                        : [],
+                                  ),
+                                ),
+                              ],
                             );
                           },
                         ),
@@ -162,19 +246,13 @@ class _MainPageState extends State<MainPage> {
                           });
                         },
                       ),
-                      Container(
-                        decoration: const BoxDecoration(
-                          color: AppTheme.primaryBlue,
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          icon: const Icon(
-                            Icons.notifications,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          onPressed: () {},
-                        ),
+                      NotificationBellButton(
+                        onNavigateToStokOpname: () {
+                          setState(() {
+                            _selectedIndex = 7;
+                            _expandedMenus.clear();
+                          });
+                        },
                       ),
                     ],
                   ),
@@ -194,6 +272,7 @@ class _MainPageState extends State<MainPage> {
     required IconData icon,
     required bool isSelected,
     required VoidCallback onTap,
+    bool? isExpanded,
   }) {
     return Material(
       color: Colors.transparent,
@@ -204,12 +283,6 @@ class _MainPageState extends State<MainPage> {
             color: isSelected
                 ? Colors.black.withOpacity(0.15)
                 : Colors.transparent,
-            border: Border(
-              left: BorderSide(
-                color: isSelected ? Colors.white : Colors.transparent,
-                width: 4,
-              ),
-            ),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Row(
@@ -221,10 +294,55 @@ class _MainPageState extends State<MainPage> {
                   title,
                   style: TextStyle(
                     color: Colors.white,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
                     fontSize: 14,
+                  ),
+                ),
+              ),
+              if (isExpanded != null)
+                AnimatedRotation(
+                  turns: isExpanded ? -0.25 : 0.0,
+                  duration: const Duration(milliseconds: 300),
+                  child: const Icon(
+                    Icons.keyboard_arrow_left,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubMenuTile({
+    required String title,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.only(left: 60, right: 24, top: 12, bottom: 12),
+          child: Row(
+            children: [
+              Icon(
+                isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                color: Colors.white,
+                size: 16,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : Colors.white70,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    fontSize: 13,
                   ),
                 ),
               ),

@@ -17,34 +17,43 @@ class HariKerjaTable extends StatelessWidget {
         final currentYear = DateTime.now().year;
         final years = List.generate(11, (index) => currentYear - 5 + index);
 
-        return Card(
-          elevation: 1,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header & Controls
-              Container(
-                color: Colors.grey.shade100,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // --- Dropdown & Button ---
+            Align(
+              alignment: Alignment.centerRight,
+              child: Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Hari Kerja',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        DropdownButton<int>(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Dropdown
+                      Container(
+                        width: 90,
+                        height: 33,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        alignment: Alignment.center, 
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: DropdownButton<int>(
+                          isExpanded: true,
                           value: provider.hariKerjaSelectedTahun,
+                          icon: const Icon(Icons.arrow_drop_down),
+                          style: const TextStyle(
+                            color: Color.fromARGB(255, 86, 86, 86),
+                            fontWeight: FontWeight.bold,
+                          ),
                           items: years.map((y) {
                             return DropdownMenuItem<int>(
                               value: y,
@@ -56,98 +65,116 @@ class HariKerjaTable extends StatelessWidget {
                           },
                           underline: const SizedBox(),
                         ),
-                        const SizedBox(width: 8),
-                        ElevatedButton.icon(
-                          onPressed: () => provider.generateHariKerjaTahun(),
-                          icon: const Icon(Icons.calendar_month, size: 16),
-                          label: const Text('Generate Kalender'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              if (hariKerjaList.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(32.0),
-                  child: Center(
-                    child: Text(
-                      'Belum ada data Hari Kerja untuk tahun terpilih.\nKlik Generate Kalender untuk membuat data.',
-                    ),
-                  ),
-                )
-              else ...[
-                // Table Header
-                Container(
-                  color: const Color(0xFFF28C28), // AppTheme.primaryOrange
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 12,
-                    horizontal: 16,
-                  ),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        flex: 3,
-                        child: Text(
-                          'Bulan',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
                       ),
-                      const Expanded(
-                        flex: 2,
-                        child: Text(
-                          'Kalender (K)',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
+                      const SizedBox(width: 12),
+                      
+                      // Generate Button
+                      ElevatedButton.icon(
+                        onPressed: () => provider.generateHariKerjaTahun(),
+                        icon: const Icon(Icons.calendar_month, size: 16),
+                        label: const Text('Generate Kalender'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF335092),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
                           ),
-                        ),
-                      ),
-                      const Expanded(
-                        flex: 3,
-                        child: Text(
-                          'Hari Kerja (HK)',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          '-${provider.hariKerjaOffset}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
+                          elevation: 0,
                         ),
                       ),
                     ],
                   ),
                 ),
+              ),
+            ),
+            
+            const SizedBox(height: 12),
 
-                // Scrollable Data Rows
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
+            // --- Card Tabel ---
+            Card(
+              elevation: 1,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (hariKerjaList.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(32.0),
+                      child: Center(
+                        child: Text(
+                          'Belum ada data Hari Kerja untuk tahun terpilih.\nKlik Generate Kalender untuk membuat data.',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    )
+                  else ...[
+                    // Table Header
+                    Container(
+                      color: const Color(0xFFF28C28), // AppTheme.primaryOrange
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 16,
+                      ),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            flex: 3,
+                            child: Text(
+                              'Bulan',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          const Expanded(
+                            flex: 2,
+                            child: Text(
+                              'Kalender (K)',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          const Expanded(
+                            flex: 3,
+                            child: Text(
+                              'Hari Kerja (HK)',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              '-${provider.hariKerjaOffset}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Data Rows
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         ...hariKerjaList.asMap().entries.map((entry) {
@@ -229,11 +256,11 @@ class HariKerjaTable extends StatelessWidget {
                         }),
                       ],
                     ),
-                  ),
-                ),
-              ],
-            ],
-          ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         );
       },
     );
