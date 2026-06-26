@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/laporan_provider.dart';
@@ -16,17 +15,16 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
   DateTime _tanggalMulai = DateTime.now();
   DateTime _tanggalSelesai = DateTime.now();
 
-  final _penerimaanPxController = TextEditingController(text: '0');
-  final _penerimaanDexController = TextEditingController(text: '0');
+  // Untuk bulanan – hanya perlu bulan & tahun
+  DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
 
   final _dateFormat = DateFormat('dd MMMM yyyy', 'id_ID');
-  final _dbFormat = DateFormat('yyyy-MM-dd');
+  final _monthFormat = DateFormat('MMMM yyyy', 'id_ID');
 
   @override
-  void dispose() {
-    _penerimaanPxController.dispose();
-    _penerimaanDexController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _setHariIni();
   }
 
   // ── Period presets ────────────────────────────────────────────────────────
@@ -40,8 +38,7 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
 
   void _setMingguIni() {
     final now = DateTime.now();
-    final weekday = now.weekday; // 1=Mon … 7=Sun
-    final monday = now.subtract(Duration(days: weekday - 1));
+    final monday = now.subtract(Duration(days: now.weekday - 1));
     final sunday = monday.add(const Duration(days: 6));
     setState(() {
       _tanggalMulai = DateTime(monday.year, monday.month, monday.day);
@@ -54,9 +51,11 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
     setState(() {
       _tanggalMulai = DateTime(now.year, now.month, 1);
       _tanggalSelesai = DateTime(now.year, now.month + 1, 0);
+      _selectedMonth = DateTime(now.year, now.month);
     });
   }
 
+  /// Date range picker untuk harian/rekapitulasi (per hari)
   Future<void> _pickDateRange() async {
     final picked = await showDateRangePicker(
       context: context,
@@ -76,21 +75,126 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
     }
   }
 
+  /// Date range picker untuk mingguan – snap ke batas Senin/Minggu
+  Future<void> _pickWeekRange() async {
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      initialDateRange: DateTimeRange(
+        start: _tanggalMulai,
+        end: _tanggalSelesai,
+      ),
+      locale: const Locale('id', 'ID'),
+      helpText: 'Pilih rentang minggu (awal–akhir)',
+    );
+    if (picked != null) {
+      // Snap start → Senin, snap end → Minggu
+      final startWd = picked.start.weekday;
+      final endWd = picked.end.weekday;
+      final snapStart = picked.start.subtract(Duration(days: startWd - 1));
+      final snapEnd = picked.end.add(Duration(days: 7 - endWd));
+      setState(() {
+        _tanggalMulai = snapStart;
+        _tanggalSelesai = snapEnd;
+      });
+    }
+  }
+
+  /// Month picker untuk bulanan
+  Future<void> _pickMonth() async {
+    final result = await _showMonthPicker(context, _selectedMonth);
+    if (result != null) {
+      setState(() {
+        _selectedMonth = result;
+        _tanggalMulai = DateTime(result.year, result.month, 1);
+        _tanggalSelesai = DateTime(result.year, result.month + 1, 0);
+      });
+    }
+  }
+
+  Future<DateTime?> _showMonthPicker(BuildContext context, DateTime initial) async {
+    int year = initial.year;
+    DateTime? selected;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          final months = List.generate(
+              12, (i) => DateFormat('MMM', 'id_ID').format(DateTime(year, i + 1)));
+          return AlertDialog(
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left),
+                  onPressed: () => setS(() => year--),
+                ),
+                Text('$year', style: const TextStyle(fontWeight: FontWeight.w600)),
+                IconButton(
+                  icon: const Icon(Icons.chevron_right),
+                  onPressed: () => setS(() => year++),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 280,
+              child: GridView.builder(
+                shrinkWrap: true,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  childAspectRatio: 2.2,
+                  mainAxisSpacing: 6,
+                  crossAxisSpacing: 6,
+                ),
+                itemCount: 12,
+                itemBuilder: (ctx, i) {
+                  final isSelected = selected?.year == year && selected?.month == i + 1;
+                  return InkWell(
+                    onTap: () {
+                      selected = DateTime(year, i + 1);
+                      Navigator.pop(ctx);
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFF1E3A5F) : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        months[i],
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: isSelected ? Colors.white : const Color(0xFF1E293B),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Batal'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return selected;
+  }
+
   // ── Generate ──────────────────────────────────────────────────────────────
   Future<void> _onGenerate() async {
-    final pxInput =
-        double.tryParse(_penerimaanPxController.text.replaceAll(',', '.')) ??
-            0.0;
-    final dexInput =
-        double.tryParse(_penerimaanDexController.text.replaceAll(',', '.')) ??
-            0.0;
-
     final error = await context.read<LaporanProvider>().generateLaporan(
           jenisLaporan: _jenisLaporan,
           tanggalMulai: _tanggalMulai,
           tanggalSelesai: _tanggalSelesai,
-          penerimaanPertamaxInput: pxInput,
-          penerimaanDexInput: dexInput,
         );
 
     if (!mounted) return;
@@ -102,7 +206,8 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-              'CSV berhasil dibuat & file Word dibuka. Klik "Finish & Merge" di Word untuk mencetak laporan.'),
+              'CSV berhasil dibuat & file Word dibuka. '
+              'Klik "Finish & Merge" di Word untuk mencetak laporan.'),
           backgroundColor: Colors.green,
           duration: Duration(seconds: 5),
         ),
@@ -154,17 +259,7 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // ── Penerimaan BBM ─────────────────────────────────────────
-                _buildSection(
-                  icon: Icons.local_shipping_outlined,
-                  title: 'Penerimaan BBM pada Periode Ini',
-                  subtitle:
-                      'Masukkan jumlah BBM yang diterima/masuk ke tangki selama periode laporan.',
-                  child: _buildPenerimaanInput(),
-                ),
-                const SizedBox(height: 16),
-
-                // ── Cara kerja ─────────────────────────────────────────────
+                // ── Info ───────────────────────────────────────────────────
                 _buildInfoBox(),
                 const SizedBox(height: 24),
 
@@ -182,17 +277,13 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
                           )
                         : const Icon(Icons.print_outlined, size: 20),
                     label: Text(
-                      provider.isLoading
-                          ? 'Memproses...'
-                          : 'Generate & Buka Word',
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600),
+                      provider.isLoading ? 'Memproses...' : 'Generate & Buka Word',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1E3A5F),
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ),
@@ -218,9 +309,7 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 2)),
+              color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2)),
         ],
       ),
       padding: const EdgeInsets.all(18),
@@ -233,15 +322,12 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
               const SizedBox(width: 8),
               Text(title,
                   style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1E293B))),
+                      fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
             ],
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 4),
-            Text(subtitle,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
           ],
           const SizedBox(height: 14),
           child,
@@ -256,8 +342,7 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
       (JenisLaporan.harian, 'Laporan Harian', Icons.today),
       (JenisLaporan.mingguan, 'Laporan Mingguan', Icons.view_week_outlined),
       (JenisLaporan.bulanan, 'Laporan Bulanan', Icons.calendar_month_outlined),
-      (JenisLaporan.rekapitulasiHarian, 'Rekapitulasi Harian',
-          Icons.table_chart_outlined),
+      (JenisLaporan.rekapitulasiHarian, 'Rekapitulasi Harian', Icons.table_chart_outlined),
     ];
 
     return Wrap(
@@ -267,87 +352,141 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
         final (jenis, label, icon) = opt;
         final selected = _jenisLaporan == jenis;
         return ChoiceChip(
-          avatar: Icon(icon,
-              size: 16,
-              color: selected ? Colors.white : const Color(0xFF1E3A5F)),
+          avatar: Icon(icon, size: 16, color: selected ? Colors.white : const Color(0xFF1E3A5F)),
           label: Text(label),
           selected: selected,
           onSelected: (_) {
             setState(() {
               _jenisLaporan = jenis;
-              // Auto-set period sesuai jenis
-              if (jenis == JenisLaporan.harian) _setHariIni();
-              if (jenis == JenisLaporan.mingguan) _setMingguIni();
-              if (jenis == JenisLaporan.bulanan) _setBulanIni();
-              if (jenis == JenisLaporan.rekapitulasiHarian) _setBulanIni();
+              switch (jenis) {
+                case JenisLaporan.harian:
+                case JenisLaporan.rekapitulasiHarian:
+                  _setHariIni();
+                  break;
+                case JenisLaporan.mingguan:
+                  _setMingguIni();
+                  break;
+                case JenisLaporan.bulanan:
+                  _setBulanIni();
+                  break;
+              }
             });
           },
           selectedColor: const Color(0xFF1E3A5F),
           labelStyle: TextStyle(
               color: selected ? Colors.white : const Color(0xFF1E293B),
-              fontWeight:
-                  selected ? FontWeight.w600 : FontWeight.normal),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         );
       }).toList(),
     );
   }
 
-  // ── Period selector ───────────────────────────────────────────────────────
+  // ── Period selector (kondisional per jenis) ───────────────────────────────
   Widget _buildPeriodSelector() {
+    switch (_jenisLaporan) {
+      case JenisLaporan.harian:
+      case JenisLaporan.rekapitulasiHarian:
+        return _buildPeriodHarian();
+      case JenisLaporan.mingguan:
+        return _buildPeriodMingguan();
+      case JenisLaporan.bulanan:
+        return _buildPeriodBulanan();
+    }
+  }
+
+  Widget _buildPeriodHarian() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Preset buttons
         Wrap(
           spacing: 8,
+          runSpacing: 8,
           children: [
             _presetBtn('Hari Ini', _setHariIni),
             _presetBtn('Minggu Ini', _setMingguIni),
             _presetBtn('Bulan Ini', _setBulanIni),
-            OutlinedButton.icon(
-              onPressed: _pickDateRange,
-              icon: const Icon(Icons.edit_calendar_outlined, size: 15),
-              label: const Text('Pilih Range'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF1E3A5F),
-                side: const BorderSide(color: Color(0xFF1E3A5F)),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                textStyle: const TextStyle(fontSize: 13),
-              ),
-            ),
+            _outlineBtn('Pilih Range', Icons.edit_calendar_outlined, _pickDateRange),
           ],
         ),
-        const SizedBox(height: 14),
-        // Date display
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF1F5F9),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.event_outlined,
-                  size: 18, color: Color(0xFF64748B)),
-              const SizedBox(width: 10),
-              Text(
-                _tanggalMulai == _tanggalSelesai
-                    ? _dateFormat.format(_tanggalMulai)
-                    : '${_dateFormat.format(_tanggalMulai)}  →  ${_dateFormat.format(_tanggalSelesai)}',
-                style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: Color(0xFF1E293B)),
-              ),
-            ],
-          ),
+        const SizedBox(height: 12),
+        _buildDateDisplay(
+          _tanggalMulai == _tanggalSelesai
+              ? _dateFormat.format(_tanggalMulai)
+              : '${_dateFormat.format(_tanggalMulai)}  →  ${_dateFormat.format(_tanggalSelesai)}',
         ),
       ],
+    );
+  }
+
+  Widget _buildPeriodMingguan() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _presetBtn('Minggu Ini', _setMingguIni),
+            _presetBtn('Bulan Ini', _setBulanIni),
+            _outlineBtn('Pilih Range Per Minggu', Icons.date_range_outlined, _pickWeekRange),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Range akan di-snap ke batas Senin–Minggu.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+        ),
+        const SizedBox(height: 8),
+        _buildDateDisplay(
+            '${_dateFormat.format(_tanggalMulai)}  →  ${_dateFormat.format(_tanggalSelesai)}'),
+      ],
+    );
+  }
+
+  Widget _buildPeriodBulanan() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _presetBtn('Bulan Ini', _setBulanIni),
+            _outlineBtn('Pilih Bulan', Icons.calendar_month_outlined, _pickMonth),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Pilih bulan untuk laporan; data dihitung per 5 minggu dalam bulan tersebut.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+        ),
+        const SizedBox(height: 8),
+        _buildDateDisplay(_monthFormat.format(_selectedMonth)),
+      ],
+    );
+  }
+
+  Widget _buildDateDisplay(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.event_outlined, size: 18, color: Color(0xFF64748B)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E293B)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -365,61 +504,28 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
     );
   }
 
-  // ── Penerimaan input ──────────────────────────────────────────────────────
-  Widget _buildPenerimaanInput() {
-    return Row(
-      children: [
-        Expanded(
-          child: _bbmTextField(
-            controller: _penerimaanPxController,
-            label: 'Penerimaan Pertamax',
-            color: Colors.blue,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _bbmTextField(
-            controller: _penerimaanDexController,
-            label: 'Penerimaan Pertamina Dex',
-            color: Colors.orange,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _bbmTextField({
-    required TextEditingController controller,
-    required String label,
-    required Color color,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-      ],
-      decoration: InputDecoration(
-        labelText: label,
-        suffixText: 'L',
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: color, width: 2),
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+  Widget _outlineBtn(String label, IconData icon, VoidCallback onTap) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 15),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: const Color(0xFF1E3A5F),
+        side: const BorderSide(color: Color(0xFF1E3A5F)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        textStyle: const TextStyle(fontSize: 13),
       ),
     );
   }
 
   // ── Info box ──────────────────────────────────────────────────────────────
   Widget _buildInfoBox() {
-    final templateName = switch (_jenisLaporan) {
-      JenisLaporan.harian => 'LAPORAN HARIAN.docx',
-      JenisLaporan.mingguan => 'BLANKO LAPORAN MINGGUAN.docx',
-      JenisLaporan.bulanan => 'BLANKO LAPORAN BULANAN.docx',
-      JenisLaporan.rekapitulasiHarian => 'REKAPITULASI HARIAN.docx',
+    final (templateName, csvName) = switch (_jenisLaporan) {
+      JenisLaporan.harian => ('LAPORAN HARIAN.docx', 'data_laporan_harian.csv'),
+      JenisLaporan.mingguan => ('BLANKO LAPORAN MINGGUAN.docx', 'data_laporan_mingguan.csv'),
+      JenisLaporan.bulanan => ('BLANKO LAPORAN BULANAN.docx', 'data_laporan_bulanan.csv'),
+      JenisLaporan.rekapitulasiHarian => ('REKAPITULASI HARIAN.docx', 'data_laporan_harian.csv'),
     };
 
     return Container(
@@ -438,16 +544,15 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
               const SizedBox(width: 6),
               Text('Cara Kerja',
                   style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: Colors.blue.shade800)),
+                      fontWeight: FontWeight.w600, fontSize: 13, color: Colors.blue.shade800)),
             ],
           ),
           const SizedBox(height: 8),
-          _infoRow('1', 'Data dihitung: persediaan awal (stok opname terakhir) + penerimaan - pengeluaran transaksi'),
-          _infoRow('2', 'File data_laporan.csv di-overwrite di static/templates/laporan/'),
-          _infoRow('3', 'Template Word dibuka: $templateName'),
-          _infoRow('4', 'Di Word: Mailings → Finish & Merge → Print Documents'),
+          _infoRow('1', 'Penerimaan BBM diambil otomatis dari data Input Stok Opname'),
+          _infoRow('2', 'Pengeluaran dihitung dari transaksi dalam periode yang dipilih'),
+          _infoRow('3', 'CSV di-overwrite: static/templates/laporan/$csvName'),
+          _infoRow('4', 'Template Word dibuka: $templateName'),
+          _infoRow('5', 'Di Word: Mailings → Finish & Merge → Print Documents'),
         ],
       ),
     );
@@ -469,16 +574,10 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
             ),
             child: Center(
               child: Text(num,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700)),
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
             ),
           ),
-          Expanded(
-              child: Text(text,
-                  style: TextStyle(
-                      fontSize: 12, color: Colors.blue.shade900))),
+          Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: Colors.blue.shade900))),
         ],
       ),
     );

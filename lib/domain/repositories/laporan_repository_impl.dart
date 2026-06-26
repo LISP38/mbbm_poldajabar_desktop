@@ -14,17 +14,23 @@ class LaporanRepositoryImpl implements LaporanRepository {
     required String tanggal,
     required double stokFisikPertamax,
     required double stokFisikDex,
+    required double stokPenerimaanPertamax,
+    required double stokPenerimaanDex,
     required double stokSistemPertamax,
     required double stokSistemDex,
   }) async {
     await _db.customInsert(
       '''INSERT INTO stok_opname 
-         (tanggal, stok_fisik_pertamax, stok_fisik_dex, stok_sistem_pertamax, stok_sistem_dex)
-         VALUES (?, ?, ?, ?, ?)''',
+         (tanggal, stok_fisik_pertamax, stok_fisik_dex,
+          stok_penerimaan_pertamax, stok_penerimaan_dex,
+          stok_sistem_pertamax, stok_sistem_dex)
+         VALUES (?, ?, ?, ?, ?, ?, ?)''',
       variables: [
         Variable.withString(tanggal),
         Variable.withReal(stokFisikPertamax),
         Variable.withReal(stokFisikDex),
+        Variable.withReal(stokPenerimaanPertamax),
+        Variable.withReal(stokPenerimaanDex),
         Variable.withReal(stokSistemPertamax),
         Variable.withReal(stokSistemDex),
       ],

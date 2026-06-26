@@ -4,6 +4,8 @@ abstract class LaporanRepository {
     required String tanggal,
     required double stokFisikPertamax,
     required double stokFisikDex,
+    required double stokPenerimaanPertamax,
+    required double stokPenerimaanDex,
     required double stokSistemPertamax,
     required double stokSistemDex,
   });
