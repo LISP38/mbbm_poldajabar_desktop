@@ -866,4 +866,155 @@ class KuponProvider extends ChangeNotifier {
       await fetchKupons(forceRefresh: true);
     }
   }
+  
+  Future<void> adjustStokSistemToFisik({
+    required double targetFisikPx,
+    required double targetFisikDex,
+  }) async {
+    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
+
+    try {
+      // 1. Ambil nilai total stok sistem saat ini untuk Pertamax (jenis_bbm_id = 1)
+      final List<Map<String, dynamic>> resPx = await db.rawQuery('''
+        SELECT SUM(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as total_sistem
+        FROM kupon dk
+        LEFT JOIN (
+          SELECT kupon_key, SUM(jumlah_liter) as total_used
+          FROM transaksi
+          WHERE is_deleted = 0
+          GROUP BY kupon_key
+        ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
+        WHERE dk.is_current = 1 AND dk.jenis_bbm_id = 1
+      ''');
+      
+      // 2. Ambil nilai total stok sistem saat ini untuk Pertamina Dex (jenis_bbm_id = 2)
+      final List<Map<String, dynamic>> resDex = await db.rawQuery('''
+        SELECT SUM(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as total_sistem
+        FROM kupon dk
+        LEFT JOIN (
+          SELECT kupon_key, SUM(jumlah_liter) as total_used
+          FROM transaksi
+          WHERE is_deleted = 0
+          GROUP BY kupon_key
+        ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
+        WHERE dk.is_current = 1 AND dk.jenis_bbm_id = 2
+      ''');
+
+      double sistemPx = (resPx.first['total_sistem'] as num?)?.toDouble() ?? 0.0;
+      double sistemDex = (resDex.first['total_sistem'] as num?)?.toDouble() ?? 0.0;
+
+      // Hitung berapa selisih penyesuaian kuota awal yang dibutuhkan
+      double diffPx = targetFisikPx - sistemPx;
+      double diffDex = targetFisikDex - sistemDex;
+
+      // 3. Eksekusi Update Penyesuaian ke Database untuk Pertamax
+      if (diffPx != 0) {
+        final List<Map<String, dynamic>> activeKuponPx = await db.rawQuery('''
+          SELECT kupon_key, kuota_awal FROM kupon 
+          WHERE is_current = 1 AND jenis_bbm_id = 1 AND status = 'Aktif'
+          LIMIT 1
+        ''');
+        
+        if (activeKuponPx.isNotEmpty) {
+          int key = activeKuponPx.first['kupon_key'] as int;
+          double oldKuota = (activeKuponPx.first['kuota_awal'] as num).toDouble();
+          await db.update(
+            'kupon',
+            {'kuota_awal': oldKuota + diffPx},
+            where: 'kupon_key = ?',
+            whereArgs: [key],
+          );
+        }
+      }
+
+      // 4. Eksekusi Update Penyesuaian ke Database untuk Pertamina Dex
+      if (diffDex != 0) {
+        final List<Map<String, dynamic>> activeKuponDex = await db.rawQuery('''
+          SELECT kupon_key, kuota_awal FROM kupon 
+          WHERE is_current = 1 AND jenis_bbm_id = 2 AND status = 'Aktif'
+          LIMIT 1
+        ''');
+        
+        if (activeKuponDex.isNotEmpty) {
+          int key = activeKuponDex.first['kupon_key'] as int;
+          double oldKuota = (activeKuponDex.first['kuota_awal'] as num).toDouble();
+          await db.update(
+            'kupon',
+            {'kuota_awal': oldKuota + diffDex},
+            where: 'kupon_key = ?',
+            whereArgs: [key],
+          );
+        }
+      }
+
+      // 5. Refresh semua cache state di Provider agar UI langsung mendeteksi perubahan
+      await fetchAllKuponsUnfiltered();
+      await fetchRanjenKupons(forceRefresh: true);
+      await fetchDukunganKupons(forceRefresh: true);
+      
+      notifyListeners(); // Memicu grafik dan teks di UI ter-update real-time
+    } catch (e) {
+      debugPrint("Gagal menjalankan fungsi adjustStokSistemToFisik: \$e");
+      rethrow;
+    }
+  }
+
+  Future<void> tambahStokSistem({
+    required double penerimaanPx,
+    required double penerimaanDex,
+  }) async {
+    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
+
+    try {
+      // 1. Tambah stok sistem untuk Pertamax (jenis_bbm_id = 1)
+      if (penerimaanPx > 0) {
+        final List<Map<String, dynamic>> activeKuponPx = await db.rawQuery('''
+          SELECT kupon_key, kuota_awal FROM kupon 
+          WHERE is_current = 1 AND jenis_bbm_id = 1 AND status = 'Aktif'
+          LIMIT 1
+        ''');
+        
+        if (activeKuponPx.isNotEmpty) {
+          int key = activeKuponPx.first['kupon_key'] as int;
+          double oldKuota = (activeKuponPx.first['kuota_awal'] as num).toDouble();
+          await db.update(
+            'kupon',
+            {'kuota_awal': oldKuota + penerimaanPx},
+            where: 'kupon_key = ?',
+            whereArgs: [key],
+          );
+        }
+      }
+
+      // 2. Tambah stok sistem untuk Pertamina Dex (jenis_bbm_id = 2)
+      if (penerimaanDex > 0) {
+        final List<Map<String, dynamic>> activeKuponDex = await db.rawQuery('''
+          SELECT kupon_key, kuota_awal FROM kupon 
+          WHERE is_current = 1 AND jenis_bbm_id = 2 AND status = 'Aktif'
+          LIMIT 1
+        ''');
+        
+        if (activeKuponDex.isNotEmpty) {
+          int key = activeKuponDex.first['kupon_key'] as int;
+          double oldKuota = (activeKuponDex.first['kuota_awal'] as num).toDouble();
+          await db.update(
+            'kupon',
+            {'kuota_awal': oldKuota + penerimaanDex},
+            where: 'kupon_key = ?',
+            whereArgs: [key],
+          );
+        }
+      }
+
+      // 3. Refresh semua cache state agar UI langsung ter-update
+      await fetchAllKuponsUnfiltered();
+      await fetchRanjenKupons(forceRefresh: true);
+      await fetchDukunganKupons(forceRefresh: true);
+      
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Gagal menambahkan stok sistem dari penerimaan: $e");
+      rethrow;
+    }
+  }
 }
