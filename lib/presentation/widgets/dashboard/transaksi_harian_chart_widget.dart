@@ -5,15 +5,12 @@ import 'package:provider/provider.dart';
 import '../../providers/dashboard_controller.dart';
 
 class TransaksiHarianChartWidget extends StatelessWidget {
-  const TransaksiHarianChartWidget({
-    super.key,
-  });
+  const TransaksiHarianChartWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Consumer<DashboardController>(
       builder: (context, controller, _) {
-
         if (controller.isLoading) {
           return const Card(
             child: SizedBox(
@@ -30,9 +27,7 @@ class TransaksiHarianChartWidget extends StatelessWidget {
             child: SizedBox(
               height: 320,
               child: Center(
-                child: Text(
-                  "Belum ada data transaksi",
-                ),
+                child: Text("Belum ada data transaksi"),
               ),
             ),
           );
@@ -53,166 +48,165 @@ class TransaksiHarianChartWidget extends StatelessWidget {
                 .toDouble() *
             1.2;
 
-        return Card(
-          elevation: 1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
 
-                const Text(
-                  "Jumlah Transaksi Harian",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+            final padding = width < 700
+                ? 12.0
+                : width < 1000
+                    ? 16.0
+                    : 20.0;
 
-                const SizedBox(height: 20),
+            final chartHeight = width < 700
+                ? 220.0
+                : width < 1000
+                    ? 260.0
+                    : 320.0;
 
-                SizedBox(
-                  height: 260,
-                  child: LineChart(
+            final titleFont = width < 700
+                ? 16.0
+                : width < 1000
+                    ? 18.0
+                    : 20.0;
 
-                    LineChartData(
+            final axisFont = width < 700
+                ? 9.0
+                : width < 1000
+                    ? 11.0
+                    : 12.0;
 
-                      minX: spots.first.x,
-                      maxX: spots.last.x,
+            final barWidth = width < 700
+                ? 2.0
+                : width < 1000
+                    ? 3.0
+                    : 4.0;
 
-                      minY: 0,
-                      maxY: maxY,
+            final dotRadius = width < 700
+                ? 2.5
+                : width < 1000
+                    ? 3.5
+                    : 4.5;
 
-                      borderData: FlBorderData(
-                        show: false,
+            return Card(
+              elevation: 1,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(padding),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Jumlah Transaksi Harian",
+                      style: TextStyle(
+                        fontSize: titleFont,
+                        fontWeight: FontWeight.bold,
                       ),
-
-                      gridData: FlGridData(
-                        drawVerticalLine: false,
-                      ),
-
-                      titlesData: FlTitlesData(
-
-                        topTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: false,
+                    ),
+                    SizedBox(height: padding),
+                    SizedBox(
+                      height: chartHeight,
+                      child: LineChart(
+                        LineChartData(
+                          minX: spots.first.x,
+                          maxX: spots.last.x,
+                          minY: 0,
+                          maxY: maxY,
+                          borderData: FlBorderData(show: false),
+                          gridData: FlGridData(
+                            drawVerticalLine: false,
                           ),
-                        ),
-
-                        rightTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: false,
-                          ),
-                        ),
-
-                        leftTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            reservedSize: 40,
-                          ),
-                        ),
-
-                        bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-
-                            interval: 1,
-
-                            getTitlesWidget:
-                                (value, meta) {
-
-                              return Padding(
-                                padding:
-                                    const EdgeInsets.only(
-                                  top: 8,
-                                ),
-                                child: Text(
-                                  value
-                                      .toInt()
-                                      .toString(),
-                                  style:
-                                      const TextStyle(
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-
-                      lineTouchData: LineTouchData(
-
-                        touchTooltipData:
-                            LineTouchTooltipData(
-
-                          getTooltipItems:
-                              (touchedSpots) {
-
-                            return touchedSpots.map(
-                              (spot) {
-
-                                return LineTooltipItem(
-
-                                  "${spot.x.toInt()} \n${spot.y.toInt()} transaksi",
-
-                                  const TextStyle(
-                                    color: Colors.white,
-                                  ),
-
-                                );
-
-                              },
-                            ).toList();
-
-                          },
-
-                        ),
-
-                      ),
-
-                      lineBarsData: [
-
-                        LineChartBarData(
-
-                          spots: spots,
-
-                          isCurved: true,
-
-                          color: Colors.orange,
-
-                          barWidth: 3,
-
-                          isStrokeCapRound: true,
-
-                          dotData: FlDotData(
-                            show: true,
-                          ),
-
-                          belowBarData: BarAreaData(
-                            show: true,
-                            color: Colors.orange
-                                .withOpacity(
-                              0.15,
+                          titlesData: FlTitlesData(
+                            topTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            rightTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: width < 700 ? 30 : 40,
+                                getTitlesWidget: (value, meta) {
+                                  return Text(
+                                    value.toInt().toString(),
+                                    style: TextStyle(
+                                      fontSize: axisFont,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                interval: 1,
+                                getTitlesWidget: (value, meta) {
+                                  return Padding(
+                                    padding:
+                                        const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      value.toInt().toString(),
+                                      style: TextStyle(
+                                        fontSize: axisFont,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
                           ),
-
+                          lineTouchData: LineTouchData(
+                            touchTooltipData:
+                                LineTouchTooltipData(
+                              getTooltipItems:
+                                  (touchedSpots) {
+                                return touchedSpots.map((spot) {
+                                  return LineTooltipItem(
+                                    "${spot.x.toInt()}\n${spot.y.toInt()} transaksi",
+                                    const TextStyle(
+                                      color: Colors.white,
+                                    ),
+                                  );
+                                }).toList();
+                              },
+                            ),
+                          ),
+                          lineBarsData: [
+                            LineChartBarData(
+                              spots: spots,
+                              isCurved: true,
+                              color: Colors.orange,
+                              barWidth: barWidth,
+                              isStrokeCapRound: true,
+                              dotData: FlDotData(
+                                show: true,
+                                getDotPainter:
+                                    (spot, percent, bar, index) {
+                                  return FlDotCirclePainter(
+                                    radius: dotRadius,
+                                    color: Colors.orange,
+                                    strokeWidth: 1,
+                                    strokeColor: Colors.white,
+                                  );
+                                },
+                              ),
+                              belowBarData: BarAreaData(
+                                show: true,
+                                color: Colors.orange.withOpacity(0.15),
+                              ),
+                            ),
+                          ],
                         ),
-
-                      ],
-
+                      ),
                     ),
-
-                  ),
+                  ],
                 ),
-
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );

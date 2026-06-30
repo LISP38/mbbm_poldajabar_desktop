@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kupon_bbm_app/presentation/providers/kupon_provider.dart';
 import 'package:kupon_bbm_app/presentation/widgets/dashboard/kupon_cadangan_chart_widget.dart';
 import 'package:kupon_bbm_app/presentation/widgets/dashboard/penyerapan_satker_chart_widget.dart';
 import 'package:kupon_bbm_app/presentation/widgets/dashboard/pola_belanja_chart_widget.dart';
@@ -9,11 +10,27 @@ import 'package:provider/provider.dart';
 import 'package:kupon_bbm_app/core/di/dependency_injection.dart';
 import 'package:kupon_bbm_app/presentation/providers/dashboard_controller.dart';
 
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
   @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+
+  @override
+  void initState() {
+    super.initState();
+
+    Future.microtask(() async {
+      await context.read<KuponProvider>().fetchAllKuponsUnfiltered();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    
     return ChangeNotifierProvider(
       create: (_) {
         final controller = getIt<DashboardController>();

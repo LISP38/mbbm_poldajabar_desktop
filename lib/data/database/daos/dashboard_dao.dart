@@ -112,6 +112,13 @@ class DashboardDao extends DatabaseAccessor<AppDatabase>
         satker,
         satker.satkerId.equalsExp(transaksi.satkerId),
       ),
+
+      innerJoin(
+        jenisKupon,
+        jenisKupon.jenisKuponId.equalsExp(
+          transaksi.jenisKuponId,
+        ),
+      ),
     ])
       ..where(
         transaksi.tanggalTransaksi.isBiggerOrEqualValue(_start(mulai)) &
@@ -122,6 +129,12 @@ class DashboardDao extends DatabaseAccessor<AppDatabase>
     final Map<String, double> map = {};
 
     for (final row in rows) {
+
+      final jk = row.readTable(jenisKupon);
+
+      if (jk.jenisKuponId == 2) {
+        continue;
+      }
 
       final trx = row.readTable(transaksi);
 
@@ -183,9 +196,7 @@ class DashboardDao extends DatabaseAccessor<AppDatabase>
 
       final jk = row.readTable(jenisKupon);
 
-      if (!jk.namaJenisKupon
-          .toLowerCase()
-          .contains("cadangan")) {
+      if (jk.jenisKuponId != 2) {
         continue;
       }
 
