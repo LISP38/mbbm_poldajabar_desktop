@@ -14,6 +14,10 @@ abstract class LaporanRepository {
 
   Future<Map<String, dynamic>?> getLastStokOpnameBeforeDate(String tanggal);
 
+  Future<double> getInitialKuota(int jenisBbmId, int bulan, int tahun);
+
+  Future<List<Map<String, dynamic>>> getRekapHarianDenganNol(String tanggalMulai, String tanggalSelesai);
+
   // ── Penerimaan BBM ────────────────────────────────────────────────────────
   Future<void> insertPenerimaanBbm({
     required String tanggal,
@@ -38,4 +42,17 @@ abstract class LaporanRepository {
   // ── Rekapitulasi harian (multi-row) ───────────────────────────────────────
   Future<List<Map<String, dynamic>>> getDailyRekapByPeriod(
       String tanggalMulai, String tanggalSelesai);
+
+  // ── Stok History (penerimaan + stok opname combined) ─────────────────────
+  Future<List<Map<String, dynamic>>> getStokHistory();
+
+  // ── Stok Trend (stok fisik per tanggal stok opname) ──────────────────────
+  Future<List<Map<String, dynamic>>> getStokTrend();
+
+  // ── Stok Opname list ─────────────────────────────────────────────────────
+  Future<List<Map<String, dynamic>>> getAllStokOpname();
+
+  // ── Stok Sistem dari kupon (fallback jika tidak ada stok opname) ──────────
+  Future<double> getStokSistemPertamaxAtDate(String tanggal);
+  Future<double> getStokSistemDexAtDate(String tanggal);
 }
