@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../providers/kupon_provider.dart';
 import '../../providers/dashboard_controller.dart';
 
 class StokIndicator extends StatelessWidget {
@@ -19,77 +20,106 @@ class StokIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final percent = kapasitas == 0 ? 0 : stok / kapasitas;
+    final percent = kapasitas == 0 ? 0.0 : (stok / kapasitas).clamp(0.0, 1.0);
 
-    return Container(
-      width: 260,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Column(
-        children: [
-          SizedBox(
-            width: 95,
-            height: 95,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: 95,
-                  height: 95,
-                  child: CircularProgressIndicator(
-                    value: double.parse(percent.toStringAsFixed(2)),
-                    strokeWidth: 8,
-                    color: color,
-                    backgroundColor: Colors.grey.shade300,
-                  ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+
+        final circleSize = width * 0.38;
+
+        final titleFont = width * 0.075;
+        final stockFont = width * 0.105;
+        final percentFont = width * 0.075;
+        final capacityTitleFont = width * 0.055;
+        final capacityFont = width * 0.07;
+
+        return Container(
+          padding: EdgeInsets.all(width * 0.08),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Column(
+            children: [
+              SizedBox(
+                width: circleSize,
+                height: circleSize,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: circleSize,
+                      height: circleSize,
+                      child: CircularProgressIndicator(
+                        value: percent,
+                        strokeWidth: 8,
+                        color: color,
+                        backgroundColor: Colors.grey.shade300,
+                      ),
+                    ),
+                    Text(
+                      "${(percent * 100).toStringAsFixed(0)}%",
+                      style: TextStyle(
+                        fontSize: percentFont,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                  ],
                 ),
+              ),
 
-                Text(
-                  "${(percent * 100).toStringAsFixed(0)}%",
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
+              SizedBox(height: width * 0.08),
+
+              Text(
+                nama,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: titleFont,
+                  fontWeight: FontWeight.w600,
                 ),
-              ],
-            ),
+              ),
+
+              SizedBox(height: width * 0.03),
+
+              Text(
+                "${stok.toStringAsFixed(0)} Liter",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: stockFont,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              SizedBox(height: width * 0.05),
+
+              Divider(),
+
+              SizedBox(height: width * 0.04),
+
+              Text(
+                "Kapasitas",
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: capacityTitleFont,
+                ),
+              ),
+
+              SizedBox(height: width * 0.015),
+
+              Text(
+                "${kapasitas.toStringAsFixed(0)} Liter",
+                style: TextStyle(
+                  fontSize: capacityFont,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
-
-          const SizedBox(height: 20),
-
-          Text(
-            nama,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-          ),
-
-          const SizedBox(height: 8),
-
-          Text(
-            "${stok.toStringAsFixed(0)} Liter",
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-          ),
-
-          const SizedBox(height: 10),
-
-          Divider(),
-
-          const SizedBox(height: 10),
-
-          Text("Kapasitas", style: TextStyle(color: Colors.grey.shade600)),
-
-          const SizedBox(height: 4),
-
-          Text(
-            "${kapasitas.toStringAsFixed(0)} Liter",
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -99,13 +129,15 @@ class StokBBMWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<DashboardController>(
-      builder: (context, controller, _) {
+    return Consumer2<DashboardController, KuponProvider>(
+      builder: (context, controller, kuponProvider, _) {
         if (controller.isLoading) {
           return const Card(
             child: SizedBox(
-              height: 200,
-              child: Center(child: CircularProgressIndicator()),
+              height: 220,
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
             ),
           );
         }
@@ -113,53 +145,99 @@ class StokBBMWidget extends StatelessWidget {
         if (controller.stokBbm.isEmpty) {
           return const Card(
             child: SizedBox(
-              height: 200,
-              child: Center(child: Text("Belum ada data stok BBM")),
+              height: 220,
+              child: Center(
+                child: Text("Belum ada data stok BBM"),
+              ),
             ),
           );
         }
 
-        double totalKeseluruhan = controller.stokBbm.fold(
-          0,
-          (prev, e) => prev + e.totalLiter,
-        );
+        final allKupons = kuponProvider.allKuponsForDropdown;
+
+        debugPrint("Jumlah kupon = ${allKupons.length}");
+
+        for (final k in allKupons) {
+          debugPrint(
+            "BBM=${k.jenisBbmId}, kuotaSisa=${k.kuotaSisa}, deleted=${k.isDeleted}",
+          );
+        }
+
+        final stokSistemPx = allKupons
+            .where((k) => k.jenisBbmId == 1 && k.isDeleted == 0)
+            .fold(0.0, (sum, k) => sum + k.kuotaSisa);
+
+        final stokSistemDex = allKupons
+            .where((k) => k.jenisBbmId == 2 && k.isDeleted == 0)
+            .fold(0.0, (sum, k) => sum + k.kuotaSisa);
+
+        const kapasitasTangki = 16000.0;
 
         return Card(
-          child: SizedBox(
-            width: double.infinity,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Stok BBM per Jenis",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                double itemWidth;
 
-                  const SizedBox(height: 24),
+                if (constraints.maxWidth >= 1700) {
+                  itemWidth = constraints.maxWidth / 5;
+                } else if (constraints.maxWidth >= 1300) {
+                  itemWidth = constraints.maxWidth / 4;
+                } else if (constraints.maxWidth >= 900) {
+                  itemWidth = constraints.maxWidth / 3;
+                } else if (constraints.maxWidth >= 600) {
+                  itemWidth = constraints.maxWidth / 2;
+                } else {
+                  itemWidth = constraints.maxWidth;
+                }
 
-                  Center(
-                    child: Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 32,
-                      runSpacing: 32,
-                      children: controller.stokBbm.map((item) {
-                        final kapasitas = item.totalLiter * 2;
+                itemWidth = itemWidth.clamp(220.0, 320.0);
 
-                        return StokIndicator(
-                          nama: item.namaBbm,
-                          stok: item.totalLiter,
-                          kapasitas: kapasitas,
-                          color: item.namaBbm.toLowerCase().contains("dex")
-                              ? Colors.green
-                              : Colors.blue,
-                        );
-                      }).toList(),
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Stok BBM per Jenis",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                ],
-              ),
+
+                    const SizedBox(height: 24),
+
+                    Center(
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 24,
+                        runSpacing: 24,                    
+                        children: [
+                          SizedBox(
+                            width: itemWidth,
+                            child: StokIndicator(
+                              nama: "Pertamax",
+                              stok: stokSistemPx,
+                              kapasitas: kapasitasTangki,
+                              color: Colors.blue,
+                            ),
+                          ),
+
+                          SizedBox(
+                            width: itemWidth,
+                            child: StokIndicator(
+                              nama: "Pertamina Dex",
+                              stok: stokSistemDex,
+                              kapasitas: kapasitasTangki,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         );

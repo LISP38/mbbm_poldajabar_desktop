@@ -37,13 +37,14 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => KuponProvider(getIt<KuponRepository>()),
+          create: (_) {
+            final provider = KuponProvider(getIt<KuponRepository>());
+            provider.fetchAllKuponsUnfiltered();
+            return provider;
+          },
         ),
         ChangeNotifierProvider(
           create: (_) => TransaksiProvider(getIt<TransaksiRepositoryImpl>()),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => KuponProvider(getIt<KuponRepository>()),
         ),
         ChangeNotifierProvider(
           create: (_) => MasterDataProvider(getIt<MasterDataRepository>()),
