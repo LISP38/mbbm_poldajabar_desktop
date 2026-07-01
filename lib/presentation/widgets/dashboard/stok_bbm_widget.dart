@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/kupon_provider.dart';
 import '../../providers/dashboard_controller.dart';
+import '../../providers/laporan_provider.dart';
 
 class StokIndicator extends StatelessWidget {
   final String nama;
@@ -100,7 +101,7 @@ class StokIndicator extends StatelessWidget {
               SizedBox(height: width * 0.04),
 
               Text(
-                "Kapasitas",
+                "Stok Fisik Tangki",
                 style: TextStyle(
                   color: Colors.grey.shade600,
                   fontSize: capacityTitleFont,
@@ -129,8 +130,8 @@ class StokBBMWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<DashboardController, KuponProvider>(
-      builder: (context, controller, kuponProvider, _) {
+    return Consumer3<DashboardController, KuponProvider, LaporanProvider>(
+      builder: (context, controller, kuponProvider, laporanProvider, _) {
         if (controller.isLoading) {
           return const Card(
             child: SizedBox(
@@ -171,7 +172,9 @@ class StokBBMWidget extends StatelessWidget {
             .where((k) => k.jenisBbmId == 2 && k.isDeleted == 0)
             .fold(0.0, (sum, k) => sum + k.kuotaSisa);
 
-        const kapasitasTangki = 16000.0;
+        final lastStok = laporanProvider.lastStokOpname;
+        final stokFisikPx = (lastStok?['stok_fisik_pertamax'] as num?)?.toDouble() ?? 0.0;
+        final stokFisikDex = (lastStok?['stok_fisik_dex'] as num?)?.toDouble() ?? 0.0;
 
         return Card(
           child: Padding(
@@ -218,7 +221,7 @@ class StokBBMWidget extends StatelessWidget {
                             child: StokIndicator(
                               nama: "Pertamax",
                               stok: stokSistemPx,
-                              kapasitas: kapasitasTangki,
+                              kapasitas: stokFisikPx,
                               color: Colors.blue,
                             ),
                           ),
@@ -228,7 +231,7 @@ class StokBBMWidget extends StatelessWidget {
                             child: StokIndicator(
                               nama: "Pertamina Dex",
                               stok: stokSistemDex,
-                              kapasitas: kapasitasTangki,
+                              kapasitas: stokFisikDex,
                               color: Colors.green,
                             ),
                           ),

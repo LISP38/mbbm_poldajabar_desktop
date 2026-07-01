@@ -15,13 +15,8 @@ class DashboardController extends ChangeNotifier {
 
   bool isLoading = false;
 
-  DateTime tanggalMulai = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
-    1,
-  );
-
-  DateTime tanggalAkhir = DateTime.now();
+  DateTime? tanggalMulai;
+  DateTime? tanggalAkhir;
 
   List<StokBbmModel> stokBbm = [];
 
@@ -38,33 +33,36 @@ class DashboardController extends ChangeNotifier {
     isLoading = true;
     notifyListeners();
 
+    final mulai = tanggalMulai ?? DateTime(2000);
+    final akhir = tanggalAkhir ?? DateTime(2100);
+
     stokBbm = await repository.getStokBbm(
-      tanggalMulai,
-      tanggalAkhir,
+      mulai,
+      akhir,
     );
 
     transaksiHarian =
         await repository.getTransaksiHarian(
-      tanggalMulai,
-      tanggalAkhir,
+      mulai,
+      akhir,
     );
 
     polaBelanja =
         await repository.getPolaBelanja(
-      tanggalMulai,
-      tanggalAkhir,
+      mulai,
+      akhir,
     );
 
     penyerapanSatker =
         await repository.getPenyerapanSatker(
-      tanggalMulai,
-      tanggalAkhir,
+      mulai,
+      akhir,
     );
 
     kuponCadangan =
         await repository.getKuponCadangan(
-      tanggalMulai,
-      tanggalAkhir,
+      mulai,
+      akhir,
     );
 
     isLoading = false;
@@ -72,8 +70,8 @@ class DashboardController extends ChangeNotifier {
   }
 
   Future<void> updatePeriode(
-      DateTime mulai,
-      DateTime akhir,
+      DateTime? mulai,
+      DateTime? akhir,
       ) async {
 
     tanggalMulai = mulai;
