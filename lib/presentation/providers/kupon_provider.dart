@@ -146,11 +146,15 @@ class KuponProvider extends ChangeNotifier {
     // Fetch Ranjen data async, tapi jangan block constructor
     Future.microtask(() async {
       try {
-        debugPrint('ðŸ”„ _initializeDefaultData: Fetching Ranjen data...');
+        debugPrint('[KuponProvider] _initializeDefaultData: Fetching default data...');
+        await loadFilterOptions();
+        await fetchJenisBbm();
+        await fetchSatkers();
+
         await fetchRanjenKupons(forceRefresh: false);
-        debugPrint('âœ… _initializeDefaultData: Ranjen data loaded');
+        debugPrint('[KuponProvider] _initializeDefaultData: Ranjen data loaded');
       } catch (e) {
-        debugPrint('âŒ _initializeDefaultData error: $e');
+        debugPrint('[KuponProvider] _initializeDefaultData error: $e');
       }
     });
   }

@@ -26,7 +26,14 @@ class _GenerateKuponPageState extends State<GenerateKuponPage> {
   String? _filterJenisBBM;
   String? _filterBulan;
   String? _filterTahun;
+  String? _filterJenisRanmor;
   final TextEditingController _nopolCtrl = TextEditingController();
+
+  String _getBulanName(int bulan) {
+    final namaBulan = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    if (bulan >= 1 && bulan <= 12) return namaBulan[bulan - 1];
+    return bulan.toString();
+  }
 
   int _currentPage  = 1;
   int _itemsPerPage = 10;
@@ -96,6 +103,10 @@ class _GenerateKuponPageState extends State<GenerateKuponPage> {
       }
       if (_filterBulan != null && item.bulanTerbit.toString() != _filterBulan) return false;
       if (_filterTahun != null && item.tahunTerbit.toString() != _filterTahun) return false;
+      if (_filterJenisRanmor != null && item.kendaraanId != null) {
+        final k = _kendaraanCache[item.kendaraanId];
+        if (k == null || k.jenisRanmor != _filterJenisRanmor) return false;
+      }
       if (_nopolCtrl.text.isNotEmpty && item.kendaraanId != null) {
         final k = _kendaraanCache[item.kendaraanId];
         if (k == null) return false;
@@ -107,7 +118,7 @@ class _GenerateKuponPageState extends State<GenerateKuponPage> {
   }
 
   void _resetFilters() => setState(() {
-    _filterSatker = _filterJenisBBM = _filterBulan = _filterTahun = null;
+    _filterSatker = _filterJenisBBM = _filterBulan = _filterTahun = _filterJenisRanmor = null;
     _nopolCtrl.clear();
     _currentPage = 1;
   });
@@ -393,6 +404,17 @@ class _GenerateKuponPageState extends State<GenerateKuponPage> {
                       items: provider.satkerList,
                       onChanged: (v) => setState(() {
                         _filterSatker = v; _currentPage = 1;
+                      })),
+                  _buildDropdown(
+                      label: 'Jenis Kendaraan',
+                      hint: 'Pilih Jenis',
+                      value: _filterJenisRanmor,
+                      items: _kendaraanCache.values
+                          .map((k) => k.jenisRanmor)
+                          .toSet()
+                          .toList(),
+                      onChanged: (v) => setState(() {
+                        _filterJenisRanmor = v; _currentPage = 1;
                       })),
                   _buildDropdown(
                       label: 'Jenis BBM',
@@ -890,15 +912,37 @@ class _GenerateKuponPageState extends State<GenerateKuponPage> {
                       hint: Text(hint ?? '',
                           style: TextStyle(
                               color: Colors.grey[400], fontSize: 14)),
-                      value: value,
-                      items: (items ?? []).map((i) =>
-                        DropdownMenuItem(
-                          value: i.toString(),
-                          child: Text(i.toString(),
-                              style: const TextStyle(fontSize: 14)),
+                      value: (value == null || value.isEmpty) ? '' : value,
+                      items: [
+                        DropdownMenuItem<String>(
+                          value: '',
+                          child: Text(
+                            hint ?? '',
+                            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                          ),
                         ),
-                      ).toList(),
-                      onChanged: onChanged,
+                        ...(items ?? []).map((i) {
+                          String itemLabel = i.toString();
+                          if (label == 'Bulan') {
+                            final intValue = int.tryParse(itemLabel);
+                            if (intValue != null) {
+                              itemLabel = _getBulanName(intValue);
+                            }
+                          }
+                          return DropdownMenuItem(
+                            value: i.toString(),
+                            child: Text(itemLabel,
+                                style: const TextStyle(fontSize: 14)),
+                          );
+                        }),
+                      ],
+                      onChanged: (val) {
+                        if (val == '') {
+                          if (onChanged != null) onChanged(null);
+                        } else {
+                          if (onChanged != null) onChanged(val);
+                        }
+                      },
                     ),
                   ),
           ),

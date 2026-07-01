@@ -30,6 +30,27 @@ class _DataKuponPageState extends State<DataKuponPage> {
   String? _selectedTahunTerbit;
   String? _selectedJenisKendaraan;
 
+  String _getBulanName(int bulan) {
+    final namaBulan = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    if (bulan >= 1 && bulan <= 12) {
+      return namaBulan[bulan - 1];
+    }
+    return bulan.toString();
+  }
+
   final TextEditingController _nopolController = TextEditingController();
 
   // Scroll Controller to sync horizontal scrolls
@@ -283,7 +304,7 @@ class _DataKuponPageState extends State<DataKuponPage> {
         }
 
         row.addAll([
-          '${kupon.bulanTerbit}/${kupon.tahunTerbit}',
+          '${_getBulanName(kupon.bulanTerbit)} ${kupon.tahunTerbit}',
           '${_formatNumber(kupon.kuotaSisa)} L',
           kupon.status ?? 'Aktif',
         ]);
@@ -400,7 +421,10 @@ class _DataKuponPageState extends State<DataKuponPage> {
                             'Jenis Kendaraan',
                             data.jenisKuponId == 1 ? 'RANJEN' : 'DUKUNGAN',
                           ),
-                          _buildDetailRow('Bulan', data.bulanTerbit.toString()),
+                          _buildDetailRow(
+                            'Bulan',
+                            _getBulanName(data.bulanTerbit),
+                          ),
                           _buildDetailRow('Tahun', data.tahunTerbit.toString()),
                         ] else ...[
                           const Padding(
@@ -512,7 +536,12 @@ class _DataKuponPageState extends State<DataKuponPage> {
               // HEADER
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 20.0, bottom: 24.0),
+                  padding: const EdgeInsets.only(
+                    left: 24.0,
+                    right: 24.0,
+                    top: 20.0,
+                    bottom: 24.0,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -556,7 +585,8 @@ class _DataKuponPageState extends State<DataKuponPage> {
                               Expanded(
                                 child: _buildSummaryCard(
                                   title: 'Total Kuota',
-                                  value: '${_formatNumber(provider.totalKuotaAwal)}',
+                                  value:
+                                      '${_formatNumber(provider.totalKuotaAwal)}',
                                   subtitle: 'Liter',
                                   icon: Icons.local_gas_station,
                                   color: Colors.amber,
@@ -566,7 +596,8 @@ class _DataKuponPageState extends State<DataKuponPage> {
                               Expanded(
                                 child: _buildSummaryCard(
                                   title: 'Total Terpakai',
-                                  value: '${_formatNumber(provider.totalTerpakai)}',
+                                  value:
+                                      '${_formatNumber(provider.totalTerpakai)}',
                                   subtitle: 'Liter',
                                   icon: Icons.trending_down,
                                   color: Colors.green,
@@ -576,7 +607,8 @@ class _DataKuponPageState extends State<DataKuponPage> {
                               Expanded(
                                 child: _buildSummaryCard(
                                   title: 'Total Saldo',
-                                  value: '${_formatNumber(provider.totalSaldo)}',
+                                  value:
+                                      '${_formatNumber(provider.totalSaldo)}',
                                   subtitle: 'Liter',
                                   icon: Icons.account_balance_wallet,
                                   color: Colors.blue,
@@ -671,7 +703,10 @@ class _DataKuponPageState extends State<DataKuponPage> {
                                           label: 'Jenis Kendaraan',
                                           hint: 'Pilih Jenis',
                                           value: _selectedJenisKendaraan,
-                                          items: const ['R2', 'R4', 'R6'],
+                                          items: _kendaraanCache.values
+                                              .map((k) => k.jenisRanmor)
+                                              .toSet()
+                                              .toList(),
                                           onChanged: (value) => setState(
                                             () =>
                                                 _selectedJenisKendaraan = value,
@@ -1008,7 +1043,7 @@ class _DataKuponPageState extends State<DataKuponPage> {
                                                         ),
                                                       ],
                                                       _buildTableCell(
-                                                        '${kupon.bulanTerbit}/${kupon.tahunTerbit}',
+                                                        '${_getBulanName(kupon.bulanTerbit)} ${kupon.tahunTerbit}',
                                                         width: 120,
                                                       ),
                                                       _buildTableCell(
@@ -1227,17 +1262,36 @@ class _DataKuponPageState extends State<DataKuponPage> {
             child: DropdownButton<String>(
               isExpanded: true,
               hint: Text(hint, style: TextStyle(color: Colors.grey[400])),
-              value: value,
-              items: items.map((dynamic item) {
-                return DropdownMenuItem<String>(
-                  value: item.toString(),
+              value: (value == null || value.isEmpty) ? '' : value,
+              items: [
+                DropdownMenuItem<String>(
+                  value: '',
                   child: Text(
-                    item.toString(),
-                    style: const TextStyle(fontSize: 14),
+                    hint,
+                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
                   ),
-                );
-              }).toList(),
-              onChanged: onChanged,
+                ),
+                ...items.map((dynamic item) {
+                  String itemLabel = item.toString();
+                  if (label == 'Bulan') {
+                    final intValue = int.tryParse(itemLabel);
+                    if (intValue != null) {
+                      itemLabel = _getBulanName(intValue);
+                    }
+                  }
+                  return DropdownMenuItem<String>(
+                    value: item.toString(),
+                    child: Text(itemLabel, style: const TextStyle(fontSize: 14)),
+                  );
+                }),
+              ],
+              onChanged: (val) {
+                if (val == '') {
+                  onChanged(null);
+                } else {
+                  onChanged(val);
+                }
+              },
             ),
           ),
         ),
