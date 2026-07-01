@@ -166,13 +166,13 @@ class TransaksiProvider extends ChangeNotifier {
     await fetchKuponMinus();
   }
 
-  void setBulan(int bulan) {
-    filterBulan = bulan;
+  void setBulan(int? bulan) {
+    filterBulan = (bulan == 0) ? null : bulan;
     notifyListeners();
   }
 
-  void setTahun(int tahun) {
-    filterTahun = tahun;
+  void setTahun(int? tahun) {
+    filterTahun = (tahun == 0) ? null : tahun;
     notifyListeners();
   }
 

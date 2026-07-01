@@ -220,8 +220,7 @@ class KuponProvider extends ChangeNotifier {
   /// Update status kupon yang sudah expired menjadi "Tidak Aktif" di database
   /// Dipanggil setiap kali fetch kupon untuk memastikan status selalu akurat
   Future<void> _updateExpiredKuponStatus() async {
-    final db =
-        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
+    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
 
     try {
       // Update semua kupon yang tanggal_sampainya sudah lewat
@@ -242,8 +241,7 @@ class KuponProvider extends ChangeNotifier {
   // --- Data Fetching Methods ---
 
   Future<void> fetchSatkers() async {
-    final db =
-        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
+    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
 
     try {
       final results = await db.query(
@@ -262,8 +260,7 @@ class KuponProvider extends ChangeNotifier {
 
   /// Fetch semua kupon tanpa filter untuk dropdown di halaman transaksi
   Future<void> fetchAllKuponsUnfiltered() async {
-    final db =
-        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
+    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
 
     try {
       String query = '''
@@ -314,8 +311,7 @@ class KuponProvider extends ChangeNotifier {
   }
 
   Future<void> fetchJenisBbm() async {
-    final db =
-        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
+    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
     try {
       final rows = await db.query(
         'jenis_bbm',
@@ -349,8 +345,7 @@ class KuponProvider extends ChangeNotifier {
 
   // Fetch bulan list from bulan; fall back to 1..12 on error
   Future<void> fetchBulans() async {
-    final db =
-        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
+    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
     try {
       // check if bulan exists
       final exists = await db.rawQuery(
@@ -406,8 +401,7 @@ class KuponProvider extends ChangeNotifier {
 
   // Fetch tahun list from tahun; fall back to current year +/- 1
   Future<void> fetchTahuns() async {
-    final db =
-        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
+    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
     try {
       // check tahun
       final exists = await db.rawQuery(
@@ -464,8 +458,7 @@ class KuponProvider extends ChangeNotifier {
   /// Values are returned as strings to preserve whatever format is stored
   /// (numeric or textual). UI will map numeric month strings to month names.
   Future<void> loadFilterOptions() async {
-    final db =
-        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
+    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
     try {
       // Primary source: kupon (more reliable than dates since we populate kupon directly)
       final bulanRows = await db.rawQuery(
@@ -527,8 +520,7 @@ class KuponProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    final db =
-        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
+    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
 
     try {
       List<String> whereConditions = ['dk.is_current = 1'];
@@ -632,8 +624,7 @@ class KuponProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    final db =
-        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
+    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
 
     try {
       List<String> whereConditions = [
@@ -764,8 +755,7 @@ class KuponProvider extends ChangeNotifier {
   // --- Utility Methods ---
 
   Future<void> cleanDuplicateData() async {
-    final db =
-        await (_kuponRepository as KuponRepositoryImpl).appDatabase;
+    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
 
     try {
       final duplicates = await db.rawQuery('''
@@ -866,7 +856,7 @@ class KuponProvider extends ChangeNotifier {
       await fetchKupons(forceRefresh: true);
     }
   }
-  
+
   Future<void> adjustStokSistemToFisik({
     required double targetFisikPx,
     required double targetFisikDex,
@@ -886,7 +876,7 @@ class KuponProvider extends ChangeNotifier {
         ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
         WHERE dk.is_current = 1 AND dk.jenis_bbm_id = 1
       ''');
-      
+
       // 2. Ambil nilai total stok sistem saat ini untuk Pertamina Dex (jenis_bbm_id = 2)
       final List<Map<String, dynamic>> resDex = await db.rawQuery('''
         SELECT SUM(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as total_sistem
@@ -900,8 +890,10 @@ class KuponProvider extends ChangeNotifier {
         WHERE dk.is_current = 1 AND dk.jenis_bbm_id = 2
       ''');
 
-      double sistemPx = (resPx.first['total_sistem'] as num?)?.toDouble() ?? 0.0;
-      double sistemDex = (resDex.first['total_sistem'] as num?)?.toDouble() ?? 0.0;
+      double sistemPx =
+          (resPx.first['total_sistem'] as num?)?.toDouble() ?? 0.0;
+      double sistemDex =
+          (resDex.first['total_sistem'] as num?)?.toDouble() ?? 0.0;
 
       // Hitung berapa selisih penyesuaian kuota awal yang dibutuhkan
       double diffPx = targetFisikPx - sistemPx;
@@ -914,10 +906,11 @@ class KuponProvider extends ChangeNotifier {
           WHERE is_current = 1 AND jenis_bbm_id = 1 AND status = 'Aktif'
           LIMIT 1
         ''');
-        
+
         if (activeKuponPx.isNotEmpty) {
           int key = activeKuponPx.first['kupon_key'] as int;
-          double oldKuota = (activeKuponPx.first['kuota_awal'] as num).toDouble();
+          double oldKuota = (activeKuponPx.first['kuota_awal'] as num)
+              .toDouble();
           await db.update(
             'kupon',
             {'kuota_awal': oldKuota + diffPx},
@@ -934,10 +927,11 @@ class KuponProvider extends ChangeNotifier {
           WHERE is_current = 1 AND jenis_bbm_id = 2 AND status = 'Aktif'
           LIMIT 1
         ''');
-        
+
         if (activeKuponDex.isNotEmpty) {
           int key = activeKuponDex.first['kupon_key'] as int;
-          double oldKuota = (activeKuponDex.first['kuota_awal'] as num).toDouble();
+          double oldKuota = (activeKuponDex.first['kuota_awal'] as num)
+              .toDouble();
           await db.update(
             'kupon',
             {'kuota_awal': oldKuota + diffDex},
@@ -951,7 +945,7 @@ class KuponProvider extends ChangeNotifier {
       await fetchAllKuponsUnfiltered();
       await fetchRanjenKupons(forceRefresh: true);
       await fetchDukunganKupons(forceRefresh: true);
-      
+
       notifyListeners(); // Memicu grafik dan teks di UI ter-update real-time
     } catch (e) {
       debugPrint("Gagal menjalankan fungsi adjustStokSistemToFisik: \$e");
@@ -973,10 +967,11 @@ class KuponProvider extends ChangeNotifier {
           WHERE is_current = 1 AND jenis_bbm_id = 1 AND status = 'Aktif'
           LIMIT 1
         ''');
-        
+
         if (activeKuponPx.isNotEmpty) {
           int key = activeKuponPx.first['kupon_key'] as int;
-          double oldKuota = (activeKuponPx.first['kuota_awal'] as num).toDouble();
+          double oldKuota = (activeKuponPx.first['kuota_awal'] as num)
+              .toDouble();
           await db.update(
             'kupon',
             {'kuota_awal': oldKuota + penerimaanPx},
@@ -993,10 +988,11 @@ class KuponProvider extends ChangeNotifier {
           WHERE is_current = 1 AND jenis_bbm_id = 2 AND status = 'Aktif'
           LIMIT 1
         ''');
-        
+
         if (activeKuponDex.isNotEmpty) {
           int key = activeKuponDex.first['kupon_key'] as int;
-          double oldKuota = (activeKuponDex.first['kuota_awal'] as num).toDouble();
+          double oldKuota = (activeKuponDex.first['kuota_awal'] as num)
+              .toDouble();
           await db.update(
             'kupon',
             {'kuota_awal': oldKuota + penerimaanDex},
@@ -1010,7 +1006,7 @@ class KuponProvider extends ChangeNotifier {
       await fetchAllKuponsUnfiltered();
       await fetchRanjenKupons(forceRefresh: true);
       await fetchDukunganKupons(forceRefresh: true);
-      
+
       notifyListeners();
     } catch (e) {
       debugPrint("Gagal menambahkan stok sistem dari penerimaan: $e");

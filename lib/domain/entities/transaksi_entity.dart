@@ -14,6 +14,8 @@ class TransaksiEntity {
   final String? status;
   final String? kuponCreatedAt;
   final String? kuponExpiredAt;
+  final int? kuponBulanTerbit;
+  final int? kuponTahunTerbit;
 
   final String? jenisTransaksi;
   final String? namaPetugas;
@@ -39,6 +41,8 @@ class TransaksiEntity {
     this.status = 'Aktif',
     this.kuponCreatedAt,
     this.kuponExpiredAt,
+    this.kuponBulanTerbit,
+    this.kuponTahunTerbit,
     this.jenisTransaksi,
     this.namaPetugas,
     this.namaKonsumen,

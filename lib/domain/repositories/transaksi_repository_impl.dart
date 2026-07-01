@@ -34,14 +34,13 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
       }
 
       if (bulan != null) {
-        final bulanStr = bulan.toString().padLeft(2, '0');
-        where.add("substr(t.tanggal_transaksi,6,2) = ?");
-        args.add(Variable.withString(bulanStr));
+        where.add('dk.bulan_terbit = ?');
+        args.add(Variable.withInt(bulan));
       }
 
       if (tahun != null) {
-        where.add("substr(t.tanggal_transaksi,1,4) = ?");
-        args.add(Variable.withString(tahun.toString()));
+        where.add('dk.tahun_terbit = ?');
+        args.add(Variable.withInt(tahun));
       }
 
       if (satker != null && satker.isNotEmpty) {
@@ -52,7 +51,9 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
       // Exclude Hutang from main transaksi list by default (allow Reimburse to appear)
       where.add("LOWER(TRIM(COALESCE(t.jenis_transaksi, ''))) != 'hutang'");
 
-      final whereClause = where.isNotEmpty ? 'WHERE ${where.join(' AND ')}' : '';
+      final whereClause = where.isNotEmpty
+          ? 'WHERE ${where.join(' AND ')}'
+          : '';
 
       final sql =
           '''
@@ -77,7 +78,9 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           t.is_deleted,
           'Aktif' as status,
           dk.valid_from as kupon_created_at,
-          CURRENT_TIMESTAMP as kupon_updated_at
+          CURRENT_TIMESTAMP as kupon_updated_at,
+          dk.bulan_terbit as kupon_bulan_terbit,
+          dk.tahun_terbit as kupon_tahun_terbit
         FROM transaksi t
         LEFT JOIN kupon dk ON t.kupon_key = dk.kupon_key AND dk.is_current = 1
         LEFT JOIN satker ds ON t.satker_id = ds.satker_id
@@ -99,8 +102,9 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   @override
   Future<TransaksiEntity?> getTransaksiById(int transaksiId) async {
     try {
-      final result = await _db.customSelect(
-        '''
+      final result = await _db
+          .customSelect(
+            '''
         SELECT
           t.transaksi_id,
           t.kupon_key,
@@ -131,8 +135,9 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         LEFT JOIN kendaraan dk2 ON t.kendaraan_id = dk2.kendaraan_id
         WHERE t.transaksi_id = ?
       ''',
-        variables: [Variable.withInt(transaksiId)],
-      ).getSingleOrNull();
+            variables: [Variable.withInt(transaksiId)],
+          )
+          .getSingleOrNull();
 
       if (result == null) {
         return null;
@@ -150,37 +155,43 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
       await _db.transaction(() async {
         final t = transaksi as TransaksiModel;
 
-        final kuponInfo = await _db.customSelect(
-          '''
+        final kuponInfo = await _db
+            .customSelect(
+              '''
           SELECT satker_id, kendaraan_id
           FROM kupon
           WHERE kupon_key = ? AND is_current = 1
           LIMIT 1
         ''',
-          variables: [Variable.withInt(transaksi.kuponId)],
-        ).get();
+              variables: [Variable.withInt(transaksi.kuponId)],
+            )
+            .get();
 
         if (kuponInfo.isEmpty) {
           throw Exception('Kupon not found: ${transaksi.kuponId}');
         }
 
-        await _dao.into(_dao.transaksi).insert(TransaksiCompanion.insert(
-          kuponKey: Value(t.kuponId),
-          satkerId: Value(kuponInfo.first.read<int>('satker_id')),
-          kendaraanId: Value(kuponInfo.first.read<int?>('kendaraan_id')),
-          jenisBbmId: Value(t.jenisBbmId),
-          jenisKuponId: Value(t.jenisKuponId),
-          tanggalTransaksi: t.tanggalTransaksi,
-          jumlahLiter: t.jumlahLiter,
-          jenisTransaksi: Value(t.jenisTransaksi),
-          namaPetugas: Value(t.namaPetugas),
-          namaKonsumen: Value(t.namaKonsumen),
-          satkerText: Value(t.satkerText),
-          nomorKendaraanText: Value(t.nomorKendaraanText),
-          isDeleted: const Value(0),
-          createdAt: Value(DateTime.now().toIso8601String()),
-          updatedAt: Value(DateTime.now().toIso8601String()),
-        ));
+        await _dao
+            .into(_dao.transaksi)
+            .insert(
+              TransaksiCompanion.insert(
+                kuponKey: Value(t.kuponId),
+                satkerId: Value(kuponInfo.first.read<int>('satker_id')),
+                kendaraanId: Value(kuponInfo.first.read<int?>('kendaraan_id')),
+                jenisBbmId: Value(t.jenisBbmId),
+                jenisKuponId: Value(t.jenisKuponId),
+                tanggalTransaksi: t.tanggalTransaksi,
+                jumlahLiter: t.jumlahLiter,
+                jenisTransaksi: Value(t.jenisTransaksi),
+                namaPetugas: Value(t.namaPetugas),
+                namaKonsumen: Value(t.namaKonsumen),
+                satkerText: Value(t.satkerText),
+                nomorKendaraanText: Value(t.nomorKendaraanText),
+                isDeleted: const Value(0),
+                createdAt: Value(DateTime.now().toIso8601String()),
+                updatedAt: Value(DateTime.now().toIso8601String()),
+              ),
+            );
       });
     } catch (e) {
       throw Exception('Failed to insert transaksi: $e');
@@ -191,9 +202,10 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   Future<void> updateTransaksi(TransaksiEntity transaksi) async {
     try {
       await _db.transaction(() async {
-        final existing = await (_dao.select(_dao.transaksi)
-              ..where((t) => t.transaksiId.equals(transaksi.transaksiId)))
-            .getSingleOrNull();
+        final existing =
+            await (_dao.select(_dao.transaksi)
+                  ..where((t) => t.transaksiId.equals(transaksi.transaksiId)))
+                .getSingleOrNull();
 
         if (existing == null) {
           throw Exception('Transaksi not found');
@@ -201,25 +213,26 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
 
         final t = transaksi as TransaksiModel;
 
-        await (_dao.update(_dao.transaksi)
-              ..where((t) => t.transaksiId.equals(transaksi.transaksiId)))
-            .write(TransaksiCompanion(
-          kuponKey: Value(t.kuponId),
-          jenisBbmId: Value(t.jenisBbmId),
-          jenisKuponId: Value(t.jenisKuponId),
-          tanggalTransaksi: Value(t.tanggalTransaksi),
-          jumlahLiter: Value(t.jumlahLiter),
-          jenisTransaksi: Value(t.jenisTransaksi),
-          namaPetugas: Value(t.namaPetugas),
-          namaKonsumen: Value(t.namaKonsumen),
-          satkerText: Value(t.satkerText),
-          nomorKendaraanText: Value(t.nomorKendaraanText),
-          updatedAt: Value(DateTime.now().toIso8601String()),
-        ));
+        await (_dao.update(
+          _dao.transaksi,
+        )..where((t) => t.transaksiId.equals(transaksi.transaksiId))).write(
+          TransaksiCompanion(
+            kuponKey: Value(t.kuponId),
+            jenisBbmId: Value(t.jenisBbmId),
+            jenisKuponId: Value(t.jenisKuponId),
+            tanggalTransaksi: Value(t.tanggalTransaksi),
+            jumlahLiter: Value(t.jumlahLiter),
+            jenisTransaksi: Value(t.jenisTransaksi),
+            namaPetugas: Value(t.namaPetugas),
+            namaKonsumen: Value(t.namaKonsumen),
+            satkerText: Value(t.satkerText),
+            nomorKendaraanText: Value(t.nomorKendaraanText),
+            updatedAt: Value(DateTime.now().toIso8601String()),
+          ),
+        );
       });
     } catch (e) {
       throw Exception('Failed to update transaksi: $e');
-
     }
   }
 
@@ -238,28 +251,32 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
   }) async {
     try {
       await _db.transaction(() async {
-        final existing = await (_dao.select(_dao.transaksi)
-              ..where((t) => t.transaksiId.equals(transaksiId)))
-            .getSingleOrNull();
+        final existing = await (_dao.select(
+          _dao.transaksi,
+        )..where((t) => t.transaksiId.equals(transaksiId))).getSingleOrNull();
 
         if (existing == null) {
           throw Exception('Transaksi not found');
         }
 
         if (isDelete) {
-          await (_dao.update(_dao.transaksi)
-                ..where((t) => t.transaksiId.equals(transaksiId)))
-              .write(TransaksiCompanion(
-            isDeleted: const Value(1),
-            updatedAt: Value(DateTime.now().toIso8601String()),
-          ));
+          await (_dao.update(
+            _dao.transaksi,
+          )..where((t) => t.transaksiId.equals(transaksiId))).write(
+            TransaksiCompanion(
+              isDeleted: const Value(1),
+              updatedAt: Value(DateTime.now().toIso8601String()),
+            ),
+          );
         } else {
-          await (_dao.update(_dao.transaksi)
-                ..where((t) => t.transaksiId.equals(transaksiId)))
-              .write(TransaksiCompanion(
-            isDeleted: const Value(0),
-            updatedAt: Value(DateTime.now().toIso8601String()),
-          ));
+          await (_dao.update(
+            _dao.transaksi,
+          )..where((t) => t.transaksiId.equals(transaksiId))).write(
+            TransaksiCompanion(
+              isDeleted: const Value(0),
+              updatedAt: Value(DateTime.now().toIso8601String()),
+            ),
+          );
         }
       });
     } catch (e) {
@@ -418,7 +435,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         ORDER BY created_at DESC
         LIMIT 1
       ''').getSingleOrNull();
-      
+
       if (result != null) {
         return result.data['tanggal_transaksi'] as String?;
       }
@@ -453,7 +470,9 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         t.nomor_kendaraan_text,
         t.created_at,
         t.updated_at,
-        t.is_deleted
+        t.is_deleted,
+        dk.bulan_terbit as kupon_bulan_terbit,
+        dk.tahun_terbit as kupon_tahun_terbit
       FROM transaksi t
       LEFT JOIN kupon dk ON t.kupon_key = dk.kupon_key
       LEFT JOIN satker ds ON t.satker_id = ds.satker_id
@@ -462,9 +481,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
       ORDER BY t.tanggal_transaksi DESC
     ''').get();
 
-    return result
-        .map((e) => TransaksiModel.fromMap(e.data))
-        .toList();
+    return result.map((e) => TransaksiModel.fromMap(e.data)).toList();
   }
 
   @override
@@ -491,8 +508,11 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
     variables.add(Variable.withString(DateTime.now().toIso8601String()));
     variables.add(Variable.withInt(transaksiId));
 
-    final kendaraanSql = kupon.kendaraanId != null ? 'kendaraan_id = ?,' : 'kendaraan_id = NULL,';
-    final sql = '''
+    final kendaraanSql = kupon.kendaraanId != null
+        ? 'kendaraan_id = ?,'
+        : 'kendaraan_id = NULL,';
+    final sql =
+        '''
       UPDATE transaksi
       SET
         kupon_key = ?,
@@ -506,9 +526,6 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
       WHERE transaksi_id = ?
       ''';
 
-    await _db.customUpdate(
-      sql,
-      variables: variables,
-    );
+    await _db.customUpdate(sql, variables: variables);
   }
 }

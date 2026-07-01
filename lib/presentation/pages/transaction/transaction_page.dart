@@ -371,7 +371,9 @@ class _TransactionPageState extends State<TransactionPage> {
             }
 
             return Dialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Container(
                 width: 400,
                 child: Column(
@@ -379,10 +381,15 @@ class _TransactionPageState extends State<TransactionPage> {
                   children: [
                     // Header
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.grey.shade200,
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(16),
+                        ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -410,14 +417,32 @@ class _TransactionPageState extends State<TransactionPage> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildDetailRow('Nomor Konsumen', transaksi.namaKonsumen ?? '-'),
-                          _buildDetailRow('Satker', transaksi.satkerText ?? '-'),
-                          _buildDetailRow('Nomor Kendaraan', transaksi.nomorKendaraanText ?? '-'),
-                          _buildDetailRow('Jumlah Liter', '${transaksi.jumlahLiter.toInt()} Liter'),
+                          _buildDetailRow(
+                            'Nomor Konsumen',
+                            transaksi.namaKonsumen ?? '-',
+                          ),
+                          _buildDetailRow(
+                            'Satker',
+                            transaksi.satkerText ?? '-',
+                          ),
+                          _buildDetailRow(
+                            'Nomor Kendaraan',
+                            transaksi.nomorKendaraanText ?? '-',
+                          ),
+                          _buildDetailRow(
+                            'Jumlah Liter',
+                            '${transaksi.jumlahLiter.toInt()} Liter',
+                          ),
                           const SizedBox(height: 16),
                           const Divider(height: 1, color: Colors.grey),
                           const SizedBox(height: 16),
-                          const Text('Tanggal', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+                          const Text(
+                            'Tanggal',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black54,
+                            ),
+                          ),
                           const SizedBox(height: 8),
                           InkWell(
                             onTap: () async {
@@ -435,30 +460,56 @@ class _TransactionPageState extends State<TransactionPage> {
                               }
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
                               decoration: BoxDecoration(
                                 border: Border.all(color: Colors.grey.shade400),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(DateFormat('dd-MM-yyyy').format(selectedTanggal), style: const TextStyle(fontSize: 16, color: Colors.black87)),
-                                  const Icon(Icons.calendar_today, color: Colors.black54),
+                                  Text(
+                                    DateFormat(
+                                      'dd-MM-yyyy',
+                                    ).format(selectedTanggal),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.calendar_today,
+                                    color: Colors.black54,
+                                  ),
                                 ],
                               ),
                             ),
                           ),
                           const SizedBox(height: 16),
-                          const Text('Periode', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+                          const Text(
+                            'Periode',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black54,
+                            ),
+                          ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<int>(
                             value: selectedPeriod,
                             decoration: InputDecoration(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(color: Colors.grey.shade400),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade400,
+                                ),
                               ),
                             ),
                             items: List.generate(12, (i) => i + 1).map((m) {
@@ -502,7 +553,13 @@ class _TransactionPageState extends State<TransactionPage> {
                             },
                           ),
                           const SizedBox(height: 16),
-                          const Text('Nomor Kupon', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+                          const Text(
+                            'Nomor Kupon',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black54,
+                            ),
+                          ),
                           const SizedBox(height: 8),
                           if (kuponOptions.isEmpty)
                             const Padding(
@@ -519,7 +576,9 @@ class _TransactionPageState extends State<TransactionPage> {
                                 if (txt.text.isEmpty) return kuponOptions;
                                 final q = txt.text.toLowerCase().trim();
                                 return kuponOptions.where((k) {
-                                  return k.nomorKupon.toLowerCase().contains(q) ||
+                                  return k.nomorKupon.toLowerCase().contains(
+                                        q,
+                                      ) ||
                                       k.namaSatker.toLowerCase().contains(q);
                                 });
                               },
@@ -530,15 +589,28 @@ class _TransactionPageState extends State<TransactionPage> {
                                 });
                               },
                               fieldViewBuilder:
-                                  (context, controller, focusNode, onFieldSubmitted) {
+                                  (
+                                    context,
+                                    controller,
+                                    focusNode,
+                                    onFieldSubmitted,
+                                  ) {
                                     return TextFormField(
                                       controller: controller,
                                       focusNode: focusNode,
                                       decoration: InputDecoration(
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 12,
+                                            ),
                                         border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: BorderSide(color: Colors.grey.shade400),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: Colors.grey.shade400,
+                                          ),
                                         ),
                                       ),
                                     );
@@ -558,11 +630,24 @@ class _TransactionPageState extends State<TransactionPage> {
                                   Navigator.of(ctx).pop();
                                 },
                                 style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                                  side: const BorderSide(color: AppTheme.primaryBlue),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 32,
+                                    vertical: 16,
+                                  ),
+                                  side: const BorderSide(
+                                    color: AppTheme.primaryBlue,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                 ),
-                                child: const Text('Batal', style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.bold)),
+                                child: const Text(
+                                  'Batal',
+                                  style: TextStyle(
+                                    color: AppTheme.primaryBlue,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
                               const SizedBox(width: 16),
                               ElevatedButton(
@@ -573,7 +658,8 @@ class _TransactionPageState extends State<TransactionPage> {
                                           await context
                                               .read<TransaksiProvider>()
                                               .reimburseTransaksi(
-                                                transaksiId: transaksi.transaksiId,
+                                                transaksiId:
+                                                    transaksi.transaksiId,
                                                 kuponId: selectedKupon!.kuponId,
                                                 tanggalTransaksi: DateFormat(
                                                   'yyyy-MM-dd',
@@ -581,10 +667,11 @@ class _TransactionPageState extends State<TransactionPage> {
                                               );
 
                                           // Refresh dashboard kupons
-                                          final dash = Provider.of<KuponProvider>(
-                                            context,
-                                            listen: false,
-                                          );
+                                          final dash =
+                                              Provider.of<KuponProvider>(
+                                                context,
+                                                listen: false,
+                                              );
                                           await dash.fetchKupons();
                                           await dash.fetchAllKuponsUnfiltered();
 
@@ -596,26 +683,47 @@ class _TransactionPageState extends State<TransactionPage> {
                                           });
                                           Navigator.of(ctx).pop();
                                           if (context.mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
                                               const SnackBar(
-                                                content: Text('Reimburse berhasil'),
+                                                content: Text(
+                                                  'Reimburse berhasil',
+                                                ),
                                               ),
                                             );
                                           }
                                         } catch (e) {
                                           if (context.mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(content: Text('Gagal reimburse: $e')),
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  'Gagal reimburse: $e',
+                                                ),
+                                              ),
                                             );
                                           }
                                         }
                                       },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppTheme.primaryBlue,
-                                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 32,
+                                    vertical: 16,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                 ),
-                                child: const Text('Reimburse', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                child: const Text(
+                                  'Reimburse',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -1090,6 +1198,34 @@ class _TransactionPageState extends State<TransactionPage> {
           }).toList();
         }
 
+        if (provider.filterBulan != null) {
+          filteredList = filteredList.where((t) {
+            try {
+              if (t.kuponBulanTerbit != null) {
+                return t.kuponBulanTerbit == provider.filterBulan;
+              }
+              return true;
+            } catch (e) {
+              return true;
+            }
+          }).toList();
+        }
+
+        if (_filterJenisTransaksi != null &&
+            _filterJenisTransaksi!.isNotEmpty) {
+          filteredList = filteredList.where((t) {
+            final jenisKuponNama = t.jenisKuponId == 1 ? 'RANJEN' : 'DUKUNGAN';
+            return jenisKuponNama == _filterJenisTransaksi;
+          }).toList();
+        }
+
+        if (_filterJenisBbm != null && _filterJenisBbm!.isNotEmpty) {
+          filteredList = filteredList.where((t) {
+            final jenisBbmNama = _getJenisBbmName(t.jenisBbmId);
+            return jenisBbmNama == _filterJenisBbm;
+          }).toList();
+        }
+
         // Calculate totals per fuel type
         double totalPertamax = 0;
         double totalDex = 0;
@@ -1400,6 +1536,28 @@ class _TransactionPageState extends State<TransactionPage> {
     double? jumlahLiter;
     int? selectedPeriod;
 
+    // Get available periods from active coupons
+    final currentKuponList = kuponProvider.allKuponsForDropdown
+        .where(
+          (k) => k.jenisBbmId == jenisBbm && k.jenisKuponId == jenisKuponId,
+        )
+        .toList();
+    var availablePeriods =
+        currentKuponList
+            .map((k) => k.bulanTerbit)
+            .where((b) => b > 0)
+            .toSet()
+            .toList()
+          ..sort();
+
+    if (availablePeriods.isEmpty) {
+      final now = DateTime.now();
+      availablePeriods = [now.month == 1 ? 12 : now.month - 1];
+    }
+
+    // Pre-select the most recent period if available
+    selectedPeriod = availablePeriods.last;
+
     if (!mounted) return;
 
     await showDialog(
@@ -1459,21 +1617,38 @@ class _TransactionPageState extends State<TransactionPage> {
                         },
                       ),
                       const SizedBox(height: 12),
-                      // Dropdown Periode Kupon - ambil dari bulanTerbitList di dashboard
+                      // Dropdown Periode Kupon - ambil dari active coupons
                       Consumer<KuponProvider>(
                         builder: (ctx, dashProv, _) {
-                          // Convert bulanTerbitList (List<String>) ke List<int> untuk periode
-                          final currentPeriodList =
-                              dashProv.bulanTerbitList.isEmpty
-                              ? <int>[]
-                              : dashProv.bulanTerbitList
-                                    .map((b) => int.tryParse(b) ?? 0)
-                                    .where((b) => b > 0)
-                                    .toList();
+                          // Gunakan availablePeriods yang sudah di-generate sebelumnya
+                          final dynKuponList = dashProv.allKuponsForDropdown
+                              .where(
+                                (k) =>
+                                    k.jenisBbmId == jenisBbm &&
+                                    k.jenisKuponId == jenisKuponId &&
+                                    k.status == 'Aktif',
+                              )
+                              .toList();
+                          var currentPeriodList =
+                              dynKuponList
+                                  .map((k) => k.bulanTerbit)
+                                  .where((b) => b > 0)
+                                  .toSet()
+                                  .toList()
+                                ..sort();
 
-                          debugPrint(
-                            'ðŸ” DEBUG Periode Dropdown: Periods from dashboard: $currentPeriodList',
-                          );
+                          if (currentPeriodList.isEmpty) {
+                            currentPeriodList = availablePeriods;
+                          }
+
+                          // Ensure selectedPeriod is valid
+                          if (selectedPeriod != null &&
+                              !currentPeriodList.contains(selectedPeriod)) {
+                            // If not in the list but the list isn't empty, select the last one
+                            selectedPeriod = currentPeriodList.isNotEmpty
+                                ? currentPeriodList.last
+                                : selectedPeriod;
+                          }
 
                           return DropdownButtonFormField<int>(
                             initialValue: selectedPeriod,
@@ -1488,7 +1663,7 @@ class _TransactionPageState extends State<TransactionPage> {
                               return DropdownMenuItem(
                                 value: period,
                                 child: Text(
-                                  '${bulanNames[period]} (Periode $period)',
+                                  '${bulanNames[period] ?? period} (Periode $period)',
                                 ),
                               );
                             }).toList(),
@@ -1800,6 +1975,19 @@ class _TransactionPageState extends State<TransactionPage> {
         }
 
         // Apply additional local filters
+        if (provider.filterBulan != null) {
+          filteredList = filteredList.where((t) {
+            try {
+              if (t.kuponBulanTerbit != null) {
+                return t.kuponBulanTerbit == provider.filterBulan;
+              }
+              return true;
+            } catch (e) {
+              return true;
+            }
+          }).toList();
+        }
+
         if (_filterJenisTransaksi != null &&
             _filterJenisTransaksi!.isNotEmpty) {
           filteredList = filteredList.where((t) {
@@ -1919,7 +2107,10 @@ class _TransactionPageState extends State<TransactionPage> {
                                               size: 20,
                                             ),
                                             onPressed: () async {
-                                              await _showDetailKuponDialog(context, t);
+                                              await _showDetailKuponDialog(
+                                                context,
+                                                t,
+                                              );
                                             },
                                           ),
                                           IconButton(
@@ -1941,7 +2132,10 @@ class _TransactionPageState extends State<TransactionPage> {
                                               size: 20,
                                             ),
                                             onPressed: () async {
-                                              await _showDeleteTransaksiDialog(context, t);
+                                              await _showDeleteTransaksiDialog(
+                                                context,
+                                                t,
+                                              );
                                             },
                                           ),
                                         ],
@@ -2041,9 +2235,14 @@ class _TransactionPageState extends State<TransactionPage> {
     );
   }
 
-  Future<void> _showDetailKuponDialog(BuildContext context, TransaksiModel t) async {
+  Future<void> _showDetailKuponDialog(
+    BuildContext context,
+    TransaksiModel t,
+  ) async {
     final kuponProvider = Provider.of<KuponProvider>(context, listen: false);
-    final kuponList = kuponProvider.allKuponsForDropdown.where((k) => k.kuponId == t.kuponId).toList();
+    final kuponList = kuponProvider.allKuponsForDropdown
+        .where((k) => k.kuponId == t.kuponId)
+        .toList();
     if (kuponList.isEmpty) return;
     final kupon = kuponList.first;
 
@@ -2058,10 +2257,15 @@ class _TransactionPageState extends State<TransactionPage> {
             children: [
               // Header
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade200,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2089,15 +2293,33 @@ class _TransactionPageState extends State<TransactionPage> {
                   children: [
                     _buildDetailRow('Nomor Kupon', kupon.nomorKupon),
                     _buildDetailRow('Satker', kupon.namaSatker),
-                    _buildDetailRow('Jenis Kupon', _jenisKuponMap[kupon.jenisKuponId] ?? "Unknown"),
-                    _buildDetailRow('Jenis BBM', _getJenisBbmName(kupon.jenisBbmId)),
+                    _buildDetailRow(
+                      'Jenis Kupon',
+                      _jenisKuponMap[kupon.jenisKuponId] ?? "Unknown",
+                    ),
+                    _buildDetailRow(
+                      'Jenis BBM',
+                      _getJenisBbmName(kupon.jenisBbmId),
+                    ),
                     const SizedBox(height: 16),
-                    _buildDetailRow('Kuota Kupon', '${kupon.kuotaAwal.toInt()} Liter'),
-                    _buildDetailRow('Sisa Kuota', '${kupon.kuotaSisa.toInt()} Liter'),
+                    _buildDetailRow(
+                      'Kuota Kupon',
+                      '${kupon.kuotaAwal.toInt()} Liter',
+                    ),
+                    _buildDetailRow(
+                      'Sisa Kuota',
+                      '${kupon.kuotaSisa.toInt()} Liter',
+                    ),
                     const SizedBox(height: 16),
                     _buildDetailRow('Status Kupon', kupon.status),
-                    _buildDetailRow('Periode Kupon', '${_getBulanName(kupon.bulanTerbit)} ${kupon.tahunTerbit}'),
-                    _buildDetailRow('Berlaku s/d', _getExpiredDate(kupon.bulanTerbit, kupon.tahunTerbit)),
+                    _buildDetailRow(
+                      'Periode Kupon',
+                      '${_getBulanName(kupon.bulanTerbit)} ${kupon.tahunTerbit}',
+                    ),
+                    _buildDetailRow(
+                      'Berlaku s/d',
+                      _getExpiredDate(kupon.bulanTerbit, kupon.tahunTerbit),
+                    ),
                   ],
                 ),
               ),
@@ -2118,24 +2340,33 @@ class _TransactionPageState extends State<TransactionPage> {
             flex: 2,
             child: Text(
               label,
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black54),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.black54,
+              ),
             ),
           ),
-          const Text(':', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+          const Text(
+            ':',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.black54,
+            ),
+          ),
           const SizedBox(width: 16),
           Expanded(
             flex: 3,
-            child: Text(
-              value,
-              style: const TextStyle(color: Colors.black87),
-            ),
+            child: Text(value, style: const TextStyle(color: Colors.black87)),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _showDeleteTransaksiDialog(BuildContext context, TransaksiModel t) async {
+  Future<void> _showDeleteTransaksiDialog(
+    BuildContext context,
+    TransaksiModel t,
+  ) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => Dialog(
@@ -2171,10 +2402,7 @@ class _TransactionPageState extends State<TransactionPage> {
               const Text(
                 'Apakah Anda yakin ingin menghapus transaksi ini?',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.black54,
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.black54),
               ),
               const SizedBox(height: 24),
               Row(
@@ -2228,7 +2456,10 @@ class _TransactionPageState extends State<TransactionPage> {
 
     if (confirm == true) {
       if (!context.mounted) return;
-      final transaksiProvider = Provider.of<TransaksiProvider>(context, listen: false);
+      final transaksiProvider = Provider.of<TransaksiProvider>(
+        context,
+        listen: false,
+      );
       await transaksiProvider.deleteTransaksi(t.transaksiId);
       if (!context.mounted) return;
       final kuponProvider = Provider.of<KuponProvider>(context, listen: false);
@@ -2254,7 +2485,9 @@ class _TransactionPageState extends State<TransactionPage> {
       context: context,
       builder: (ctx) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Container(
             width: 400,
             child: Column(
@@ -2262,10 +2495,15 @@ class _TransactionPageState extends State<TransactionPage> {
               children: [
                 // Header
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade200,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
+                    ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2294,17 +2532,31 @@ class _TransactionPageState extends State<TransactionPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Tanggal', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+                        const Text(
+                          'Tanggal',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black54,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: tanggalController,
                           decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey.shade400),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade400,
+                              ),
                             ),
-                            suffixIcon: const Icon(Icons.calendar_today, color: Colors.black54),
+                            suffixIcon: const Icon(
+                              Icons.calendar_today,
+                              color: Colors.black54,
+                            ),
                           ),
                           validator: (v) =>
                               v == null || v.isEmpty ? 'Wajib diisi' : null,
@@ -2344,32 +2596,55 @@ class _TransactionPageState extends State<TransactionPage> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        const Text('Jumlah Liter', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+                        const Text(
+                          'Jumlah Liter',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black54,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: jumlahController,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey.shade400),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade400,
+                              ),
                             ),
                             suffixIcon: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.grey.shade200,
-                                borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
+                                borderRadius: const BorderRadius.horizontal(
+                                  right: Radius.circular(8),
+                                ),
                                 border: Border.all(color: Colors.grey.shade400),
                               ),
                               child: const Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Text('Liter', style: TextStyle(color: Colors.black54, fontWeight: FontWeight.w500)),
-                                ]
-                              )
+                                  Text(
+                                    'Liter',
+                                    style: TextStyle(
+                                      color: Colors.black54,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            suffixIconConstraints: const BoxConstraints(minHeight: 48),
+                            suffixIconConstraints: const BoxConstraints(
+                              minHeight: 48,
+                            ),
                           ),
                           validator: (v) =>
                               v == null || v.isEmpty ? 'Wajib diisi' : null,
@@ -2381,21 +2656,36 @@ class _TransactionPageState extends State<TransactionPage> {
                             OutlinedButton(
                               onPressed: () => Navigator.of(ctx).pop(),
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                                side: const BorderSide(color: AppTheme.primaryBlue),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 32,
+                                  vertical: 16,
+                                ),
+                                side: const BorderSide(
+                                  color: AppTheme.primaryBlue,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                               ),
-                              child: const Text('Batal', style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.bold)),
+                              child: const Text(
+                                'Batal',
+                                style: TextStyle(
+                                  color: AppTheme.primaryBlue,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                             const SizedBox(width: 16),
                             ElevatedButton(
                               onPressed: () async {
                                 if (formKey.currentState?.validate() ?? false) {
                                   final newJumlahLiter =
-                                      double.tryParse(jumlahController.text) ?? t.jumlahLiter;
+                                      double.tryParse(jumlahController.text) ??
+                                      t.jumlahLiter;
 
                                   // Cari kupon terkait untuk validasi kuota dan tanggal
-                                  final kuponList = kuponProvider.allKuponsForDropdown
+                                  final kuponList = kuponProvider
+                                      .allKuponsForDropdown
                                       .where((k) => k.kuponId == t.kuponId)
                                       .toList();
 
@@ -2407,7 +2697,9 @@ class _TransactionPageState extends State<TransactionPage> {
                                       kupon.tanggalMulai,
                                       kupon.tanggalSampai,
                                     )) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
                                         SnackBar(
                                           content: Text(
                                             'Tanggal transaksi harus dalam masa berlaku kupon (${kupon.tanggalMulai} s/d ${kupon.tanggalSampai})',
@@ -2422,7 +2714,8 @@ class _TransactionPageState extends State<TransactionPage> {
                                     final kupon = kuponList.first;
 
                                     // Hitung kuota yang tersedia: kuotaSisa saat ini + jumlah liter transaksi lama
-                                    final availableKuota = kupon.kuotaSisa + t.jumlahLiter;
+                                    final availableKuota =
+                                        kupon.kuotaSisa + t.jumlahLiter;
 
                                     // Cek apakah jumlah baru melebihi kuota yang tersedia
                                     if (newJumlahLiter > availableKuota) {
@@ -2436,13 +2729,15 @@ class _TransactionPageState extends State<TransactionPage> {
                                             ),
                                             actions: [
                                               TextButton(
-                                                onPressed: () =>
-                                                    Navigator.of(context).pop(false),
+                                                onPressed: () => Navigator.of(
+                                                  context,
+                                                ).pop(false),
                                                 child: const Text('Batal'),
                                               ),
                                               ElevatedButton(
-                                                onPressed: () =>
-                                                    Navigator.of(context).pop(true),
+                                                onPressed: () => Navigator.of(
+                                                  context,
+                                                ).pop(true),
                                                 child: const Text('Lanjutkan'),
                                               ),
                                             ],
@@ -2459,7 +2754,8 @@ class _TransactionPageState extends State<TransactionPage> {
                                     kuponId: t.kuponId,
                                     nomorKupon: t.nomorKupon,
                                     namaSatker: t.namaSatker,
-                                    jenisBbmId: t.jenisBbmId, // Keep original BBM type
+                                    jenisBbmId:
+                                        t.jenisBbmId, // Keep original BBM type
                                     jenisKuponId: t.jenisKuponId,
                                     tanggalTransaksi: tanggalController.text,
                                     jumlahLiter: newJumlahLiter,
@@ -2468,9 +2764,12 @@ class _TransactionPageState extends State<TransactionPage> {
                                     isDeleted: t.isDeleted,
                                     status: t.status,
                                   );
-                                  await transaksiProvider.updateTransaksi(transaksiEdit);
+                                  await transaksiProvider.updateTransaksi(
+                                    transaksiEdit,
+                                  );
                                   await kuponProvider.fetchKupons();
-                                  await kuponProvider.fetchAllKuponsUnfiltered();
+                                  await kuponProvider
+                                      .fetchAllKuponsUnfiltered();
                                   if (ctx.mounted) {
                                     Navigator.of(ctx).pop();
                                   }
@@ -2478,10 +2777,21 @@ class _TransactionPageState extends State<TransactionPage> {
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppTheme.primaryBlue,
-                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 32,
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                               ),
-                              child: const Text('Simpan', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              child: const Text(
+                                'Simpan',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -2689,6 +2999,14 @@ class _TransactionPageState extends State<TransactionPage> {
           }).toList();
         }
 
+        if (provider.filterBulan != null) {
+          filteredMinus = filteredMinus.where((m) {
+            final bulan = m['bulan_terbit'];
+            if (bulan != null) return bulan == provider.filterBulan;
+            return true;
+          }).toList();
+        }
+
         if (filteredMinus.isEmpty) {
           return const Center(child: Text('Tidak ada kupon minus.'));
         }
@@ -2870,14 +3188,45 @@ class _TransactionPageState extends State<TransactionPage> {
       builder: (_, provider, __) {
         final hutang = provider.transaksiHutang;
 
-        _filteredTransaksiHutangCount = hutang.length;
+        List filteredHutang = hutang;
 
-        if (hutang.isEmpty) {
+        if (_filterTanggalMulai != null && _filterTanggalSelesai != null) {
+          filteredHutang = filteredHutang.where((t) {
+            try {
+              final date = DateTime.parse(t.tanggalTransaksi);
+              return date.isAfter(
+                    _filterTanggalMulai!.subtract(const Duration(days: 1)),
+                  ) &&
+                  date.isBefore(
+                    _filterTanggalSelesai!.add(const Duration(days: 1)),
+                  );
+            } catch (e) {
+              return true;
+            }
+          }).toList();
+        }
+
+        if (provider.filterBulan != null) {
+          filteredHutang = filteredHutang.where((t) {
+            try {
+              if (t.kuponBulanTerbit != null) {
+                return t.kuponBulanTerbit == provider.filterBulan;
+              }
+              return true;
+            } catch (e) {
+              return true;
+            }
+          }).toList();
+        }
+
+        _filteredTransaksiHutangCount = filteredHutang.length;
+
+        if (filteredHutang.isEmpty) {
           return const Center(child: Text('Tidak ada transaksi hutang'));
         }
 
         // Pagination
-        final totalItems = hutang.length;
+        final totalItems = filteredHutang.length;
         final totalPages = (totalItems / _itemsPerPage).ceil();
 
         if (_currentPageTransaksiHutang > totalPages) {
@@ -2890,7 +3239,7 @@ class _TransactionPageState extends State<TransactionPage> {
         final startIndex = (_currentPageTransaksiHutang - 1) * _itemsPerPage;
         final endIndex = (startIndex + _itemsPerPage).clamp(0, totalItems);
 
-        final transaksiPage = hutang.sublist(startIndex, endIndex);
+        final transaksiPage = filteredHutang.sublist(startIndex, endIndex);
 
         return Column(
           children: [
