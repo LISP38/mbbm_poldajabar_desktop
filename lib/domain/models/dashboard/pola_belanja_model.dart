@@ -1,11 +1,9 @@
 class PolaBelanjaModel {
-  final int hari;
-  final double pertamax;
-  final double dex;
+  final String label;
+  final Map<String, double> bbmValues;
 
   PolaBelanjaModel({
-    required this.hari,
-    required this.pertamax,
-    required this.dex,
+    required this.label,
+    required this.bbmValues,
   });
 }

@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:intl/intl.dart';
 import 'package:kupon_bbm_app/domain/models/dashboard/pola_belanja_model.dart';
 import 'package:kupon_bbm_app/domain/models/dashboard/transaksi_harian_model.dart';
 import '../app_database.dart';
@@ -10,53 +11,26 @@ import 'package:kupon_bbm_app/domain/models/dashboard/satker_chart_model.dart';
 part 'dashboard_dao.g.dart';
 
 @DriftAccessor(
-  tables: [
-    Kupon,
-    Transaksi,
-    JenisBbm,
-    Satker,
-    DateTable,
-    JenisKupon,
-  ],
+  tables: [Kupon, Transaksi, JenisBbm, Satker, DateTable, JenisKupon],
 )
-
-String _start(DateTime d) =>
-    DateTime(
-      d.year,
-      d.month,
-      d.day,
-    ).toIso8601String();
+String _start(DateTime d) => DateTime(d.year, d.month, d.day).toIso8601String();
 
 String _end(DateTime d) =>
-    DateTime(
-      d.year,
-      d.month,
-      d.day,
-      23,
-      59,
-      59,
-    ).toIso8601String();
+    DateTime(d.year, d.month, d.day, 23, 59, 59).toIso8601String();
+
+String _formatDate(DateTime d) => DateFormat('dd MMM', 'id_ID').format(d);
+String _formatMonth(DateTime d) => DateFormat('MMM yyyy', 'id_ID').format(d);
 
 class DashboardDao extends DatabaseAccessor<AppDatabase>
     with _$DashboardDaoMixin {
-
   DashboardDao(AppDatabase db) : super(db);
-  
+
   get mulai => null;
 
-  Future<List<StokBbmModel>> getStokBbm(
-    DateTime mulai,
-    DateTime akhir,
-  ) async {
+  Future<List<StokBbmModel>> getStokBbm(DateTime mulai, DateTime akhir) async {
     return [
-      StokBbmModel(
-        namaBbm: "Pertamax",
-        totalLiter: 125000,
-      ),
-      StokBbmModel(
-        namaBbm: "Dexlite",
-        totalLiter: 68000,
-      ),
+      StokBbmModel(namaBbm: "Pertamax", totalLiter: 125000),
+      StokBbmModel(namaBbm: "Dexlite", totalLiter: 68000),
     ];
   }
 
@@ -64,40 +38,55 @@ class DashboardDao extends DatabaseAccessor<AppDatabase>
     DateTime mulai,
     DateTime akhir,
   ) async {
+    final rows =
+        await (select(transaksi)..where(
+              (t) =>
+                  t.tanggalTransaksi.isBiggerOrEqualValue(_start(mulai)) &
+                  t.tanggalTransaksi.isSmallerOrEqualValue(_end(akhir)),
+            ))
+            .get();
 
-  final rows = await (select(transaksi)
-      ..where(
-        (t) =>
-            t.tanggalTransaksi.isBiggerOrEqualValue(_start(mulai)) &
-            t.tanggalTransaksi.isSmallerOrEqualValue(_end(akhir)),
-      ))
-    .get();
+    final int daysDiff = akhir.difference(mulai).inDays;
+    final bool isMonthly = daysDiff > 31;
 
-      final Map<int, int> map = {};
+    final Map<String, int> map = {};
 
-      for (final trx in rows) {
+    for (final trx in rows) {
+      final tanggal = DateTime.parse(trx.tanggalTransaksi);
 
-        final tanggal =
-            DateTime.parse(
-              trx.tanggalTransaksi,
-            );
-
-        map[tanggal.day] =
-            (map[tanggal.day] ?? 0) + 1;
+      String key;
+      if (isMonthly) {
+        // Group by Month (e.g. 2026-07)
+        key = "${tanggal.year}-${tanggal.month.toString().padLeft(2, '0')}";
+      } else {
+        // Group by Day (e.g. 2026-07-01)
+        key =
+            "${tanggal.year}-${tanggal.month.toString().padLeft(2, '0')}-${tanggal.day.toString().padLeft(2, '0')}";
       }
 
-      final result = map.entries
-          .map(
-            (e) => TransaksiHarianModel(
-              hari: e.key,
-              jumlah: e.value,
-            ),
-          )
-          .toList();
+      map[key] = (map[key] ?? 0) + 1;
+    }
 
-    result.sort(
-      (a, b) => a.hari.compareTo(b.hari),
-    );
+    final sortedKeys = map.keys.toList()..sort();
+
+    final result = sortedKeys.map((key) {
+      String label;
+      if (isMonthly) {
+        final parts = key.split('-');
+        final dt = DateTime(int.parse(parts[0]), int.parse(parts[1]));
+        label = _formatMonth(dt);
+      } else {
+        final parts = key.split('-');
+        final dt = DateTime(
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+          int.parse(parts[2]),
+        );
+        label = _formatDate(dt);
+      }
+
+      return TransaksiHarianModel(label: label, jumlah: map[key]!);
+    }).toList();
 
     return result;
   }
@@ -106,30 +95,23 @@ class DashboardDao extends DatabaseAccessor<AppDatabase>
     DateTime mulai,
     DateTime akhir,
   ) async {
+    final rows =
+        await (select(transaksi).join([
+              innerJoin(satker, satker.satkerId.equalsExp(transaksi.satkerId)),
 
-    final rows = await (select(transaksi).join([
-      innerJoin(
-        satker,
-        satker.satkerId.equalsExp(transaksi.satkerId),
-      ),
-
-      innerJoin(
-        jenisKupon,
-        jenisKupon.jenisKuponId.equalsExp(
-          transaksi.jenisKuponId,
-        ),
-      ),
-    ])
-      ..where(
-        transaksi.tanggalTransaksi.isBiggerOrEqualValue(_start(mulai)) &
-        transaksi.tanggalTransaksi.isSmallerOrEqualValue(_end(akhir)),
-      ))
-        .get();
+              innerJoin(
+                jenisKupon,
+                jenisKupon.jenisKuponId.equalsExp(transaksi.jenisKuponId),
+              ),
+            ])..where(
+              transaksi.tanggalTransaksi.isBiggerOrEqualValue(_start(mulai)) &
+                  transaksi.tanggalTransaksi.isSmallerOrEqualValue(_end(akhir)),
+            ))
+            .get();
 
     final Map<String, double> map = {};
 
     for (final row in rows) {
-
       final jk = row.readTable(jenisKupon);
 
       if (jk.jenisKuponId == 2) {
@@ -140,24 +122,14 @@ class DashboardDao extends DatabaseAccessor<AppDatabase>
 
       final stk = row.readTable(satker);
 
-      map[stk.namaSatker] =
-          (map[stk.namaSatker] ?? 0) +
-          trx.jumlahLiter;
+      map[stk.namaSatker] = (map[stk.namaSatker] ?? 0) + trx.jumlahLiter;
     }
 
     final result = map.entries
-        .map(
-          (e) => SatkerChartModel(
-            satker: e.key,
-            value: e.value,
-          ),
-        )
+        .map((e) => SatkerChartModel(satker: e.key, value: e.value))
         .toList();
 
-    result.sort(
-      (a, b) =>
-          b.value.compareTo(a.value),
-    );
+    result.sort((a, b) => b.value.compareTo(a.value));
 
     return result;
   }
@@ -166,34 +138,23 @@ class DashboardDao extends DatabaseAccessor<AppDatabase>
     DateTime mulai,
     DateTime akhir,
   ) async {
+    final rows =
+        await (select(transaksi).join([
+              innerJoin(satker, satker.satkerId.equalsExp(transaksi.satkerId)),
 
-    final rows = await (select(transaksi).join([
-
-      innerJoin(
-        satker,
-        satker.satkerId.equalsExp(
-          transaksi.satkerId,
-        ),
-      ),
-
-      innerJoin(
-        jenisKupon,
-        jenisKupon.jenisKuponId.equalsExp(
-          transaksi.jenisKuponId,
-        ),
-      ),
-
-    ])
-      ..where(
-        transaksi.tanggalTransaksi.isBiggerOrEqualValue(_start(mulai)) &
-        transaksi.tanggalTransaksi.isSmallerOrEqualValue(_end(akhir)),
-      ))
-        .get();
+              innerJoin(
+                jenisKupon,
+                jenisKupon.jenisKuponId.equalsExp(transaksi.jenisKuponId),
+              ),
+            ])..where(
+              transaksi.tanggalTransaksi.isBiggerOrEqualValue(_start(mulai)) &
+                  transaksi.tanggalTransaksi.isSmallerOrEqualValue(_end(akhir)),
+            ))
+            .get();
 
     final Map<String, double> map = {};
 
     for (final row in rows) {
-
       final jk = row.readTable(jenisKupon);
 
       if (jk.jenisKuponId != 2) {
@@ -202,23 +163,14 @@ class DashboardDao extends DatabaseAccessor<AppDatabase>
 
       final stk = row.readTable(satker);
 
-      map[stk.namaSatker] =
-          (map[stk.namaSatker] ?? 0) + 1;
+      map[stk.namaSatker] = (map[stk.namaSatker] ?? 0) + 1;
     }
 
     final result = map.entries
-        .map(
-          (e) => SatkerChartModel(
-            satker: e.key,
-            value: e.value,
-          ),
-        )
+        .map((e) => SatkerChartModel(satker: e.key, value: e.value))
         .toList();
 
-    result.sort(
-      (a, b) =>
-          b.value.compareTo(a.value),
-    );
+    result.sort((a, b) => b.value.compareTo(a.value));
 
     return result;
   }
@@ -227,65 +179,76 @@ class DashboardDao extends DatabaseAccessor<AppDatabase>
     DateTime mulai,
     DateTime akhir,
   ) async {
+    final rows =
+        await (select(transaksi).join([
+              innerJoin(
+                jenisBbm,
+                jenisBbm.jenisBbmId.equalsExp(transaksi.jenisBbmId),
+              ),
+            ])..where(
+              transaksi.tanggalTransaksi.isBiggerOrEqualValue(_start(mulai)) &
+                  transaksi.tanggalTransaksi.isSmallerOrEqualValue(_end(akhir)),
+            ))
+            .get();
 
-    final rows = await (select(transaksi).join([
-      innerJoin(
-        jenisBbm,
-        jenisBbm.jenisBbmId.equalsExp(transaksi.jenisBbmId),
-      ),
-    ])
-      ..where(
-        transaksi.tanggalTransaksi.isBiggerOrEqualValue(_start(mulai)) &
-        transaksi.tanggalTransaksi.isSmallerOrEqualValue(_end(akhir)),
-      ))
-        .get();
+    final int daysDiff = akhir.difference(mulai).inDays;
+    final bool isMonthly = daysDiff > 31;
 
-    final Map<int, double> pertamax = {};
-    final Map<int, double> dexlite = {};
+    final Map<String, Map<String, double>> aggregatedData = {};
+    final Set<String> allBbmNames = {};
 
     for (final row in rows) {
-
       final trx = row.readTable(transaksi);
-
       final bbm = row.readTable(jenisBbm);
 
-      final hari = DateTime.parse(
-        trx.tanggalTransaksi,
-      ).day;
+      final tanggal = DateTime.parse(trx.tanggalTransaksi);
 
-      final nama =
-          bbm.namaJenisBbm.toLowerCase();
-
-      if (nama.contains("pertamax")) {
-
-        pertamax[hari] =
-            (pertamax[hari] ?? 0) +
-            trx.jumlahLiter;
-
+      String key;
+      if (isMonthly) {
+        key = "${tanggal.year}-${tanggal.month.toString().padLeft(2, '0')}";
       } else {
-
-        dexlite[hari] =
-            (dexlite[hari] ?? 0) +
-            trx.jumlahLiter;
-
+        key =
+            "${tanggal.year}-${tanggal.month.toString().padLeft(2, '0')}-${tanggal.day.toString().padLeft(2, '0')}";
       }
+
+      final bbmName = bbm.namaJenisBbm;
+      allBbmNames.add(bbmName);
+
+      if (!aggregatedData.containsKey(key)) {
+        aggregatedData[key] = {};
+      }
+      
+      aggregatedData[key]![bbmName] = (aggregatedData[key]![bbmName] ?? 0) + trx.jumlahLiter;
     }
 
-    final hariList = {
-      ...pertamax.keys,
-      ...dexlite.keys,
-    }.toList()
-      ..sort();
+    final allKeys = aggregatedData.keys.toList()..sort();
 
-    return hariList
-        .map(
-          (hari) => PolaBelanjaModel(
-            hari: hari,
-            pertamax: pertamax[hari] ?? 0,
-            dex: dexlite[hari] ?? 0,
-          ),
-        )
-        .toList();
+    return allKeys.map((key) {
+      String label;
+      if (isMonthly) {
+        final parts = key.split('-');
+        final dt = DateTime(int.parse(parts[0]), int.parse(parts[1]));
+        label = _formatMonth(dt);
+      } else {
+        final parts = key.split('-');
+        final dt = DateTime(
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+          int.parse(parts[2]),
+        );
+        label = _formatDate(dt);
+      }
+
+      // Ensure every BBM type has a value (default 0) for this date
+      final Map<String, double> bbmValues = {};
+      for (final name in allBbmNames) {
+        bbmValues[name] = aggregatedData[key]?[name] ?? 0.0;
+      }
+
+      return PolaBelanjaModel(
+        label: label,
+        bbmValues: bbmValues,
+      );
+    }).toList();
   }
-
-}  
+}

@@ -1,9 +1,9 @@
 class TransaksiHarianModel {
-  final int hari;
+  final String label;
   final int jumlah;
 
   TransaksiHarianModel({
-    required this.hari,
+    required this.label,
     required this.jumlah,
   });
 }

@@ -1,4 +1,4 @@
-﻿// lib/main.dart
+// lib/main.dart
 
 import 'package:flutter/material.dart';
 import 'package:kupon_bbm_app/core/di/dependency_injection.dart';
@@ -54,7 +54,11 @@ void main() async {
           create: (_) => AlokasiProvider(getIt<AlokasiRepository>()),
         ),
         ChangeNotifierProvider(
-          create: (_) => LaporanProvider(getIt<LaporanRepository>()),
+          create: (_) {
+            final provider = LaporanProvider(getIt<LaporanRepository>());
+            provider.loadLastStokOpname();
+            return provider;
+          },
         ),
       ],
       child: const MyApp(),
