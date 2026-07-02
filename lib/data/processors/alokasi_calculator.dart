@@ -45,6 +45,25 @@ import '../../domain/models/alokasi_result_model.dart';
 ///  17. UKJi = LiterRanjen × (JUi×INi×Oi) / Σ(JUj×INj×Oj)    (final per-category allocation)
 ///  18. Ri+1 = Ri - EffectiveBi                              (unused budget automatically rolls over to next months)
 /// Where PJU categories use calendar days (K) and others use HK − offset.
+///
+/// Formula Konversi Lintas BBM (Manual Cross-Fuel Transfer at Distribution Phase)
+///   When the user manually transfers unused reserve (Sisa Kupon Dukungan) from one fuel to another:
+///   1. TransferRp = TransferLitersSource × HargaSource
+///   2. TransferLitersTarget = TransferRp / HargaTarget
+///   3. NewSisaKuponSource = OldSisaKuponSource - TransferLitersSource
+///   4. NewSisaKuponTarget = OldSisaKuponTarget + TransferLitersTarget
+///   This ensures the total Rupiah value remains constant.
+///
+/// Formula Re-kalkulasi saat Edit Anggaran Bulan (Reallocation on Budget Edit)
+///   When the user manually edits the total budget for a specific month (Bi_edited),
+///   the system recalculates the remaining months to maintain the total annual budget (D):
+///   1. TotalEditedBi = Σ (Bi of all manually edited months)
+///   2. RemainingForOthers = D - TotalEditedBi
+///   3. SumHKNonEdited = Σ (JHK of all non-edited months)
+///   4. For each non-edited month i:
+///      Bi_new = RemainingForOthers × (JHKi / SumHKNonEdited)
+///   5. The budget is then split into Px and Pdx proportionally based on NeedPx and NeedPdx,
+///      and capped if cadangan was edited, identical to the standard calculation.
 class AlokasiCalculator {
   /// Minimum percentage threshold for budget deficit warning.
   /// If any month gets below this fraction of the average, a warning is shown.

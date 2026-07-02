@@ -200,16 +200,19 @@ class HasilRekomendasiDialog extends StatelessWidget {
                           InkWell(
                             onTap: () => _showEditAlokasiDialog(context, r),
                             borderRadius: BorderRadius.circular(4),
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.green.shade700,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Icon(
-                                Icons.edit,
-                                size: 14,
-                                color: Colors.white,
+                            child: Tooltip(
+                              message: 'Edit Anggaran',
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade700,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Icon(
+                                  Icons.edit,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                           ),
@@ -229,16 +232,19 @@ class HasilRekomendasiDialog extends StatelessWidget {
                               );
                             },
                             borderRadius: BorderRadius.circular(4),
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.shade600,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Icon(
-                                Icons.info_outline,
-                                size: 14,
-                                color: Colors.white,
+                            child: Tooltip(
+                              message: 'Detail Alokasi',
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade600,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Icon(
+                                  Icons.info_outline,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                           ),

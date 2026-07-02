@@ -7,6 +7,7 @@ import '../../domain/entities/index_norma_entity.dart';
 import '../../domain/entities/kendaraan_kategori_entity.dart';
 import '../../domain/entities/rpd_entity.dart';
 import '../../domain/models/alokasi_result_model.dart';
+import '../../domain/models/kupon_distribution_model.dart';
 import '../../domain/repositories/alokasi_repository.dart';
 
 /// State management provider for the Rekomendasi Alokasi BBM feature.
@@ -53,6 +54,11 @@ class AlokasiProvider extends ChangeNotifier {
   List<int> _deficitWarnings = [];
   bool _hasResults = false;
 
+  // Kupon Distribution State
+  List<KuponDistributionModel> _kuponDistributions = [];
+  int _kuponSelectedBulan = 0;
+  double _transferRupiahPxToPdx = 0; // > 0 means PX to PDX, < 0 means PDX to PX
+
   // ── Getters ───────────────────────────────────────────────────────────
 
   bool get isLoading => _isLoading;
@@ -79,6 +85,43 @@ class AlokasiProvider extends ChangeNotifier {
   List<AlokasiResultModel> get results => _results;
   List<int> get deficitWarnings => _deficitWarnings;
   bool get hasResults => _hasResults;
+
+  List<KuponDistributionModel> get kuponDistributions => _kuponDistributions;
+  int get kuponSelectedBulan => _kuponSelectedBulan;
+
+  double get kuponTargetLiterPx {
+    if (_results.isEmpty) return 0;
+    final base = _results
+        .firstWhere(
+          (r) => r.bulan == _kuponSelectedBulan,
+          orElse: () => _results.first,
+        )
+        .totalLiterPx;
+    return base - (_transferRupiahPxToPdx / _hargaPertamax);
+  }
+
+  double get kuponTargetLiterPdx {
+    if (_results.isEmpty) return 0;
+    final base = _results
+        .firstWhere(
+          (r) => r.bulan == _kuponSelectedBulan,
+          orElse: () => _results.first,
+        )
+        .totalLiterPdx;
+    return base + (_transferRupiahPxToPdx / _hargaDexlite);
+  }
+
+  double get kuponTerdistribusiPx => _kuponDistributions
+      .where((k) => k.jenisBbm == 'PX')
+      .fold(0, (sum, k) => sum + k.totalDistribusi);
+
+  double get kuponTerdistribusiPdx => _kuponDistributions
+      .where((k) => k.jenisBbm == 'PDX')
+      .fold(0, (sum, k) => sum + k.totalDistribusi);
+
+  double get sisaKuponDukunganPx => kuponTargetLiterPx - kuponTerdistribusiPx;
+  double get sisaKuponDukunganPdx =>
+      kuponTargetLiterPdx - kuponTerdistribusiPdx;
 
   // ── Computed ──────────────────────────────────────────────────────────
 
@@ -522,6 +565,97 @@ class AlokasiProvider extends ChangeNotifier {
     _results = [];
     _hasResults = false;
     _deficitWarnings = [];
+    notifyListeners();
+  }
+
+  // ── Kupon Distribution ────────────────────────────────────────────────
+
+  void initKuponDistribution(int bulan) {
+    _kuponSelectedBulan = bulan;
+    _transferRupiahPxToPdx = 0; // reset transfer
+    final result = _results.firstWhere((r) => r.bulan == bulan);
+
+    _kuponDistributions = [];
+
+    for (var detail in result.detailPx) {
+      if (detail.unit > 0) {
+        _kuponDistributions.add(
+          KuponDistributionModel(
+            namaKategori: detail.namaKategori,
+            jenisBbm: 'PX',
+            jumlahUnit: detail.unit,
+            rekomendasiLiterTotal: detail.jumlahLiterAlokasi,
+            kuantumPerUnit: (detail.jumlahLiterAlokasi / detail.unit).floor(),
+          ),
+        );
+      }
+    }
+
+    for (var detail in result.detailPdx) {
+      if (detail.unit > 0) {
+        _kuponDistributions.add(
+          KuponDistributionModel(
+            namaKategori: detail.namaKategori,
+            jenisBbm: 'PDX',
+            jumlahUnit: detail.unit,
+            rekomendasiLiterTotal: detail.jumlahLiterAlokasi,
+            kuantumPerUnit: (detail.jumlahLiterAlokasi / detail.unit).floor(),
+          ),
+        );
+      }
+    }
+
+    notifyListeners();
+  }
+
+  void updateKuantumKupon(String namaKategori, int kuantum) {
+    final index = _kuponDistributions.indexWhere(
+      (k) => k.namaKategori == namaKategori,
+    );
+    if (index != -1) {
+      _kuponDistributions[index].kuantumPerUnit = kuantum;
+      notifyListeners();
+    }
+  }
+
+  void autoBulatkanKupon() {
+    for (var kupon in _kuponDistributions) {
+      kupon.kuantumPerUnit = (kupon.rekomendasiLiterTotal / kupon.jumlahUnit)
+          .floor();
+    }
+    notifyListeners();
+  }
+
+  Future<bool> generateDataKuponExcel() async {
+    if (_kuponDistributions.isEmpty || _results.isEmpty) return false;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final success = await _repository.exportKuponToExcel(
+        bulan: _kuponSelectedBulan,
+        tahun: _currentYear,
+        distributions: _kuponDistributions,
+      );
+
+      _isLoading = false;
+      notifyListeners();
+      return success;
+    } catch (e) {
+      _errorMessage = 'Gagal generate data kupon: $e';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  void transferSisaKupon(String sourceBbm, double jumlahLiter) {
+    if (sourceBbm == 'PX') {
+      _transferRupiahPxToPdx += (jumlahLiter * _hargaPertamax);
+    } else {
+      _transferRupiahPxToPdx -= (jumlahLiter * _hargaDexlite);
+    }
     notifyListeners();
   }
 

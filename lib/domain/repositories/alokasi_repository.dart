@@ -3,6 +3,7 @@ import '../entities/kendaraan_kategori_entity.dart';
 import '../entities/index_norma_entity.dart';
 import '../entities/hari_kerja_entity.dart';
 import '../models/alokasi_result_model.dart';
+import '../models/kupon_distribution_model.dart';
 
 /// Repository interface for the Rekomendasi Alokasi BBM feature.
 ///
@@ -101,4 +102,10 @@ abstract class AlokasiRepository {
     List<RpdEntity> rpdAcuan,
     int tahun,
   );
+
+  Future<bool> exportKuponToExcel({
+    required int bulan,
+    required int tahun,
+    required List<KuponDistributionModel> distributions,
+  });
 }

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../../domain/models/alokasi_result_model.dart';
 import '../../../../presentation/providers/alokasi_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'distribusi_kupon_dialog.dart';
 
 class DetailAlokasiBulanDialog extends StatelessWidget {
   final AlokasiResultModel result;
@@ -103,6 +104,57 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
                     ],
                   ],
                 ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            
+            // Actions
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    ),
+                    child: const Text('Tutup'),
+                  ),
+                  const SizedBox(width: 16),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (c) => Theme(
+                          data: Theme.of(context).copyWith(
+                            textTheme: GoogleFonts.interTextTheme(
+                              Theme.of(context).textTheme,
+                            ),
+                          ),
+                          child: DistribusiKuponDialog(
+                            bulan: result.bulan,
+                            namaBulan: currentResult.namaBulan,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.local_activity),
+                    label: const Text(
+                      'Buat Data Kupon',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange.shade600,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

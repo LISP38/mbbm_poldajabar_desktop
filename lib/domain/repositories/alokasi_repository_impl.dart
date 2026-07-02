@@ -12,6 +12,7 @@ import '../entities/kendaraan_kategori_entity.dart';
 import '../entities/index_norma_entity.dart';
 import '../entities/hari_kerja_entity.dart';
 import '../models/alokasi_result_model.dart';
+import '../models/kupon_distribution_model.dart';
 import 'alokasi_repository.dart';
 
 class AlokasiRepositoryImpl implements AlokasiRepository {
@@ -736,6 +737,120 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
       return true;
     } catch (e) {
       debugPrint('❌ Error exporting rekomendasi: $e');
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> exportKuponToExcel({
+    required int bulan,
+    required int tahun,
+    required List<KuponDistributionModel> distributions,
+  }) async {
+    try {
+      final outputPath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Simpan Data Kupon BBM',
+        fileName: 'Data_Kupon_${AlokasiResultModel.getBulanName(bulan)}_$tahun.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (outputPath == null) return false;
+
+      final excel = Excel.createExcel();
+      final sheet = excel['Data Kupon'];
+
+      // Header matching the picture format
+      sheet.appendRow([
+        TextCellValue('Jenis Kupon'),
+        TextCellValue('No Kupon'),
+        TextCellValue('Bulan'),
+        TextCellValue('Tahun'),
+        TextCellValue('Jenis Ranmor'),
+        TextCellValue('Satker'),
+        TextCellValue('No Pol'),
+        TextCellValue('Kode'),
+        TextCellValue('Jenis BBM'),
+        TextCellValue('Kuantum'),
+      ]);
+
+      // Query vehicles matching active categories
+      final query = _db.select(_db.kendaraan).join([
+        leftOuterJoin(
+          _db.satker,
+          _db.satker.satkerId.equalsExp(_db.kendaraan.satkerId),
+        ),
+        leftOuterJoin(
+          _db.alokasiKendaraanKategori,
+          _db.alokasiKendaraanKategori.kategoriId.equalsExp(_db.kendaraan.kategoriId),
+        ),
+      ])..where(_db.kendaraan.statusAktif.equals(1));
+
+      final vehicles = await query.get();
+
+      // We'll map namaKategori back to the Kuantum distribution provided by the user
+      final distMap = <String, int>{};
+      for (final dist in distributions) {
+        if (dist.kuantumPerUnit > 0) {
+          distMap[dist.namaKategori.toLowerCase()] = dist.kuantumPerUnit;
+        }
+      }
+
+      final romanMonths = [
+        'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'
+      ];
+      final romanMonth = bulan >= 1 && bulan <= 12 ? romanMonths[bulan - 1] : '';
+
+      int noKupon = 1;
+      for (final row in vehicles) {
+        final kategori = row.readTableOrNull(_db.alokasiKendaraanKategori);
+        if (kategori == null) continue;
+
+        final namaKategori = kategori.namaKategori.toLowerCase();
+        if (!distMap.containsKey(namaKategori)) continue;
+
+        final kuantum = distMap[namaKategori]!;
+        final kendaraanData = row.readTable(_db.kendaraan);
+        final satkerData = row.readTableOrNull(_db.satker);
+        final namaSatker = satkerData?.namaSatker ?? '';
+
+        final jenisKupon = kategori.isPju == 1 ? 'PJU' : 'Ranjen'; // User said "depend on category for now, just handle the ranjen kupon". Usually PJU is not ranjen, but let's see. We'll use Ranjen unless it's PJU or just "Ranjen".
+        // The user said: "depend on category for now, just handle the ranjen kupon left the dukungan/cadangan behind/do not process it"
+        // So I'll put 'Ranjen' for now.
+
+        final noPolGabungan = '${kendaraanData.noPolKode ?? ''} ${kendaraanData.noPolNomor ?? ''}'.trim();
+
+        sheet.appendRow([
+          TextCellValue('Ranjen'), // Based on user instruction "handle the ranjen kupon"
+          IntCellValue(noKupon),
+          TextCellValue(romanMonth),
+          IntCellValue(tahun),
+          TextCellValue(kategori.namaKategori), // or kendaraanData.jenisRanmor ?? kategori.namaKategori
+          TextCellValue(namaSatker),
+          TextCellValue(noPolGabungan),
+          TextCellValue(kendaraanData.noPolKode ?? ''),
+          TextCellValue(kategori.jenisBbm),
+          IntCellValue(kuantum),
+        ]);
+
+        noKupon++;
+      }
+
+      if (excel.tables.containsKey('Sheet1')) {
+        excel.delete('Sheet1');
+      }
+
+      final fileBytes = excel.save();
+      if (fileBytes == null) return false;
+
+      final finalPath = outputPath.endsWith('.xlsx') ? outputPath : '$outputPath.xlsx';
+      final outputFile = File(finalPath);
+      await outputFile.writeAsBytes(fileBytes);
+
+      debugPrint('✅ Data Kupon exported to: $finalPath');
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error exporting data kupon: $e');
       return false;
     }
   }
