@@ -15,6 +15,9 @@ class KendaraanTableWidget extends StatefulWidget {
 
 class _KendaraanTableWidgetState extends State<KendaraanTableWidget> {
   String _searchQuery = '';
+  int? _filterSatkerId;
+  String? _filterJenis;
+  int? _filterKategoriId;
 
   @override
   Widget build(BuildContext context) {
@@ -95,194 +98,364 @@ class _KendaraanTableWidgetState extends State<KendaraanTableWidget> {
                 }).toList();
               }
 
+              if (_filterSatkerId != null) {
+                kendaraans = kendaraans
+                    .where((k) => k.satkerId == _filterSatkerId)
+                    .toList();
+              }
+              if (_filterJenis != null) {
+                kendaraans = kendaraans
+                    .where(
+                      (k) =>
+                          k.jenisRanmor.toUpperCase() ==
+                          _filterJenis?.toUpperCase(),
+                    )
+                    .toList();
+              }
+              if (_filterKategoriId != null) {
+                kendaraans = kendaraans
+                    .where((k) => k.kategoriId == _filterKategoriId)
+                    .toList();
+              }
+
               if (kendaraans.isEmpty && provider.kendaraanList.isEmpty) {
                 return const Center(child: Text('Belum ada data kendaraan'));
               }
 
-              return Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+              final uniqueJenis =
+                  provider.kendaraanList
+                      .map((k) => k.jenisRanmor.toUpperCase())
+                      .toSet()
+                      .toList()
+                    ..sort();
+
+              final uncategorizedCount = provider.kendaraanList
+                  .where((k) => k.kategoriId == 0)
+                  .length;
+
+              return Column(
+                children: [
+                  if (uncategorizedCount > 0)
                     Container(
-                      color: const Color(0xFFF28C28),
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12,
-                        horizontal: 16,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        border: Border.all(color: Colors.orange.shade200),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
                         children: [
-                          Expanded(flex: 1, child: _buildHeaderCell('No')),
-                          Expanded(flex: 2, child: _buildHeaderCell('No Pol')),
-                          Expanded(flex: 2, child: _buildHeaderCell('Satker')),
-                          Expanded(
-                            flex: 2,
-                            child: _buildHeaderCell('Kategori'),
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: Colors.orange.shade800,
                           ),
-                          Expanded(flex: 1, child: _buildHeaderCell('Jenis')),
-                          Expanded(flex: 2, child: _buildHeaderCell('Status')),
-                          Expanded(flex: 2, child: _buildHeaderCell('Aksi')),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Terdapat $uncategorizedCount kendaraan yang belum memiliki Kategori. Silakan edit dan pilih Kategori yang sesuai.',
+                              style: TextStyle(
+                                color: Colors.orange.shade900,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    Expanded(
-                      child: kendaraans.isEmpty
-                          ? const Center(child: Text('Data tidak ditemukan'))
-                          : ListView.builder(
-                              itemCount: kendaraans.length,
-                              itemBuilder: (context, index) {
-                                final kendaraan = kendaraans[index];
-                                SatkerEntity? satker;
-                                try {
-                                  satker = provider.satkerList.firstWhere(
-                                    (s) => s.satkerId == kendaraan.satkerId,
-                                  );
-                                } catch (_) {
-                                  satker = provider.satkerList.isNotEmpty
-                                      ? provider.satkerList.first
-                                      : const SatkerModel(
-                                          satkerId: 0,
-                                          namaSatker: 'Unknown',
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          decoration: const InputDecoration(
+                            labelText: 'Filter Satker',
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                          value: _filterSatkerId,
+                          items: [
+                            const DropdownMenuItem<int>(
+                              value: null,
+                              child: Text('Semua Satker'),
+                            ),
+                            ...provider.satkerList.map(
+                              (s) => DropdownMenuItem<int>(
+                                value: s.satkerId,
+                                child: Text(s.namaSatker),
+                              ),
+                            ),
+                          ],
+                          onChanged: (val) =>
+                              setState(() => _filterSatkerId = val),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          decoration: const InputDecoration(
+                            labelText: 'Filter Jenis',
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                          value: _filterJenis,
+                          items: [
+                            const DropdownMenuItem<String>(
+                              value: null,
+                              child: Text('Semua Jenis'),
+                            ),
+                            ...uniqueJenis.map(
+                              (j) => DropdownMenuItem<String>(
+                                value: j,
+                                child: Text(j),
+                              ),
+                            ),
+                          ],
+                          onChanged: (val) =>
+                              setState(() => _filterJenis = val),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          decoration: const InputDecoration(
+                            labelText: 'Filter Kategori',
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                          value: _filterKategoriId,
+                          items: [
+                            const DropdownMenuItem<int>(
+                              value: null,
+                              child: Text('Semua Kategori'),
+                            ),
+                            const DropdownMenuItem<int>(
+                              value: 0,
+                              child: Text('Belum Ada Kategori'),
+                            ),
+                            ...provider.kategoriList.map(
+                              (k) => DropdownMenuItem<int>(
+                                value: k['kategori_id'] as int,
+                                child: Text(k['nama_kategori'] as String),
+                              ),
+                            ),
+                          ],
+                          onChanged: (val) =>
+                              setState(() => _filterKategoriId = val),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: Card(
+                      elevation: 1,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Container(
+                            color: const Color(0xFFF28C28),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 16,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 1,
+                                  child: _buildHeaderCell('No'),
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: _buildHeaderCell('No Pol'),
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: _buildHeaderCell('Satker'),
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: _buildHeaderCell('Kategori'),
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: _buildHeaderCell('Jenis'),
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: _buildHeaderCell('Aksi'),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: kendaraans.isEmpty
+                                ? const Center(
+                                    child: Text('Data tidak ditemukan'),
+                                  )
+                                : ListView.builder(
+                                    itemCount: kendaraans.length,
+                                    itemBuilder: (context, index) {
+                                      final kendaraan = kendaraans[index];
+                                      SatkerEntity? satker;
+                                      try {
+                                        satker = provider.satkerList.firstWhere(
+                                          (s) =>
+                                              s.satkerId == kendaraan.satkerId,
                                         );
-                                }
+                                      } catch (_) {
+                                        satker = provider.satkerList.isNotEmpty
+                                            ? provider.satkerList.first
+                                            : const SatkerModel(
+                                                satkerId: 0,
+                                                namaSatker: 'Unknown',
+                                              );
+                                      }
 
-                                final satkerName = satker != null
-                                    ? satker.namaSatker
-                                    : 'Unknown';
-                                final kategoriList = provider.kategoriList;
-                                final kategori = kategoriList
-                                    .where(
-                                      (k) =>
-                                          k['kategori_id'] ==
-                                          kendaraan.kategoriId,
-                                    )
-                                    .firstOrNull;
-                                final kategoriName = kategori != null
-                                    ? kategori['nama_kategori'] as String
-                                    : 'No Category';
+                                      final satkerName = satker != null
+                                          ? satker.namaSatker
+                                          : 'Unknown';
+                                      final kategoriList =
+                                          provider.kategoriList;
+                                      final kategori = kategoriList
+                                          .where(
+                                            (k) =>
+                                                k['kategori_id'] ==
+                                                kendaraan.kategoriId,
+                                          )
+                                          .firstOrNull;
+                                      final kategoriName = kategori != null
+                                          ? kategori['nama_kategori'] as String
+                                          : 'No Category';
 
-                                return Container(
-                                  decoration: BoxDecoration(
-                                    color: index % 2 == 0
-                                        ? Colors.white
-                                        : Colors.grey.shade50,
-                                    border: Border(
-                                      bottom: BorderSide(
-                                        color: Colors.grey.shade200,
-                                      ),
-                                    ),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 8,
-                                    horizontal: 16,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        flex: 1,
-                                        child: Text(
-                                          '${index + 1}',
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(fontSize: 13),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 2,
-                                        child: Text(
-                                          '${kendaraan.noPolKode} ${kendaraan.noPolNomor}',
-                                          style: const TextStyle(fontSize: 13),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 2,
-                                        child: Text(
-                                          satkerName,
-                                          style: const TextStyle(fontSize: 13),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 2,
-                                        child: Text(
-                                          kategoriName,
-                                          style: const TextStyle(fontSize: 13),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 1,
-                                        child: Text(
-                                          kendaraan.jenisRanmor,
-                                          style: const TextStyle(fontSize: 13),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 2,
-                                        child: Text(
-                                          kendaraan.statusAktif == 1
-                                              ? 'Aktif'
-                                              : 'Tidak Aktif',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: kendaraan.statusAktif == 1
-                                                ? Colors.green
-                                                : Colors.red,
-                                            fontWeight: FontWeight.w500,
+                                      return Container(
+                                        decoration: BoxDecoration(
+                                          color: index % 2 == 0
+                                              ? Colors.white
+                                              : Colors.grey.shade50,
+                                          border: Border(
+                                            bottom: BorderSide(
+                                              color: Colors.grey.shade200,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      Expanded(
-                                        flex: 2,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 8,
+                                          horizontal: 16,
+                                        ),
                                         child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
                                           children: [
-                                            IconButton(
-                                              icon: const Icon(
-                                                Icons.edit,
-                                                color: Colors.blue,
-                                                size: 18,
+                                            Expanded(
+                                              flex: 1,
+                                              child: Text(
+                                                '${index + 1}',
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                ),
                                               ),
-                                              onPressed: () => _showFormDialog(
-                                                context,
-                                                kendaraan,
-                                              ),
-                                              padding: EdgeInsets.zero,
-                                              constraints:
-                                                  const BoxConstraints(),
-                                              splashRadius: 20,
                                             ),
-                                            const SizedBox(width: 8),
-                                            IconButton(
-                                              icon: const Icon(
-                                                Icons.delete,
-                                                color: Colors.red,
-                                                size: 18,
+                                            Expanded(
+                                              flex: 2,
+                                              child: Text(
+                                                '${kendaraan.noPolKode} ${kendaraan.noPolNomor}',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                ),
                                               ),
-                                              onPressed: () =>
-                                                  _showDeleteConfirm(
-                                                    context,
-                                                    kendaraan.kendaraanId,
+                                            ),
+                                            Expanded(
+                                              flex: 2,
+                                              child: Text(
+                                                satkerName,
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                            Expanded(
+                                              flex: 2,
+                                              child: Text(
+                                                kategoriName,
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                            Expanded(
+                                              flex: 2,
+                                              child: Text(
+                                                kendaraan.jenisRanmor,
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                            Expanded(
+                                              flex: 2,
+                                              child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  IconButton(
+                                                    icon: const Icon(
+                                                      Icons.edit,
+                                                      color: Colors.blue,
+                                                      size: 18,
+                                                    ),
+                                                    onPressed: () =>
+                                                        _showFormDialog(
+                                                          context,
+                                                          kendaraan,
+                                                        ),
+                                                    padding: EdgeInsets.zero,
+                                                    constraints:
+                                                        const BoxConstraints(),
+                                                    splashRadius: 20,
                                                   ),
-                                              padding: EdgeInsets.zero,
-                                              constraints:
-                                                  const BoxConstraints(),
-                                              splashRadius: 20,
+                                                  const SizedBox(width: 8),
+                                                  IconButton(
+                                                    icon: const Icon(
+                                                      Icons.delete,
+                                                      color: Colors.red,
+                                                      size: 18,
+                                                    ),
+                                                    onPressed: () =>
+                                                        _showDeleteConfirm(
+                                                          context,
+                                                          kendaraan.kendaraanId,
+                                                        ),
+                                                    padding: EdgeInsets.zero,
+                                                    constraints:
+                                                        const BoxConstraints(),
+                                                    splashRadius: 20,
+                                                  ),
+                                                ],
+                                              ),
                                             ),
                                           ],
                                         ),
-                                      ),
-                                    ],
+                                      );
+                                    },
                                   ),
-                                );
-                              },
-                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               );
             },
           ),
