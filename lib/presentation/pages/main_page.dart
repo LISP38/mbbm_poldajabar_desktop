@@ -11,6 +11,7 @@ import 'package:kupon_bbm_app/presentation/pages/data_kupon/data_kupon_page.dart
 import 'package:kupon_bbm_app/presentation/pages/generate_kupon_laporan/generate_kupon_laporan_page.dart';
 import 'package:kupon_bbm_app/presentation/pages/input_stok_opname/input_stok_opname_page.dart';
 import 'package:kupon_bbm_app/presentation/widgets/notification_widget.dart';
+import 'package:kupon_bbm_app/presentation/pages/master_data/master_data_page.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -23,12 +24,16 @@ class _MainPageState extends State<MainPage> {
   int _selectedIndex = 0;
   int _selectedSubIndex = 0;
   final Set<int> _expandedMenus = {};
-  
+
   bool _isSidebarVisible = true;
   final GlobalKey _dashboardKey = GlobalKey();
 
   final List<Map<String, dynamic>> _menuItems = [
     {'title': 'Dashboard', 'icon': Icons.home},
+    {
+      'title': 'Master Data',
+      'icon': Icons.storage,
+    },
     {
       'title': 'Rekomendasi Alokasi',
       'icon': Icons.analytics,
@@ -37,33 +42,23 @@ class _MainPageState extends State<MainPage> {
         'Data Kendaraan',
         'Index Norma',
         'Hari Kerja',
-      ]
+      ],
     },
     {
       'title': 'Generate Kupon dan Laporan',
       'icon': Icons.assignment,
-      'subMenus': [
-        'Generate Kupon',
-        'Generate Laporan',
-      ]
+      'subMenus': ['Generate Kupon', 'Generate Laporan'],
     },
     {'title': 'Import Excel', 'icon': Icons.download},
     {
       'title': 'Data Kupon',
       'icon': Icons.receipt,
-      'subMenus': [
-        'Data Ranjen',
-        'Data Dukungan',
-      ]
+      'subMenus': ['Data Ranjen', 'Data Dukungan'],
     },
     {
       'title': 'Data Transaksi',
       'icon': Icons.receipt_long,
-      'subMenus': [
-        'Data Transaksi',
-        'Kupon Minus',
-        'Transaksi Hutang',
-      ]
+      'subMenus': ['Data Transaksi', 'Kupon Minus', 'Transaksi Hutang'],
     },
     {'title': 'Sinkronisasi Data', 'icon': Icons.sync_alt},
     {'title': 'Input Stok Opname BBM', 'icon': Icons.local_gas_station},
@@ -74,10 +69,12 @@ class _MainPageState extends State<MainPage> {
       case 0:
         return DashboardPage(key: _dashboardKey);
       case 1:
-        return RekomendasiAlokasiPage(selectedSubIndex: _selectedSubIndex);
+        return const MasterDataPage();
       case 2:
-        return GenerateKuponLaporanPage(selectedSubIndex: _selectedSubIndex); 
+        return RekomendasiAlokasiPage(selectedSubIndex: _selectedSubIndex);
       case 3:
+        return GenerateKuponLaporanPage(selectedSubIndex: _selectedSubIndex);
+      case 4:
         return ImportPage(
           onImportSuccess: () {
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -89,13 +86,13 @@ class _MainPageState extends State<MainPage> {
             });
           },
         );
-      case 4:
-        return DataKuponPage(selectedSubIndex: _selectedSubIndex);
       case 5:
-        return TransactionPage(selectedSubIndex: _selectedSubIndex);
+        return DataKuponPage(selectedSubIndex: _selectedSubIndex);
       case 6:
-        return const SyncServerPage();
+        return TransactionPage(selectedSubIndex: _selectedSubIndex);
       case 7:
+        return const SyncServerPage();
+      case 8:
         return const InputStokOpnamePage();
       default:
         return const SizedBox();
@@ -132,10 +129,10 @@ class _MainPageState extends State<MainPage> {
                               height: 48,
                               errorBuilder: (context, error, stackTrace) =>
                                   const Icon(
-                                Icons.local_police,
-                                color: Colors.white,
-                                size: 48,
-                              ),
+                                    Icons.local_police,
+                                    color: Colors.white,
+                                    size: 48,
+                                  ),
                             ),
                             const SizedBox(width: 12),
                             const Expanded(
@@ -193,25 +190,29 @@ class _MainPageState extends State<MainPage> {
                                   child: Column(
                                     children: (hasSubmenus && isExpanded)
                                         ? (item['subMenus'] as List<String>)
-                                            .asMap()
-                                            .entries
-                                            .map((entry) {
-                                            final subIdx = entry.key;
-                                            final subTitle = entry.value;
-                                            final isSubSelected =
-                                                (isSelected && _selectedSubIndex == subIdx);
+                                              .asMap()
+                                              .entries
+                                              .map((entry) {
+                                                final subIdx = entry.key;
+                                                final subTitle = entry.value;
+                                                final isSubSelected =
+                                                    (isSelected &&
+                                                    _selectedSubIndex ==
+                                                        subIdx);
 
-                                            return _buildSubMenuTile(
-                                              title: subTitle,
-                                              isSelected: isSubSelected,
-                                              onTap: () {
-                                                setState(() {
-                                                  _selectedIndex = index;
-                                                  _selectedSubIndex = subIdx;
-                                                });
-                                              },
-                                            );
-                                          }).toList()
+                                                return _buildSubMenuTile(
+                                                  title: subTitle,
+                                                  isSelected: isSubSelected,
+                                                  onTap: () {
+                                                    setState(() {
+                                                      _selectedIndex = index;
+                                                      _selectedSubIndex =
+                                                          subIdx;
+                                                    });
+                                                  },
+                                                );
+                                              })
+                                              .toList()
                                         : [],
                                   ),
                                 ),
@@ -249,7 +250,7 @@ class _MainPageState extends State<MainPage> {
                       NotificationBellButton(
                         onNavigateToStokOpname: () {
                           setState(() {
-                            _selectedIndex = 7;
+                            _selectedIndex = 8;
                             _expandedMenus.clear();
                           });
                         },
@@ -294,8 +295,9 @@ class _MainPageState extends State<MainPage> {
                   title,
                   style: TextStyle(
                     color: Colors.white,
-                    fontWeight:
-                        isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                     fontSize: 14,
                   ),
                 ),
@@ -327,11 +329,18 @@ class _MainPageState extends State<MainPage> {
       child: InkWell(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.only(left: 60, right: 24, top: 12, bottom: 12),
+          padding: const EdgeInsets.only(
+            left: 60,
+            right: 24,
+            top: 12,
+            bottom: 12,
+          ),
           child: Row(
             children: [
               Icon(
-                isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                isSelected
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
                 color: Colors.white,
                 size: 16,
               ),
@@ -341,7 +350,9 @@ class _MainPageState extends State<MainPage> {
                   title,
                   style: TextStyle(
                     color: isSelected ? Colors.white : Colors.white70,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
                     fontSize: 13,
                   ),
                 ),

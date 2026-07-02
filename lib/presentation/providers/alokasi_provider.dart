@@ -564,6 +564,8 @@ class AlokasiProvider extends ChangeNotifier {
         cadanganPdx: 0.0,
         appliedCadanganPxPercent: 0.0,
         appliedCadanganPdxPercent: 0.0,
+        actualCadanganPdxPercent: 0.0,
+        actualCadanganPxPercent: 0.0,
       ),
     );
 

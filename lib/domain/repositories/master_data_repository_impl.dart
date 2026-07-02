@@ -2,6 +2,7 @@ import 'package:kupon_bbm_app/domain/entities/satker_entity.dart';
 import 'package:kupon_bbm_app/domain/repositories/master_data_repository.dart';
 import 'package:kupon_bbm_app/data/models/satker_model.dart';
 import 'package:kupon_bbm_app/data/database/app_database.dart';
+import 'package:drift/drift.dart' as drift;
 
 class MasterDataRepositoryImpl implements MasterDataRepository {
   final AppDatabase _db;
@@ -10,21 +11,35 @@ class MasterDataRepositoryImpl implements MasterDataRepository {
 
   @override
   Future<List<SatkerEntity>> getAllSatker() async {
-    final result = await _db.customSelect('''
-      SELECT DISTINCT ds.* 
-      FROM satker ds
-      WHERE ds.satker_id = 1  -- KAPOLDA selalu ditampilkan
-      UNION
-      SELECT DISTINCT ds.* 
-      FROM satker ds
-      INNER JOIN kendaraan dk ON dk.satker_id = ds.satker_id
-      INNER JOIN kupon fk ON fk.kendaraan_id = dk.kendaraan_id
-      WHERE ds.satker_id != 1  -- Exclude KAPOLDA karena sudah diambil di atas
-        AND fk.status = 'Aktif' 
-        AND fk.is_current = 1
-      ORDER BY nama_satker
-    ''').get();
-    return result.map((row) => SatkerModel.fromMap(row.data)).toList();
+    final results = await _db.masterDao.getAllSatker();
+    return results.map((row) => SatkerModel(
+      satkerId: row.satkerId,
+      namaSatker: row.namaSatker,
+    )).toList();
+  }
+
+  @override
+  Future<int> insertSatker(SatkerEntity satker) async {
+    return await _db.masterDao.insertSatker(
+      SatkerCompanion.insert(
+        namaSatker: satker.namaSatker,
+      ),
+    );
+  }
+
+  @override
+  Future<void> updateSatker(SatkerEntity satker) async {
+    await _db.masterDao.updateSatker(
+      SatkerCompanion(
+        satkerId: drift.Value(satker.satkerId),
+        namaSatker: drift.Value(satker.namaSatker),
+      ),
+    );
+  }
+
+  @override
+  Future<void> deleteSatker(int satkerId) async {
+    await _db.masterDao.deleteSatker(satkerId);
   }
 
   @override
@@ -36,6 +51,12 @@ class MasterDataRepositoryImpl implements MasterDataRepository {
   @override
   Future<List<Map<String, dynamic>>> getAllJenisKupon() async {
     final result = await _db.customSelect('SELECT * FROM jenis_kupon').get();
+    return result.map((r) => r.data).toList();
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getAllKendaraanKategori() async {
+    final result = await _db.customSelect('SELECT * FROM alokasi_kendaraan_kategori').get();
     return result.map((r) => r.data).toList();
   }
 }

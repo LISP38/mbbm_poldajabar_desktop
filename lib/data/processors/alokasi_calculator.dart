@@ -124,6 +124,8 @@ class AlokasiCalculator {
             cadanganPdx: 0.0,
             appliedCadanganPxPercent: 0.0,
             appliedCadanganPdxPercent: 0.0,
+            actualCadanganPdxPercent: 0.0,
+            actualCadanganPxPercent: 0.0,
           ),
         );
         continue;
@@ -173,6 +175,10 @@ class AlokasiCalculator {
       final currentPdxPercent =
           cadanganPdxOverrides?[hk.bulan] ?? cadanganPdxPercent;
 
+      final isCadanganEdited =
+          cadanganPxOverrides?.containsKey(hk.bulan) == true ||
+          cadanganPdxOverrides?.containsKey(hk.bulan) == true;
+
       // Calculate Maximum Caps to prevent over-allocation to vehicles
       final maxPxFraction = (1.0 - (currentPxPercent / 100.0));
       final maxPdxFraction = (1.0 - (currentPdxPercent / 100.0));
@@ -184,9 +190,11 @@ class AlokasiCalculator {
           ? budgetPdxNeed / maxPdxFraction
           : double.infinity;
 
-      // Apply caps
-      if (biPx > maxBudgetPx) biPx = maxBudgetPx;
-      if (biPdx > maxBudgetPdx) biPdx = maxBudgetPdx;
+      // Apply caps ONLY if cadangan was explicitly edited for this month
+      if (isCadanganEdited) {
+        if (biPx > maxBudgetPx) biPx = maxBudgetPx;
+        if (biPdx > maxBudgetPdx) biPdx = maxBudgetPdx;
+      }
 
       // The effective total budget consumed by this month
       final effectiveBi = biPx + biPdx;
@@ -195,11 +203,36 @@ class AlokasiCalculator {
       double literPx = hargaPertamax > 0 ? biPx / hargaPertamax : 0;
       double literPdx = hargaDexlite > 0 ? biPdx / hargaDexlite : 0;
 
-      final cadanganPx = literPx * (currentPxPercent / 100);
-      final cadanganPdx = literPdx * (currentPdxPercent / 100);
+      // Calculate strictly needed liters for vehicles
+      final neededLiterPxForRanjen = hargaPertamax > 0
+          ? (budgetPxNeed / hargaPertamax)
+          : 0;
+      final neededLiterPdxForRanjen = hargaDexlite > 0
+          ? (budgetPdxNeed / hargaDexlite)
+          : 0;
+
+      // Cadangan is MAX of (Target Cadangan) vs (Overflow beyond Vehicle Need)
+      final targetCadanganPx = literPx * (currentPxPercent / 100.0);
+      final overflowCadanganPx = literPx - neededLiterPxForRanjen;
+      final cadanganPx = (overflowCadanganPx > targetCadanganPx)
+          ? overflowCadanganPx
+          : targetCadanganPx;
+
+      final targetCadanganPdx = literPdx * (currentPdxPercent / 100.0);
+      final overflowCadanganPdx = literPdx - neededLiterPdxForRanjen;
+      final cadanganPdx = (overflowCadanganPdx > targetCadanganPdx)
+          ? overflowCadanganPdx
+          : targetCadanganPdx;
 
       final literPxForRanjen = literPx - cadanganPx;
       final literPdxForRanjen = literPdx - cadanganPdx;
+
+      final actualCadanganPxPercent = literPx > 0
+          ? (cadanganPx / literPx) * 100
+          : 0.0;
+      final actualCadanganPdxPercent = literPdx > 0
+          ? (cadanganPdx / literPdx) * 100
+          : 0.0;
 
       // Step 4: UKJi per category
       final literPerKategori = <String, double>{};
@@ -241,6 +274,8 @@ class AlokasiCalculator {
           cadanganPdx: cadanganPdx,
           appliedCadanganPxPercent: currentPxPercent,
           appliedCadanganPdxPercent: currentPdxPercent,
+          actualCadanganPxPercent: actualCadanganPxPercent,
+          actualCadanganPdxPercent: actualCadanganPdxPercent,
           isCadanganEdited:
               cadanganPxOverrides?.containsKey(hk.bulan) == true ||
               cadanganPdxOverrides?.containsKey(hk.bulan) == true,
@@ -290,7 +325,7 @@ class AlokasiCalculator {
     }
 
     // Remaining budget for non-edited months
-    final remainingForOthers = totalSisaAnggaran - editedBudgetTotal;
+    double runningRemainingForOthers = totalSisaAnggaran - editedBudgetTotal;
 
     // Get hari kerja for non-edited months
     final nonEditedHK = hariKerjaList
@@ -342,10 +377,16 @@ class AlokasiCalculator {
         isEdited = true;
         editedValue = result.editedJatahAnggaran;
       } else {
-        // Proportional from remaining
+        // Proportional from rolling remaining
         final jhki = hk.getHariKerjaWithOffset(hariKerjaOffset);
-        bi = totalNonEditedHK > 0 && remainingForOthers > 0
-            ? remainingForOthers * (jhki / totalNonEditedHK)
+        final remainingHKFromHere = nonEditedHK
+            .where((h) => h.bulan >= result.bulan)
+            .fold<int>(
+              0,
+              (s, h) => s + h.getHariKerjaWithOffset(hariKerjaOffset),
+            );
+        bi = remainingHKFromHere > 0 && runningRemainingForOthers > 0
+            ? runningRemainingForOthers * (jhki / remainingHKFromHere)
             : 0;
         isEdited = false;
         editedValue = null;
@@ -382,6 +423,10 @@ class AlokasiCalculator {
       final currentPdxPercent =
           cadanganPdxOverrides?[result.bulan] ?? cadanganPdxPercent;
 
+      final isCadanganEdited =
+          cadanganPxOverrides?.containsKey(result.bulan) == true ||
+          cadanganPdxOverrides?.containsKey(result.bulan) == true;
+
       // Calculate Maximum Caps to prevent over-allocation to vehicles
       final maxPxFraction = (1.0 - (currentPxPercent / 100.0));
       final maxPdxFraction = (1.0 - (currentPdxPercent / 100.0));
@@ -393,8 +438,8 @@ class AlokasiCalculator {
           ? budgetPdxNeed / maxPdxFraction
           : double.infinity;
 
-      // Apply caps ONLY if this month was not manually edited by the user
-      if (!isEdited) {
+      // Apply caps ONLY if this month's cadangan was manually edited
+      if (!isEdited && isCadanganEdited) {
         if (biPx > maxBudgetPx) biPx = maxBudgetPx;
         if (biPdx > maxBudgetPdx) biPdx = maxBudgetPdx;
       }
@@ -405,11 +450,36 @@ class AlokasiCalculator {
       double literPx = hargaPertamax > 0 ? biPx / hargaPertamax : 0;
       double literPdx = hargaDexlite > 0 ? biPdx / hargaDexlite : 0;
 
-      final cadanganPx = literPx * (currentPxPercent / 100);
-      final cadanganPdx = literPdx * (currentPdxPercent / 100);
+      // Calculate strictly needed liters for vehicles
+      final neededLiterPxForRanjen = hargaPertamax > 0
+          ? (budgetPxNeed / hargaPertamax)
+          : 0;
+      final neededLiterPdxForRanjen = hargaDexlite > 0
+          ? (budgetPdxNeed / hargaDexlite)
+          : 0;
+
+      // Cadangan is MAX of (Target Cadangan) vs (Overflow beyond Vehicle Need)
+      final targetCadanganPx = literPx * (currentPxPercent / 100.0);
+      final overflowCadanganPx = literPx - neededLiterPxForRanjen;
+      final cadanganPx = (overflowCadanganPx > targetCadanganPx)
+          ? overflowCadanganPx
+          : targetCadanganPx;
+
+      final targetCadanganPdx = literPdx * (currentPdxPercent / 100.0);
+      final overflowCadanganPdx = literPdx - neededLiterPdxForRanjen;
+      final cadanganPdx = (overflowCadanganPdx > targetCadanganPdx)
+          ? overflowCadanganPdx
+          : targetCadanganPdx;
 
       final literPxForRanjen = literPx - cadanganPx;
       final literPdxForRanjen = literPdx - cadanganPdx;
+
+      final actualCadanganPxPercent = literPx > 0
+          ? (cadanganPx / literPx) * 100
+          : 0.0;
+      final actualCadanganPdxPercent = literPdx > 0
+          ? (cadanganPdx / literPdx) * 100
+          : 0.0;
 
       final literPerKategori = <String, double>{};
       final detailPx = _distributeLitersToCategories(
@@ -446,6 +516,8 @@ class AlokasiCalculator {
           cadanganPdx: cadanganPdx,
           appliedCadanganPxPercent: currentPxPercent,
           appliedCadanganPdxPercent: currentPdxPercent,
+          actualCadanganPxPercent: actualCadanganPxPercent,
+          actualCadanganPdxPercent: actualCadanganPdxPercent,
           isCadanganEdited:
               cadanganPxOverrides?.containsKey(result.bulan) == true ||
               cadanganPdxOverrides?.containsKey(result.bulan) == true,
@@ -457,6 +529,9 @@ class AlokasiCalculator {
       );
 
       runningRemaining -= effectiveBi;
+      if (!isEdited) {
+        runningRemainingForOthers -= effectiveBi;
+      }
     }
 
     return newResults;

@@ -334,21 +334,16 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
     final categories = await getKendaraanKategori();
 
     for (final cat in categories) {
-      int count = 0;
-      final patterns = _getCategoryPatterns(cat.namaKategori);
-
-      for (final pattern in patterns) {
-        // Fallback to raw query for the LIKE lookup across kendaraan
-        final result = await _db
-            .customSelect(
-              'SELECT COUNT(*) as cnt FROM kendaraan WHERE LOWER(jenis_ranmor) LIKE ? AND status_aktif = 1',
-              variables: [Variable.withString('%${pattern.toLowerCase()}%')],
-            )
-            .getSingle();
-        count += (result.read<int>('cnt'));
-      }
-
-      if (count > 0) {
+      final result = await _db
+          .customSelect(
+            'SELECT COUNT(*) as cnt FROM kendaraan WHERE kategori_id = ? AND status_aktif = 1',
+            variables: [Variable.withInt(cat.kategoriId)],
+          )
+          .getSingle();
+      
+      final count = result.read<int>('cnt');
+      
+      if (count >= 0) { // Update even if 0 to reflect deletions/inactivations
         await updateKendaraanKategoriCount(cat.kategoriId, count);
       }
     }

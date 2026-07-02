@@ -4,6 +4,7 @@ class KendaraanModel extends KendaraanEntity {
   const KendaraanModel({
     required super.kendaraanId,
     required super.satkerId,
+    required super.kategoriId,
     required super.jenisRanmor,
     required super.noPolKode,
     required super.noPolNomor,
@@ -15,6 +16,7 @@ class KendaraanModel extends KendaraanEntity {
     return KendaraanModel(
       kendaraanId: map['kendaraan_id'] as int,
       satkerId: map['satker_id'] as int,
+      kategoriId: map['kategori_id'] as int? ?? 0,
       jenisRanmor: map['jenis_ranmor'] as String,
       noPolKode: map['no_pol_kode'] as String,
       noPolNomor: map['no_pol_nomor'] as String,
@@ -26,6 +28,7 @@ class KendaraanModel extends KendaraanEntity {
   Map<String, dynamic> toMap() {
     final map = <String, dynamic>{
       'satker_id': satkerId,
+      'kategori_id': kategoriId,
       'jenis_ranmor': jenisRanmor,
       'no_pol_kode': noPolKode,
       'no_pol_nomor': noPolNomor,

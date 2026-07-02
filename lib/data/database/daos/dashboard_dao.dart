@@ -10,9 +10,6 @@ import 'package:kupon_bbm_app/domain/models/dashboard/satker_chart_model.dart';
 
 part 'dashboard_dao.g.dart';
 
-@DriftAccessor(
-  tables: [Kupon, Transaksi, JenisBbm, Satker, DateTable, JenisKupon],
-)
 String _start(DateTime d) => DateTime(d.year, d.month, d.day).toIso8601String();
 
 String _end(DateTime d) =>
@@ -21,6 +18,9 @@ String _end(DateTime d) =>
 String _formatDate(DateTime d) => DateFormat('dd MMM', 'id_ID').format(d);
 String _formatMonth(DateTime d) => DateFormat('MMM yyyy', 'id_ID').format(d);
 
+@DriftAccessor(
+  tables: [Kupon, Transaksi, JenisBbm, Satker, DateTable, JenisKupon],
+)
 class DashboardDao extends DatabaseAccessor<AppDatabase>
     with _$DashboardDaoMixin {
   DashboardDao(AppDatabase db) : super(db);
@@ -217,8 +217,9 @@ class DashboardDao extends DatabaseAccessor<AppDatabase>
       if (!aggregatedData.containsKey(key)) {
         aggregatedData[key] = {};
       }
-      
-      aggregatedData[key]![bbmName] = (aggregatedData[key]![bbmName] ?? 0) + trx.jumlahLiter;
+
+      aggregatedData[key]![bbmName] =
+          (aggregatedData[key]![bbmName] ?? 0) + trx.jumlahLiter;
     }
 
     final allKeys = aggregatedData.keys.toList()..sort();
@@ -245,10 +246,7 @@ class DashboardDao extends DatabaseAccessor<AppDatabase>
         bbmValues[name] = aggregatedData[key]?[name] ?? 0.0;
       }
 
-      return PolaBelanjaModel(
-        label: label,
-        bbmValues: bbmValues,
-      );
+      return PolaBelanjaModel(label: label, bbmValues: bbmValues);
     }).toList();
   }
 }

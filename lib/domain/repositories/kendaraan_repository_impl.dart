@@ -19,6 +19,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
     return results.map((row) => KendaraanModel(
       kendaraanId: row.kendaraanId,
       satkerId: row.satkerId ?? 0,
+      kategoriId: row.kategoriId ?? 0,
       jenisRanmor: row.jenisRanmor ?? '',
       noPolKode: row.noPolKode ?? '',
       noPolNomor: row.noPolNomor ?? '',
@@ -36,6 +37,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
       return KendaraanModel(
         kendaraanId: result.kendaraanId,
         satkerId: result.satkerId ?? 0,
+        kategoriId: result.kategoriId ?? 0,
         jenisRanmor: result.jenisRanmor ?? '',
         noPolKode: result.noPolKode ?? '',
         noPolNomor: result.noPolNomor ?? '',
@@ -50,6 +52,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
     return await _dao.into(_dao.kendaraan).insert(
       KendaraanCompanion.insert(
         satkerId: Value(kendaraan.satkerId),
+        kategoriId: Value(kendaraan.kategoriId),
         jenisRanmor: Value(kendaraan.jenisRanmor),
         noPolKode: Value(kendaraan.noPolKode),
         noPolNomor: Value(kendaraan.noPolNomor),
@@ -65,6 +68,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
           ..where((t) => t.kendaraanId.equals(kendaraan.kendaraanId)))
         .write(KendaraanCompanion(
       satkerId: Value(kendaraan.satkerId),
+      kategoriId: Value(kendaraan.kategoriId),
       jenisRanmor: Value(kendaraan.jenisRanmor),
       noPolKode: Value(kendaraan.noPolKode),
       noPolNomor: Value(kendaraan.noPolNomor),
@@ -95,6 +99,7 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
       return KendaraanModel(
         kendaraanId: result.kendaraanId,
         satkerId: result.satkerId ?? 0,
+        kategoriId: result.kategoriId ?? 0,
         jenisRanmor: result.jenisRanmor ?? '',
         noPolKode: result.noPolKode ?? '',
         noPolNomor: result.noPolNomor ?? '',

@@ -682,6 +682,17 @@ class $KendaraanTable extends Kendaraan
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _kategoriIdMeta = const VerificationMeta(
+    'kategoriId',
+  );
+  @override
+  late final GeneratedColumn<int> kategoriId = GeneratedColumn<int>(
+    'kategori_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _jenisRanmorMeta = const VerificationMeta(
     'jenisRanmor',
   );
@@ -731,6 +742,7 @@ class $KendaraanTable extends Kendaraan
   List<GeneratedColumn> get $columns => [
     kendaraanId,
     satkerId,
+    kategoriId,
     jenisRanmor,
     noPolKode,
     noPolNomor,
@@ -761,6 +773,12 @@ class $KendaraanTable extends Kendaraan
       context.handle(
         _satkerIdMeta,
         satkerId.isAcceptableOrUnknown(data['satker_id']!, _satkerIdMeta),
+      );
+    }
+    if (data.containsKey('kategori_id')) {
+      context.handle(
+        _kategoriIdMeta,
+        kategoriId.isAcceptableOrUnknown(data['kategori_id']!, _kategoriIdMeta),
       );
     }
     if (data.containsKey('jenis_ranmor')) {
@@ -813,6 +831,10 @@ class $KendaraanTable extends Kendaraan
         DriftSqlType.int,
         data['${effectivePrefix}satker_id'],
       ),
+      kategoriId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}kategori_id'],
+      ),
       jenisRanmor: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}jenis_ranmor'],
@@ -841,6 +863,7 @@ class $KendaraanTable extends Kendaraan
 class KendaraanData extends DataClass implements Insertable<KendaraanData> {
   final int kendaraanId;
   final int? satkerId;
+  final int? kategoriId;
   final String? jenisRanmor;
   final String? noPolKode;
   final String? noPolNomor;
@@ -848,6 +871,7 @@ class KendaraanData extends DataClass implements Insertable<KendaraanData> {
   const KendaraanData({
     required this.kendaraanId,
     this.satkerId,
+    this.kategoriId,
     this.jenisRanmor,
     this.noPolKode,
     this.noPolNomor,
@@ -859,6 +883,9 @@ class KendaraanData extends DataClass implements Insertable<KendaraanData> {
     map['kendaraan_id'] = Variable<int>(kendaraanId);
     if (!nullToAbsent || satkerId != null) {
       map['satker_id'] = Variable<int>(satkerId);
+    }
+    if (!nullToAbsent || kategoriId != null) {
+      map['kategori_id'] = Variable<int>(kategoriId);
     }
     if (!nullToAbsent || jenisRanmor != null) {
       map['jenis_ranmor'] = Variable<String>(jenisRanmor);
@@ -881,6 +908,9 @@ class KendaraanData extends DataClass implements Insertable<KendaraanData> {
       satkerId: satkerId == null && nullToAbsent
           ? const Value.absent()
           : Value(satkerId),
+      kategoriId: kategoriId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(kategoriId),
       jenisRanmor: jenisRanmor == null && nullToAbsent
           ? const Value.absent()
           : Value(jenisRanmor),
@@ -904,6 +934,7 @@ class KendaraanData extends DataClass implements Insertable<KendaraanData> {
     return KendaraanData(
       kendaraanId: serializer.fromJson<int>(json['kendaraanId']),
       satkerId: serializer.fromJson<int?>(json['satkerId']),
+      kategoriId: serializer.fromJson<int?>(json['kategoriId']),
       jenisRanmor: serializer.fromJson<String?>(json['jenisRanmor']),
       noPolKode: serializer.fromJson<String?>(json['noPolKode']),
       noPolNomor: serializer.fromJson<String?>(json['noPolNomor']),
@@ -916,6 +947,7 @@ class KendaraanData extends DataClass implements Insertable<KendaraanData> {
     return <String, dynamic>{
       'kendaraanId': serializer.toJson<int>(kendaraanId),
       'satkerId': serializer.toJson<int?>(satkerId),
+      'kategoriId': serializer.toJson<int?>(kategoriId),
       'jenisRanmor': serializer.toJson<String?>(jenisRanmor),
       'noPolKode': serializer.toJson<String?>(noPolKode),
       'noPolNomor': serializer.toJson<String?>(noPolNomor),
@@ -926,6 +958,7 @@ class KendaraanData extends DataClass implements Insertable<KendaraanData> {
   KendaraanData copyWith({
     int? kendaraanId,
     Value<int?> satkerId = const Value.absent(),
+    Value<int?> kategoriId = const Value.absent(),
     Value<String?> jenisRanmor = const Value.absent(),
     Value<String?> noPolKode = const Value.absent(),
     Value<String?> noPolNomor = const Value.absent(),
@@ -933,6 +966,7 @@ class KendaraanData extends DataClass implements Insertable<KendaraanData> {
   }) => KendaraanData(
     kendaraanId: kendaraanId ?? this.kendaraanId,
     satkerId: satkerId.present ? satkerId.value : this.satkerId,
+    kategoriId: kategoriId.present ? kategoriId.value : this.kategoriId,
     jenisRanmor: jenisRanmor.present ? jenisRanmor.value : this.jenisRanmor,
     noPolKode: noPolKode.present ? noPolKode.value : this.noPolKode,
     noPolNomor: noPolNomor.present ? noPolNomor.value : this.noPolNomor,
@@ -944,6 +978,9 @@ class KendaraanData extends DataClass implements Insertable<KendaraanData> {
           ? data.kendaraanId.value
           : this.kendaraanId,
       satkerId: data.satkerId.present ? data.satkerId.value : this.satkerId,
+      kategoriId: data.kategoriId.present
+          ? data.kategoriId.value
+          : this.kategoriId,
       jenisRanmor: data.jenisRanmor.present
           ? data.jenisRanmor.value
           : this.jenisRanmor,
@@ -962,6 +999,7 @@ class KendaraanData extends DataClass implements Insertable<KendaraanData> {
     return (StringBuffer('KendaraanData(')
           ..write('kendaraanId: $kendaraanId, ')
           ..write('satkerId: $satkerId, ')
+          ..write('kategoriId: $kategoriId, ')
           ..write('jenisRanmor: $jenisRanmor, ')
           ..write('noPolKode: $noPolKode, ')
           ..write('noPolNomor: $noPolNomor, ')
@@ -974,6 +1012,7 @@ class KendaraanData extends DataClass implements Insertable<KendaraanData> {
   int get hashCode => Object.hash(
     kendaraanId,
     satkerId,
+    kategoriId,
     jenisRanmor,
     noPolKode,
     noPolNomor,
@@ -985,6 +1024,7 @@ class KendaraanData extends DataClass implements Insertable<KendaraanData> {
       (other is KendaraanData &&
           other.kendaraanId == this.kendaraanId &&
           other.satkerId == this.satkerId &&
+          other.kategoriId == this.kategoriId &&
           other.jenisRanmor == this.jenisRanmor &&
           other.noPolKode == this.noPolKode &&
           other.noPolNomor == this.noPolNomor &&
@@ -994,6 +1034,7 @@ class KendaraanData extends DataClass implements Insertable<KendaraanData> {
 class KendaraanCompanion extends UpdateCompanion<KendaraanData> {
   final Value<int> kendaraanId;
   final Value<int?> satkerId;
+  final Value<int?> kategoriId;
   final Value<String?> jenisRanmor;
   final Value<String?> noPolKode;
   final Value<String?> noPolNomor;
@@ -1001,6 +1042,7 @@ class KendaraanCompanion extends UpdateCompanion<KendaraanData> {
   const KendaraanCompanion({
     this.kendaraanId = const Value.absent(),
     this.satkerId = const Value.absent(),
+    this.kategoriId = const Value.absent(),
     this.jenisRanmor = const Value.absent(),
     this.noPolKode = const Value.absent(),
     this.noPolNomor = const Value.absent(),
@@ -1009,6 +1051,7 @@ class KendaraanCompanion extends UpdateCompanion<KendaraanData> {
   KendaraanCompanion.insert({
     this.kendaraanId = const Value.absent(),
     this.satkerId = const Value.absent(),
+    this.kategoriId = const Value.absent(),
     this.jenisRanmor = const Value.absent(),
     this.noPolKode = const Value.absent(),
     this.noPolNomor = const Value.absent(),
@@ -1017,6 +1060,7 @@ class KendaraanCompanion extends UpdateCompanion<KendaraanData> {
   static Insertable<KendaraanData> custom({
     Expression<int>? kendaraanId,
     Expression<int>? satkerId,
+    Expression<int>? kategoriId,
     Expression<String>? jenisRanmor,
     Expression<String>? noPolKode,
     Expression<String>? noPolNomor,
@@ -1025,6 +1069,7 @@ class KendaraanCompanion extends UpdateCompanion<KendaraanData> {
     return RawValuesInsertable({
       if (kendaraanId != null) 'kendaraan_id': kendaraanId,
       if (satkerId != null) 'satker_id': satkerId,
+      if (kategoriId != null) 'kategori_id': kategoriId,
       if (jenisRanmor != null) 'jenis_ranmor': jenisRanmor,
       if (noPolKode != null) 'no_pol_kode': noPolKode,
       if (noPolNomor != null) 'no_pol_nomor': noPolNomor,
@@ -1035,6 +1080,7 @@ class KendaraanCompanion extends UpdateCompanion<KendaraanData> {
   KendaraanCompanion copyWith({
     Value<int>? kendaraanId,
     Value<int?>? satkerId,
+    Value<int?>? kategoriId,
     Value<String?>? jenisRanmor,
     Value<String?>? noPolKode,
     Value<String?>? noPolNomor,
@@ -1043,6 +1089,7 @@ class KendaraanCompanion extends UpdateCompanion<KendaraanData> {
     return KendaraanCompanion(
       kendaraanId: kendaraanId ?? this.kendaraanId,
       satkerId: satkerId ?? this.satkerId,
+      kategoriId: kategoriId ?? this.kategoriId,
       jenisRanmor: jenisRanmor ?? this.jenisRanmor,
       noPolKode: noPolKode ?? this.noPolKode,
       noPolNomor: noPolNomor ?? this.noPolNomor,
@@ -1058,6 +1105,9 @@ class KendaraanCompanion extends UpdateCompanion<KendaraanData> {
     }
     if (satkerId.present) {
       map['satker_id'] = Variable<int>(satkerId.value);
+    }
+    if (kategoriId.present) {
+      map['kategori_id'] = Variable<int>(kategoriId.value);
     }
     if (jenisRanmor.present) {
       map['jenis_ranmor'] = Variable<String>(jenisRanmor.value);
@@ -1079,6 +1129,7 @@ class KendaraanCompanion extends UpdateCompanion<KendaraanData> {
     return (StringBuffer('KendaraanCompanion(')
           ..write('kendaraanId: $kendaraanId, ')
           ..write('satkerId: $satkerId, ')
+          ..write('kategoriId: $kategoriId, ')
           ..write('jenisRanmor: $jenisRanmor, ')
           ..write('noPolKode: $noPolKode, ')
           ..write('noPolNomor: $noPolNomor, ')
@@ -6178,6 +6229,7 @@ typedef $$KendaraanTableCreateCompanionBuilder =
     KendaraanCompanion Function({
       Value<int> kendaraanId,
       Value<int?> satkerId,
+      Value<int?> kategoriId,
       Value<String?> jenisRanmor,
       Value<String?> noPolKode,
       Value<String?> noPolNomor,
@@ -6187,6 +6239,7 @@ typedef $$KendaraanTableUpdateCompanionBuilder =
     KendaraanCompanion Function({
       Value<int> kendaraanId,
       Value<int?> satkerId,
+      Value<int?> kategoriId,
       Value<String?> jenisRanmor,
       Value<String?> noPolKode,
       Value<String?> noPolNomor,
@@ -6209,6 +6262,11 @@ class $$KendaraanTableFilterComposer
 
   ColumnFilters<int> get satkerId => $composableBuilder(
     column: $table.satkerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get kategoriId => $composableBuilder(
+    column: $table.kategoriId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6252,6 +6310,11 @@ class $$KendaraanTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get kategoriId => $composableBuilder(
+    column: $table.kategoriId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get jenisRanmor => $composableBuilder(
     column: $table.jenisRanmor,
     builder: (column) => ColumnOrderings(column),
@@ -6289,6 +6352,11 @@ class $$KendaraanTableAnnotationComposer
 
   GeneratedColumn<int> get satkerId =>
       $composableBuilder(column: $table.satkerId, builder: (column) => column);
+
+  GeneratedColumn<int> get kategoriId => $composableBuilder(
+    column: $table.kategoriId,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get jenisRanmor => $composableBuilder(
     column: $table.jenisRanmor,
@@ -6342,6 +6410,7 @@ class $$KendaraanTableTableManager
               ({
                 Value<int> kendaraanId = const Value.absent(),
                 Value<int?> satkerId = const Value.absent(),
+                Value<int?> kategoriId = const Value.absent(),
                 Value<String?> jenisRanmor = const Value.absent(),
                 Value<String?> noPolKode = const Value.absent(),
                 Value<String?> noPolNomor = const Value.absent(),
@@ -6349,6 +6418,7 @@ class $$KendaraanTableTableManager
               }) => KendaraanCompanion(
                 kendaraanId: kendaraanId,
                 satkerId: satkerId,
+                kategoriId: kategoriId,
                 jenisRanmor: jenisRanmor,
                 noPolKode: noPolKode,
                 noPolNomor: noPolNomor,
@@ -6358,6 +6428,7 @@ class $$KendaraanTableTableManager
               ({
                 Value<int> kendaraanId = const Value.absent(),
                 Value<int?> satkerId = const Value.absent(),
+                Value<int?> kategoriId = const Value.absent(),
                 Value<String?> jenisRanmor = const Value.absent(),
                 Value<String?> noPolKode = const Value.absent(),
                 Value<String?> noPolNomor = const Value.absent(),
@@ -6365,6 +6436,7 @@ class $$KendaraanTableTableManager
               }) => KendaraanCompanion.insert(
                 kendaraanId: kendaraanId,
                 satkerId: satkerId,
+                kategoriId: kategoriId,
                 jenisRanmor: jenisRanmor,
                 noPolKode: noPolKode,
                 noPolNomor: noPolNomor,
