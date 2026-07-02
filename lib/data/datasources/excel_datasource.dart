@@ -696,6 +696,7 @@ class ExcelDatasource {
         kendaraan = KendaraanModel(
           kendaraanId: kendaraanId,
           satkerId: satkerId,
+          kategoriId: 0,
           jenisRanmor: finalJenisRanmor,
           noPolKode: finalKodeNopol,
           noPolNomor: noPol,

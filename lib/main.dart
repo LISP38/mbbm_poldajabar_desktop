@@ -5,6 +5,7 @@ import 'package:kupon_bbm_app/core/di/dependency_injection.dart';
 import 'package:kupon_bbm_app/core/themes/app_theme.dart';
 import 'package:kupon_bbm_app/domain/repositories/kupon_repository.dart';
 import 'package:kupon_bbm_app/domain/repositories/master_data_repository.dart';
+import 'package:kupon_bbm_app/domain/repositories/kendaraan_repository.dart' as kupon_kendaraan;
 import 'package:kupon_bbm_app/presentation/pages/main_page.dart';
 import 'package:kupon_bbm_app/presentation/providers/kupon_provider.dart';
 import 'package:kupon_bbm_app/presentation/providers/enhanced_import_provider.dart';
@@ -47,7 +48,10 @@ void main() async {
           create: (_) => TransaksiProvider(getIt<TransaksiRepositoryImpl>()),
         ),
         ChangeNotifierProvider(
-          create: (_) => MasterDataProvider(getIt<MasterDataRepository>()),
+          create: (_) => MasterDataProvider(
+            getIt<kupon_kendaraan.KendaraanRepository>(),
+            getIt<MasterDataRepository>(),
+          ),
         ),
         ChangeNotifierProvider(create: (_) => getIt<EnhancedImportProvider>()),
         ChangeNotifierProvider(

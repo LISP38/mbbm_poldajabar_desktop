@@ -1,6 +1,7 @@
 class KendaraanEntity {
   final int kendaraanId;
   final int satkerId;
+  final int kategoriId;
   final String jenisRanmor;
   final String noPolKode;
   final String noPolNomor;
@@ -10,6 +11,7 @@ class KendaraanEntity {
   const KendaraanEntity({
     required this.kendaraanId,
     required this.satkerId,
+    required this.kategoriId,
     required this.jenisRanmor,
     required this.noPolKode,
     required this.noPolNomor,

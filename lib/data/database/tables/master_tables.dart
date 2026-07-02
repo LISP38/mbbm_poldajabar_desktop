@@ -34,6 +34,7 @@ class Kendaraan extends Table {
 
   IntColumn get kendaraanId => integer().autoIncrement()();
   IntColumn get satkerId => integer().nullable()();
+  IntColumn get kategoriId => integer().nullable()(); // Linked to KendaraanKategoriEntity
   TextColumn get jenisRanmor => text().nullable()();
   TextColumn get noPolKode => text().nullable()();
   TextColumn get noPolNomor => text().nullable()();

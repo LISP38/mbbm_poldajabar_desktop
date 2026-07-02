@@ -13,6 +13,8 @@ class MasterDao extends DatabaseAccessor<AppDatabase> with _$MasterDaoMixin {
   Future<SatkerData?> getSatkerByName(String name) =>
       (select(this.satker)..where((t) => t.namaSatker.equals(name))).getSingleOrNull();
   Future<int> insertSatker(SatkerCompanion entry) => into(satker).insert(entry, mode: InsertMode.insertOrIgnore);
+  Future<bool> updateSatker(SatkerCompanion entry) => update(satker).replace(entry);
+  Future<int> deleteSatker(int id) => (delete(satker)..where((t) => t.satkerId.equals(id))).go();
 
   // Kendaraan Operations
   Future<List<KendaraanData>> getAllKendaraan() => select(this.kendaraan).get();

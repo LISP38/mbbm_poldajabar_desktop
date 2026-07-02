@@ -44,7 +44,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase({QueryExecutor? e}) : super(e ?? _openConnection());
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration {
@@ -77,14 +77,18 @@ class AppDatabase extends _$AppDatabase {
         if (from < 15) {
           await _createLaporanTables();
         }
-        if (from == 15) {
+        if (from < 16) {
           // Add penerimaan columns to stok_opnam
-          await customStatement(
+          await m.issueCustomQuery(
             'ALTER TABLE stok_opname ADD COLUMN stok_penerimaan_pertamax REAL NOT NULL DEFAULT 0',
           );
-          await customStatement(
+          await m.issueCustomQuery(
             'ALTER TABLE stok_opname ADD COLUMN stok_penerimaan_dex REAL NOT NULL DEFAULT 0',
           );
+        }
+        if (from < 17) {
+          // Add kategori_id to kendaraan
+          await m.addColumn(kendaraan, kendaraan.kategoriId);
         }
       },
     );
