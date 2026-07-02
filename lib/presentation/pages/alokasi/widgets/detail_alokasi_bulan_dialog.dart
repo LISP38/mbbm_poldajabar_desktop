@@ -202,12 +202,25 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
       (sum, item) => sum + item.jumlahLiterAlokasi,
     );
 
-    final percentVal = isPx
+    final targetVal = isPx
         ? currentResult.appliedCadanganPxPercent
         : currentResult.appliedCadanganPdxPercent;
-    final percentText = percentVal == percentVal.truncateToDouble()
-        ? '${percentVal.toInt()}%'
-        : '${percentVal.toStringAsFixed(1)}%';
+    final actualVal = isPx
+        ? currentResult.actualCadanganPxPercent
+        : currentResult.actualCadanganPdxPercent;
+
+    final targetText = targetVal == targetVal.truncateToDouble()
+        ? '${targetVal.toInt()}%'
+        : '${targetVal.toStringAsFixed(1)}%';
+        
+    final actualText = actualVal == actualVal.truncateToDouble()
+        ? '${actualVal.toInt()}%'
+        : '${actualVal.toStringAsFixed(1)}%';
+
+    final isOverflowing = actualVal > targetVal + 0.1;
+    final percentText = isOverflowing 
+        ? 'Target $targetText | Aktual $actualText' 
+        : targetText;
 
     return Column(
       children: [
@@ -221,15 +234,35 @@ class DetailAlokasiBulanDialog extends StatelessWidget {
                   flex: 4,
                   child: Row(
                     children: [
-                      Text(
-                        'KUPON DUKUNGAN ($percentText)',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue.shade700,
-                          fontSize: 12,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'KUPON DUKUNGAN ($percentText)',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue.shade700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              if (isOverflowing)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    '*Aktual > Target karena menyerap sisa anggaran berlebih',
+                                    style: TextStyle(
+                                      color: Colors.blue.shade600,
+                                      fontSize: 10,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
+                        const SizedBox(width: 8),
                       InkWell(
                         onTap: () =>
                             _showEditCadanganDialog(context, currentResult),

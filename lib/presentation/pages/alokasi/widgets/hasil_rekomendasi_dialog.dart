@@ -87,6 +87,24 @@ class HasilRekomendasiDialog extends StatelessWidget {
             ],
           ),
         ),
+        // Unallocated Overflow Warning Alert
+        if (provider.sisaAnggaran - provider.totalAnggaranRekomendasi > 100)
+          Container(
+            color: Colors.orange.shade100,
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.orange.shade800),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Terdapat kelebihan anggaran sebesar ${currencyFormat.format(provider.sisaAnggaran - provider.totalAnggaranRekomendasi)}. Mohon alokasikan kelebihan tersebut dalam bentuk persentase kupon dukungan dibulan yang sekiranya membutuhkan.',
+                    style: TextStyle(color: Colors.orange.shade900),
+                  ),
+                ),
+              ],
+            ),
+          ),
         // Deficit Warning Alert
         if (provider.deficitWarnings.isNotEmpty)
           Container(
@@ -133,11 +151,37 @@ class HasilRekomendasiDialog extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    _dataCell(
-                      r.namaBulan,
+                    Expanded(
                       flex: 2,
-                      isBold: true,
-                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Row(
+                          children: [
+                            Text(
+                              r.namaBulan,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            if (r.actualCadanganPxPercent >
+                                    r.appliedCadanganPxPercent + 0.1 ||
+                                r.actualCadanganPdxPercent >
+                                    r.appliedCadanganPdxPercent + 0.1) ...[
+                              const SizedBox(width: 4),
+                              Tooltip(
+                                message:
+                                    'Persentase aktual kupon dukungan lebih tinggi dari target karena menyerap sisa anggaran berlebih.',
+                                child: Icon(
+                                  Icons.info,
+                                  color: Colors.blue.shade600,
+                                  size: 16,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
                     _dataCell(currencyFormat.format(r.sisaDana), flex: 3),
                     _dataCell(

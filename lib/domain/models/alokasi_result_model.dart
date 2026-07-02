@@ -45,6 +45,8 @@ class AlokasiResultModel {
   final double cadanganPdx;
   final double appliedCadanganPxPercent;
   final double appliedCadanganPdxPercent;
+  final double actualCadanganPxPercent;
+  final double actualCadanganPdxPercent;
 
   bool isCadanganEdited;
   double? editedCadanganPxPercent;
@@ -69,6 +71,8 @@ class AlokasiResultModel {
     required this.cadanganPdx,
     required this.appliedCadanganPxPercent,
     required this.appliedCadanganPdxPercent,
+    required this.actualCadanganPxPercent,
+    required this.actualCadanganPdxPercent,
     this.isCadanganEdited = false,
     this.editedCadanganPxPercent,
     this.editedCadanganPdxPercent,
@@ -101,6 +105,8 @@ class AlokasiResultModel {
     double? cadanganPdx,
     double? appliedCadanganPxPercent,
     double? appliedCadanganPdxPercent,
+    double? actualCadanganPxPercent,
+    double? actualCadanganPdxPercent,
     bool? isCadanganEdited,
     double? editedCadanganPxPercent,
     double? editedCadanganPdxPercent,
@@ -123,6 +129,8 @@ class AlokasiResultModel {
       cadanganPdx: cadanganPdx ?? this.cadanganPdx,
       appliedCadanganPxPercent: appliedCadanganPxPercent ?? this.appliedCadanganPxPercent,
       appliedCadanganPdxPercent: appliedCadanganPdxPercent ?? this.appliedCadanganPdxPercent,
+      actualCadanganPxPercent: actualCadanganPxPercent ?? this.actualCadanganPxPercent,
+      actualCadanganPdxPercent: actualCadanganPdxPercent ?? this.actualCadanganPdxPercent,
       isCadanganEdited: isCadanganEdited ?? this.isCadanganEdited,
       editedCadanganPxPercent: editedCadanganPxPercent ?? this.editedCadanganPxPercent,
       editedCadanganPdxPercent: editedCadanganPdxPercent ?? this.editedCadanganPdxPercent,
