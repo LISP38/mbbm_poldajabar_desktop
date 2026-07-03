@@ -50,12 +50,12 @@ class KuponRepositoryImpl implements KuponRepository {
     FROM kupon dk
     LEFT JOIN satker ds ON dk.satker_id = ds.satker_id
     LEFT JOIN kendaraan k2 ON dk.kendaraan_id = k2.kendaraan_id
-    LEFT JOIN (
-      SELECT kupon_key, SUM(jumlah_liter) as total_used
-      FROM transaksi
-      WHERE is_deleted = 0
-      GROUP BY kupon_key
-    ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
+        LEFT JOIN (
+          SELECT kupon_key, SUM(jumlah_liter) as total_used 
+          FROM transaksi 
+          WHERE is_deleted = 0 AND jenis_transaksi LIKE 'Non-Hutang%'
+          GROUP BY kupon_key
+        ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
   ''';
 
   // ── CRUD Dasar ────────────────────────────────────────────────────────────
@@ -71,10 +71,12 @@ class KuponRepositoryImpl implements KuponRepository {
 
   @override
   Future<KuponEntity?> getKuponById(int kuponId) async {
-    final result = await _db.customSelect(
-      '$_kuponSelectFragment WHERE dk.kupon_key = ?',
-      variables: [Variable.withInt(kuponId)],
-    ).getSingleOrNull();
+    final result = await _db
+        .customSelect(
+          '$_kuponSelectFragment WHERE dk.kupon_key = ?',
+          variables: [Variable.withInt(kuponId)],
+        )
+        .getSingleOrNull();
     if (result != null) return KuponModel.fromMap(result.data);
     return null;
   }
@@ -82,10 +84,12 @@ class KuponRepositoryImpl implements KuponRepository {
   @override
   Future<void> insertKupon(KuponEntity kupon) async {
     await _db.transaction(() async {
-      final existing = await _db.customSelect(
-        'SELECT * FROM kupon WHERE nomor_kupon = ? AND is_current = 1',
-        variables: [Variable.withString(kupon.nomorKupon)],
-      ).get();
+      final existing = await _db
+          .customSelect(
+            'SELECT * FROM kupon WHERE nomor_kupon = ? AND is_current = 1',
+            variables: [Variable.withString(kupon.nomorKupon)],
+          )
+          .get();
 
       if (existing.isNotEmpty) {
         await _db.customUpdate(
@@ -97,22 +101,26 @@ class KuponRepositoryImpl implements KuponRepository {
         );
       }
 
-      await _dao.into(_dao.kupon).insert(KuponCompanion.insert(
-            nomorKupon: kupon.nomorKupon,
-            kendaraanId: Value(kupon.kendaraanId),
-            jenisBbmId: kupon.jenisBbmId,
-            jenisKuponId: kupon.jenisKuponId,
-            bulanTerbit: kupon.bulanTerbit,
-            tahunTerbit: kupon.tahunTerbit,
-            tanggalMulai: kupon.tanggalMulai,
-            tanggalSampai: kupon.tanggalSampai,
-            kuotaAwal: kupon.kuotaAwal,
-            satkerId: kupon.satkerId,
-            status: Value(kupon.status),
-            isCurrent: const Value(1),
-            validFrom: Value(DateTime.now().toIso8601String()),
-            validTo: const Value(null),
-          ));
+      await _dao
+          .into(_dao.kupon)
+          .insert(
+            KuponCompanion.insert(
+              nomorKupon: kupon.nomorKupon,
+              kendaraanId: Value(kupon.kendaraanId),
+              jenisBbmId: kupon.jenisBbmId,
+              jenisKuponId: kupon.jenisKuponId,
+              bulanTerbit: kupon.bulanTerbit,
+              tahunTerbit: kupon.tahunTerbit,
+              tanggalMulai: kupon.tanggalMulai,
+              tanggalSampai: kupon.tanggalSampai,
+              kuotaAwal: kupon.kuotaAwal,
+              satkerId: kupon.satkerId,
+              status: Value(kupon.status),
+              isCurrent: const Value(1),
+              validFrom: Value(DateTime.now().toIso8601String()),
+              validTo: const Value(null),
+            ),
+          );
     });
   }
 
@@ -127,22 +135,26 @@ class KuponRepositoryImpl implements KuponRepository {
         ],
       );
 
-      await _dao.into(_dao.kupon).insert(KuponCompanion.insert(
-            nomorKupon: kupon.nomorKupon,
-            kendaraanId: Value(kupon.kendaraanId),
-            jenisBbmId: kupon.jenisBbmId,
-            jenisKuponId: kupon.jenisKuponId,
-            bulanTerbit: kupon.bulanTerbit,
-            tahunTerbit: kupon.tahunTerbit,
-            tanggalMulai: kupon.tanggalMulai,
-            tanggalSampai: kupon.tanggalSampai,
-            kuotaAwal: kupon.kuotaAwal,
-            satkerId: kupon.satkerId,
-            status: Value(kupon.status),
-            isCurrent: const Value(1),
-            validFrom: Value(DateTime.now().toIso8601String()),
-            validTo: const Value(null),
-          ));
+      await _dao
+          .into(_dao.kupon)
+          .insert(
+            KuponCompanion.insert(
+              nomorKupon: kupon.nomorKupon,
+              kendaraanId: Value(kupon.kendaraanId),
+              jenisBbmId: kupon.jenisBbmId,
+              jenisKuponId: kupon.jenisKuponId,
+              bulanTerbit: kupon.bulanTerbit,
+              tahunTerbit: kupon.tahunTerbit,
+              tanggalMulai: kupon.tanggalMulai,
+              tanggalSampai: kupon.tanggalSampai,
+              kuotaAwal: kupon.kuotaAwal,
+              satkerId: kupon.satkerId,
+              status: Value(kupon.status),
+              isCurrent: const Value(1),
+              validFrom: Value(DateTime.now().toIso8601String()),
+              validTo: const Value(null),
+            ),
+          );
     });
   }
 
@@ -160,10 +172,12 @@ class KuponRepositoryImpl implements KuponRepository {
 
   @override
   Future<KuponEntity?> getKuponByNomorKupon(String nomorKupon) async {
-    final result = await _db.customSelect(
-      '$_kuponSelectFragment WHERE dk.nomor_kupon = ? AND dk.is_current = 1 LIMIT 1',
-      variables: [Variable.withString(nomorKupon)],
-    ).getSingleOrNull();
+    final result = await _db
+        .customSelect(
+          '$_kuponSelectFragment WHERE dk.nomor_kupon = ? AND dk.is_current = 1 LIMIT 1',
+          variables: [Variable.withString(nomorKupon)],
+        )
+        .getSingleOrNull();
     if (result != null) return KuponModel.fromMap(result.data);
     return null;
   }
@@ -211,7 +225,12 @@ class KuponRepositoryImpl implements KuponRepository {
 
     await _updateExpiredKuponStatusRaw(db);
     final results = await db.rawQuery(
-      _buildFilteredQuery(where, nopol: nopol, satker: satker, jenisRanmor: jenisRanmor),
+      _buildFilteredQuery(
+        where,
+        nopol: nopol,
+        satker: satker,
+        jenisRanmor: jenisRanmor,
+      ),
       args,
     );
     return results.map((m) => KuponModel.fromMap(m)).toList();
@@ -246,7 +265,7 @@ class KuponRepositoryImpl implements KuponRepository {
       LEFT JOIN (
         SELECT kupon_key, SUM(jumlah_liter) as total_used
         FROM transaksi
-        WHERE is_deleted = 0
+        WHERE is_deleted = 0 AND jenis_transaksi LIKE 'Non-Hutang%'
         GROUP BY kupon_key
       ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
       WHERE dk.is_current = 1
@@ -284,7 +303,12 @@ class KuponRepositoryImpl implements KuponRepository {
 
     await _updateExpiredKuponStatusRaw(db);
     final results = await db.rawQuery(
-      _buildFilteredQuery(where, nopol: nopol, satker: satker, jenisRanmor: jenisRanmor),
+      _buildFilteredQuery(
+        where,
+        nopol: nopol,
+        satker: satker,
+        jenisRanmor: jenisRanmor,
+      ),
       args,
     );
     return results.map((m) => KuponModel.fromMap(m)).toList();
@@ -358,7 +382,8 @@ class KuponRepositoryImpl implements KuponRepository {
     await db.update(
       'kupon',
       {'status': 'Tidak Aktif'},
-      where: "is_current = 1 AND date(tanggal_sampai) < date('now') AND status != ?",
+      where:
+          "is_current = 1 AND date(tanggal_sampai) < date('now') AND status != ?",
       whereArgs: ['Tidak Aktif'],
     );
   }
@@ -411,7 +436,8 @@ class KuponRepositoryImpl implements KuponRepository {
     String? satker,
     String? jenisRanmor,
   }) {
-    String query = '''
+    String query =
+        '''
       SELECT 
         dk.kupon_key as kupon_id,
         dk.nomor_kupon,
@@ -436,14 +462,15 @@ class KuponRepositoryImpl implements KuponRepository {
       LEFT JOIN (
         SELECT kupon_key, SUM(jumlah_liter) as total_used
         FROM transaksi
-        WHERE is_deleted = 0
+        WHERE is_deleted = 0 AND jenis_transaksi LIKE 'Non-Hutang%'
         GROUP BY kupon_key
       ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
       WHERE ${where.join(' AND ')}
     ''';
 
     if (nopol != null && nopol.isNotEmpty) {
-      query += " AND (LOWER(kendaraan.no_pol_kode) || '-' || LOWER(kendaraan.no_pol_nomor)) LIKE ?";
+      query +=
+          " AND (LOWER(kendaraan.no_pol_kode) || '-' || LOWER(kendaraan.no_pol_nomor)) LIKE ?";
     }
     if (satker != null && satker.isNotEmpty) {
       query += ' AND LOWER(TRIM(ds.nama_satker)) LIKE ?';

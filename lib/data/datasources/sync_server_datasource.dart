@@ -38,7 +38,7 @@ class SyncServerDatasource {
             LEFT JOIN (
               SELECT kupon_key, SUM(jumlah_liter) as total_used 
               FROM transaksi 
-              WHERE is_deleted = 0 AND jenis_transaksi = 'Non-Hutang'
+              WHERE is_deleted = 0 AND jenis_transaksi LIKE 'Non-Hutang%'
               GROUP BY kupon_key
             ) t_sum ON t_sum.kupon_key = k.kupon_key
             WHERE k.is_current = 1

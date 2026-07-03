@@ -270,11 +270,7 @@ class _DataKuponPageState extends State<DataKuponPage> {
       for (int i = 0; i < allData.length; i++) {
         final kupon = allData[i];
 
-        String displayNomorKupon = kupon.nomorKupon;
-        if (!displayNomorKupon.contains('/')) {
-          displayNomorKupon =
-              '${kupon.nomorKupon}/${kupon.bulanTerbit}/${kupon.tahunTerbit}/LOGISTIK';
-        }
+        String displayNomorKupon = kupon.displayNomorKupon;
 
         String jenisBBM = provider.jenisBbmMap[kupon.jenisBbmId] ?? '';
         if (jenisBBM.isEmpty) {
@@ -403,7 +399,6 @@ class _DataKuponPageState extends State<DataKuponPage> {
                           'Kuota Sisa',
                           '${_formatNumber(data.kuotaSisa)} Liter',
                         ),
-
                         if (!isDukungan) ...[
                           const Padding(
                             padding: EdgeInsets.symmetric(vertical: 8.0),
@@ -920,7 +915,7 @@ class _DataKuponPageState extends State<DataKuponPage> {
                                   )
                                 else if (provider.errorMessage != null)
                                   Padding(
-                                    padding: const EdgeInsets.all(40),
+                                    padding: EdgeInsets.all(40),
                                     child: Center(
                                       child: Text(
                                         provider.errorMessage!,
@@ -966,14 +961,7 @@ class _DataKuponPageState extends State<DataKuponPage> {
                                                     paginatedData[index];
                                                 final isEven = index % 2 == 0;
 
-                                                String displayNomorKupon =
-                                                    kupon.nomorKupon;
-                                                if (!displayNomorKupon.contains(
-                                                  '/',
-                                                )) {
-                                                  displayNomorKupon =
-                                                      '${kupon.nomorKupon}/${kupon.bulanTerbit}/${kupon.tahunTerbit}/LOGISTIK';
-                                                }
+                                                String displayNomorKupon = kupon.displayNomorKupon;
 
                                                 String jenisBBM =
                                                     provider.jenisBbmMap[kupon
@@ -1281,7 +1269,10 @@ class _DataKuponPageState extends State<DataKuponPage> {
                   }
                   return DropdownMenuItem<String>(
                     value: item.toString(),
-                    child: Text(itemLabel, style: const TextStyle(fontSize: 14)),
+                    child: Text(
+                      itemLabel,
+                      style: const TextStyle(fontSize: 14),
+                    ),
                   );
                 }),
               ],
