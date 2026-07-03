@@ -191,7 +191,7 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
 
   // ── Generate ──────────────────────────────────────────────────────────────
   Future<void> _onGenerate() async {
-    final error = await context.read<LaporanProvider>().generateLaporan(
+    final error = await context.read<LaporanController>().generateLaporan(
           jenisLaporan: _jenisLaporan,
           tanggalMulai: _tanggalMulai,
           tanggalSelesai: _tanggalSelesai,
@@ -218,7 +218,7 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return Consumer<LaporanProvider>(
+    return Consumer<LaporanController>(
       builder: (context, provider, _) {
         return Scaffold(
           body: SingleChildScrollView(
