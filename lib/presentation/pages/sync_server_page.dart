@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../data/datasources/sync_server_datasource.dart';
+import 'package:get_it/get_it.dart';
 
 class SyncServerPage extends StatefulWidget {
   const SyncServerPage({super.key});
@@ -10,13 +11,21 @@ class SyncServerPage extends StatefulWidget {
 }
 
 class _SyncServerPageState extends State<SyncServerPage> {
-  final SyncServerDatasource _server = SyncServerDatasource();
+  final SyncServerDatasource _server = GetIt.I<SyncServerDatasource>();
   String? _serverUrl;
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    if (_server.isRunning) {
+      _serverUrl = _server.serverUrl;
+    }
+  }
+
+  @override
   void dispose() {
-    _server.stopServer();
+    // Keep server running in background unless explicitly disconnected by user
     super.dispose();
   }
 

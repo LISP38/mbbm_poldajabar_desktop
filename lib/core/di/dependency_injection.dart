@@ -22,6 +22,7 @@ import 'package:kupon_bbm_app/domain/repositories/dashboard_repository_impl.dart
 import 'package:kupon_bbm_app/presentation/providers/dashboard_controller.dart';
 import 'package:kupon_bbm_app/data/database/app_database.dart';
 import 'package:kupon_bbm_app/core/di/drift_sqflite_adapter.dart';
+import 'package:kupon_bbm_app/data/datasources/sync_server_datasource.dart';
 
 final getIt = GetIt.instance;
 
@@ -104,6 +105,10 @@ Future<void> initializeDependencies() async {
 
   getIt.registerLazySingleton<DashboardDao>(
     () => getIt<AppDatabase>().dashboardDao,
+  );
+
+  getIt.registerLazySingleton<SyncServerDatasource>(
+    () => SyncServerDatasource(),
   );
 
 }

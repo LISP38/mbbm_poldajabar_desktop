@@ -8,6 +8,7 @@ import '../../core/di/drift_sqflite_adapter.dart';
 
 class SyncServerDatasource {
   HttpServer? _server;
+  String? serverUrl;
   final DriftSqfliteAdapter _db = GetIt.I<DriftSqfliteAdapter>();
 
   // START SERVER
@@ -24,9 +25,24 @@ class SyncServerDatasource {
           final satker = await db.query('satker');
           final jenisBbm = await db.query('jenis_bbm');
           final jenisKupon = await db.query('jenis_kupon');
-          final kendaraan = await db.query('kendaraan', where: 'status_aktif = 1');
+          final kendaraan = await db.query(
+            'kendaraan',
+            where: 'status_aktif = 1',
+          );
           // Only active/current coupons
-          final kupon = await db.query('kupon', where: 'is_current = 1');
+          final kupon = await db.rawQuery('''
+            SELECT 
+              k.*,
+              (k.kuota_awal - COALESCE(t_sum.total_used, 0)) as kuota_sisa
+            FROM kupon k
+            LEFT JOIN (
+              SELECT kupon_key, SUM(jumlah_liter) as total_used 
+              FROM transaksi 
+              WHERE is_deleted = 0 AND jenis_transaksi = 'Non-Hutang'
+              GROUP BY kupon_key
+            ) t_sum ON t_sum.kupon_key = k.kupon_key
+            WHERE k.is_current = 1
+          ''');
 
           final responseData = {
             'satker': satker,
@@ -62,66 +78,66 @@ class SyncServerDatasource {
             final jumlahLiter = t['jumlah_liter'];
             final tanggalTransaksi = t['tanggal_transaksi'];
             final namaPetugas = t['nama_petugas'];
-            
-            if (jenisTransaksi == 'Hutang') {
-               final namaKonsumen = t['nama_konsumen'];
-               final satkerText = t['satker'];
-               final nopolText = t['nomor_kendaraan'];
-               
-               batch.insert('transaksi', {
-                 'jumlah_liter': jumlahLiter,
-                 'tanggal_transaksi': tanggalTransaksi,
-                 'jenis_transaksi': jenisTransaksi,
-                 'nama_petugas': namaPetugas,
-                 'created_by': namaPetugas,
-                 'nama_konsumen': namaKonsumen,
-                 'satker_text': satkerText,
-                 'nomor_kendaraan_text': nopolText,
-               });
-            } else {
-               // Non-Hutang
-               final kuponKey = t['kupon_key'];
-               
-               if (kuponKey != null) {
-                 final kuponResult = await db.rawQuery(
-                   'SELECT satker_id, jenis_bbm_id, jenis_kupon_id, kendaraan_id FROM kupon WHERE kupon_key = ? AND is_current = 1 LIMIT 1',
-                   [kuponKey]
-                 );
 
-                 if (kuponResult.isNotEmpty) {
-                   final row = kuponResult.first;
-                   batch.insert('transaksi', {
-                     'kupon_key': kuponKey,
-                     'jumlah_liter': jumlahLiter,
-                     'tanggal_transaksi': tanggalTransaksi,
-                     'jenis_transaksi': jenisTransaksi,
-                     'nama_petugas': namaPetugas,
-                     'created_by': namaPetugas,
-                     'satker_id': row['satker_id'],
-                     'jenis_bbm_id': row['jenis_bbm_id'],
-                     'jenis_kupon_id': row['jenis_kupon_id'],
-                     'kendaraan_id': row['kendaraan_id'],
-                   });
-                 } else {
-                   batch.insert('transaksi', {
-                     'kupon_key': kuponKey,
-                     'jumlah_liter': jumlahLiter,
-                     'tanggal_transaksi': tanggalTransaksi,
-                     'jenis_transaksi': jenisTransaksi,
-                     'nama_petugas': namaPetugas,
-                     'created_by': namaPetugas,
-                   });
-                 }
-               } else {
-                 // Fallback if kupon_key not provided
-                 batch.insert('transaksi', {
-                   'jumlah_liter': jumlahLiter,
-                   'tanggal_transaksi': tanggalTransaksi,
-                   'jenis_transaksi': jenisTransaksi,
-                   'nama_petugas': namaPetugas,
-                   'created_by': namaPetugas,
-                 });
-               }
+            if (jenisTransaksi == 'Hutang') {
+              final namaKonsumen = t['nama_konsumen'];
+              final satkerText = t['satker'];
+              final nopolText = t['nomor_kendaraan'];
+
+              batch.insert('transaksi', {
+                'jumlah_liter': jumlahLiter,
+                'tanggal_transaksi': tanggalTransaksi,
+                'jenis_transaksi': jenisTransaksi,
+                'nama_petugas': namaPetugas,
+                'created_by': namaPetugas,
+                'nama_konsumen': namaKonsumen,
+                'satker_text': satkerText,
+                'nomor_kendaraan_text': nopolText,
+              });
+            } else {
+              // Non-Hutang
+              final kuponKey = t['kupon_key'];
+
+              if (kuponKey != null) {
+                final kuponResult = await db.rawQuery(
+                  'SELECT satker_id, jenis_bbm_id, jenis_kupon_id, kendaraan_id FROM kupon WHERE kupon_key = ? AND is_current = 1 LIMIT 1',
+                  [kuponKey],
+                );
+
+                if (kuponResult.isNotEmpty) {
+                  final row = kuponResult.first;
+                  batch.insert('transaksi', {
+                    'kupon_key': kuponKey,
+                    'jumlah_liter': jumlahLiter,
+                    'tanggal_transaksi': tanggalTransaksi,
+                    'jenis_transaksi': jenisTransaksi,
+                    'nama_petugas': namaPetugas,
+                    'created_by': namaPetugas,
+                    'satker_id': row['satker_id'],
+                    'jenis_bbm_id': row['jenis_bbm_id'],
+                    'jenis_kupon_id': row['jenis_kupon_id'],
+                    'kendaraan_id': row['kendaraan_id'],
+                  });
+                } else {
+                  batch.insert('transaksi', {
+                    'kupon_key': kuponKey,
+                    'jumlah_liter': jumlahLiter,
+                    'tanggal_transaksi': tanggalTransaksi,
+                    'jenis_transaksi': jenisTransaksi,
+                    'nama_petugas': namaPetugas,
+                    'created_by': namaPetugas,
+                  });
+                }
+              } else {
+                // Fallback if kupon_key not provided
+                batch.insert('transaksi', {
+                  'jumlah_liter': jumlahLiter,
+                  'tanggal_transaksi': tanggalTransaksi,
+                  'jenis_transaksi': jenisTransaksi,
+                  'nama_petugas': namaPetugas,
+                  'created_by': namaPetugas,
+                });
+              }
             }
             count++;
           }
@@ -151,7 +167,8 @@ class SyncServerDatasource {
       _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, 8080);
     }
 
-    return await _getWifiIp();
+    serverUrl = await _getWifiIp();
+    return serverUrl!;
   }
 
   // Get local Wifi IP
@@ -180,6 +197,7 @@ class SyncServerDatasource {
   Future<void> stopServer() async {
     await _server?.close();
     _server = null;
+    serverUrl = null;
   }
 
   bool get isRunning => _server != null;
