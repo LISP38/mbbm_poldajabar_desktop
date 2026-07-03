@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/kupon_provider.dart';
 import '../../providers/dashboard_controller.dart';
-import '../../providers/laporan_provider.dart';
+import '../../providers/stok_opname_provider.dart';
 
 class StokIndicator extends StatelessWidget {
   final String nama;
@@ -130,7 +130,7 @@ class StokBBMWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer3<DashboardController, KuponProvider, LaporanProvider>(
+    return Consumer3<DashboardController, KuponProvider, StokOpnameController>(
       builder: (context, controller, kuponProvider, laporanProvider, _) {
         if (controller.isLoading) {
           return const Card(
@@ -173,8 +173,8 @@ class StokBBMWidget extends StatelessWidget {
             .fold(0.0, (sum, k) => sum + k.kuotaSisa);
 
         final lastStok = laporanProvider.lastStokOpname;
-        final stokFisikPx = (lastStok?['stok_fisik_pertamax'] as num?)?.toDouble() ?? 0.0;
-        final stokFisikDex = (lastStok?['stok_fisik_dex'] as num?)?.toDouble() ?? 0.0;
+        final stokFisikPx = lastStok?.stokFisikPertamax ?? 0.0;
+        final stokFisikDex = lastStok?.stokFisikDex ?? 0.0;
 
         return Card(
           child: Padding(

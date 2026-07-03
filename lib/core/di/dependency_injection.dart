@@ -22,6 +22,12 @@ import 'package:kupon_bbm_app/domain/repositories/dashboard_repository_impl.dart
 import 'package:kupon_bbm_app/presentation/providers/dashboard_controller.dart';
 import 'package:kupon_bbm_app/data/database/app_database.dart';
 import 'package:kupon_bbm_app/core/di/drift_sqflite_adapter.dart';
+import 'package:kupon_bbm_app/domain/repositories/stok_opname_repository.dart';
+import 'package:kupon_bbm_app/domain/repositories/stok_opname_repository_impl.dart';
+import 'package:kupon_bbm_app/domain/repositories/generate_kupon_repository.dart';
+import 'package:kupon_bbm_app/domain/repositories/generate_kupon_repository_impl.dart';
+import 'package:kupon_bbm_app/domain/repositories/notification_repository.dart';
+import 'package:kupon_bbm_app/domain/repositories/notification_repository_impl.dart';
 
 final getIt = GetIt.instance;
 
@@ -66,6 +72,18 @@ Future<void> initializeDependencies() async {
 
   getIt.registerLazySingleton<LaporanRepository>(
     () => LaporanRepositoryImpl(getIt<AppDatabase>()),
+  );
+
+  getIt.registerLazySingleton<StokOpnameRepository>(
+    () => StokOpnameRepositoryImpl(getIt<AppDatabase>()),
+  );
+
+  getIt.registerLazySingleton<GenerateKuponRepository>(
+    () => GenerateKuponRepositoryImpl(getIt<AppDatabase>()),
+  );
+
+  getIt.registerLazySingleton<NotificationRepository>(
+    () => NotificationRepositoryImpl(),
   );
 
   // Validators

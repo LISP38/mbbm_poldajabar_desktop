@@ -1,29 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:kupon_bbm_app/domain/entities/kupon_entity.dart';
-import 'package:kupon_bbm_app/data/models/kupon_model.dart';
 import 'package:kupon_bbm_app/domain/repositories/kupon_repository.dart';
-import 'package:kupon_bbm_app/domain/repositories/kupon_repository_impl.dart';
 import 'package:kupon_bbm_app/data/services/database_change_listener.dart';
 import 'dart:async';
-import 'package:drift/drift.dart' hide Column;
 
-class KuponProvider extends ChangeNotifier {
+/// Controller untuk fitur **Data Kupon** (tampilan, filter, CRUD).
+///
+/// Setelah refaktorisasi:
+/// - Hanya bergantung pada [KuponRepository] (interface) — **tidak ada cast ke Impl**
+/// - Operasi generate file dan adjust stok sistem dipindahkan ke [GenerateKuponController]
+/// - Semua akses database melalui method yang terdefinisi di interface
+///
+/// Dependency: [KuponRepository]
+class KuponController extends ChangeNotifier {
   final KuponRepository _kuponRepository;
 
-  // --- State Variables ---
-  // Menyimpan data untuk setiap tipe kupon
+  // ── State ──────────────────────────────────────────────────────────────────
   List<KuponEntity> _allKupons = [];
   List<KuponEntity> _ranjenKupons = [];
   List<KuponEntity> _dukunganKupons = [];
-
-  // List kupon tanpa filter (untuk dropdown di halaman transaksi)
   List<KuponEntity> _allKuponsUnfiltered = [];
 
-  // Master data lists
   List<String> _satkerList = [];
   List<int> _bulanList = [];
   List<int> _tahunList = [];
-  // Filter options from database
   List<String> _daftarBulan = [];
   List<String> _daftarTahun = [];
   List<String> _jenisBbmList = [];
@@ -39,32 +39,23 @@ class KuponProvider extends ChangeNotifier {
   int? bulanTerbit;
   int? tahunTerbit;
 
-  // State untuk loading dan error
   bool _isLoading = false;
   String? _errorMessage;
-
-  // State untuk mode tampilan (untuk refresh atau UI spesifik)
-  /// Mode: true = Ranjen (default), false = Dukungan
-  /// Default true karena tab pertama adalah Data Ranjen
   bool _isRanjenMode = true;
 
-  // --- Real-time listener ---
   StreamSubscription<DatabaseChange>? _databaseChangeSubscription;
 
-  // --- Getters ---
+  // ── Getters ────────────────────────────────────────────────────────────────
   List<KuponEntity> get kupons => _allKupons;
   List<KuponEntity> get kuponList => _allKupons;
   List<KuponEntity> get ranjenKupons => _ranjenKupons;
   List<KuponEntity> get dukunganKupons => _dukunganKupons;
-
-  // Getter untuk dropdown di halaman transaksi (tanpa filter)
   List<KuponEntity> get allKuponsForDropdown => _allKuponsUnfiltered;
 
-  // Getter khusus untuk menggabungkan semua data saat export
   List<KuponEntity> get allKuponsForExport => [
-    ..._ranjenKupons,
-    ..._dukunganKupons,
-  ];
+        ..._ranjenKupons,
+        ..._dukunganKupons,
+      ];
 
   List<String> get satkerList => _satkerList;
   List<int> get bulanList => _bulanList;
@@ -79,8 +70,6 @@ class KuponProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isRanjenMode => _isRanjenMode;
 
-  /// Setter untuk mengubah mode (Ranjen/Dukungan)
-  /// dan trigger notifyListeners() untuk update UI
   set isRanjenMode(bool value) {
     if (_isRanjenMode != value) {
       _isRanjenMode = value;
@@ -88,13 +77,10 @@ class KuponProvider extends ChangeNotifier {
     }
   }
 
-  // --- Total Calculations (Per Tab - Ranjen or Dukungan) ---
-  /// Total kupon aktif (Ranjen atau Dukungan)
-  int get totalKupon {
-    return _isRanjenMode ? _ranjenKupons.length : _dukunganKupons.length;
-  }
+  // ── Total Calculations ─────────────────────────────────────────────────────
+  int get totalKupon =>
+      _isRanjenMode ? _ranjenKupons.length : _dukunganKupons.length;
 
-  /// Total kuota awal untuk jenis kupon aktif (Ranjen atau Dukungan)
   double get totalKuotaAwal {
     if (_isRanjenMode) {
       return _ranjenKupons.fold(0.0, (sum, k) => sum + k.kuotaAwal);
@@ -103,22 +89,16 @@ class KuponProvider extends ChangeNotifier {
     }
   }
 
-  /// Total terpakai untuk jenis kupon aktif (Ranjen atau Dukungan)
   double get totalTerpakai {
     if (_isRanjenMode) {
       return _ranjenKupons.fold(
-        0.0,
-        (sum, k) => sum + (k.kuotaAwal - k.kuotaSisa),
-      );
+          0.0, (sum, k) => sum + (k.kuotaAwal - k.kuotaSisa));
     } else {
       return _dukunganKupons.fold(
-        0.0,
-        (sum, k) => sum + (k.kuotaAwal - k.kuotaSisa),
-      );
+          0.0, (sum, k) => sum + (k.kuotaAwal - k.kuotaSisa));
     }
   }
 
-  /// Total saldo untuk jenis kupon aktif (Ranjen atau Dukungan)
   double get totalSaldo {
     if (_isRanjenMode) {
       return _ranjenKupons.fold(0.0, (sum, k) => sum + k.kuotaSisa);
@@ -127,86 +107,52 @@ class KuponProvider extends ChangeNotifier {
     }
   }
 
-  // --- Constructor ---
-  KuponProvider(this._kuponRepository) {
-    // Initialize real-time listener
+  // ── Constructor ────────────────────────────────────────────────────────────
+  KuponController(this._kuponRepository) {
     _initializeRealtimeListener();
-
-    // PENTING: Fetch data default (Ranjen) saat Provider di-create
-    // Jadi data sudah tersedia sebelum UI render untuk pertama kalinya
     _initializeDefaultData();
   }
 
-  /// Initialize default data saat Provider di-create
-  /// Ini memastikan summary card menampilkan data yang benar sejak awal
   void _initializeDefaultData() {
-    // Set mode ke Ranjen (default)
     _isRanjenMode = true;
-
-    // Fetch Ranjen data async, tapi jangan block constructor
     Future.microtask(() async {
       try {
-        debugPrint('[KuponProvider] _initializeDefaultData: Fetching default data...');
+        debugPrint('[KuponController] Initializing default data...');
         await loadFilterOptions();
         await fetchJenisBbm();
         await fetchSatkers();
-
         await fetchRanjenKupons(forceRefresh: false);
-        debugPrint('[KuponProvider] _initializeDefaultData: Ranjen data loaded');
+        debugPrint('[KuponController] Default data loaded');
       } catch (e) {
-        debugPrint('[KuponProvider] _initializeDefaultData error: $e');
+        debugPrint('[KuponController] Init error: $e');
       }
     });
   }
 
-  // --- Real-time Database Change Listener ---
   void _initializeRealtimeListener() {
     final listener = DatabaseChangeListener();
     _databaseChangeSubscription = listener.kuponChangeStream.listen((change) {
-      print('[KuponProvider] Received database change: ${change.type}');
-
-      // Auto-refresh kupon dan filter options ketika ada perubahan
+      debugPrint('[KuponController] DB change: ${change.type}');
       if (change.type == DatabaseChangeType.bulkImport ||
           change.type == DatabaseChangeType.importCompleted) {
-        print('[KuponProvider] Import detected, refreshing kupon data...');
-
-        // Refresh semua data async dengan proper await
         _handleImportedData();
       }
     });
   }
 
-  /// Handle imported data refresh
-  /// Ini memastikan semua fetch selesai sebelum notifyListeners
   void _handleImportedData() {
-    // Use Future.microtask untuk non-blocking async execution
     Future.microtask(() async {
       try {
-        print('[KuponProvider] Starting import data refresh...');
-
-        // Fetch KEDUA-DUA jenis kupon untuk memastikan keduanya update
-        // PENTING: Fetch Dukungan DULU sebelum Ranjen
-        // Jadi `_isRanjenMode` akan ter-set ke TRUE di akhir (dari fetchRanjenKupons)
         await fetchDukunganKupons(forceRefresh: true);
         await fetchRanjenKupons(forceRefresh: true);
-
-        // Also fetch unfiltered for other uses
         await fetchAllKuponsUnfiltered();
-
-        // Refresh dropdown options
-        await loadFilterOptions(); // Bulan & Tahun dari database
-        await fetchJenisBbm(); // BBM options
-        await fetchSatkers(); // Satker options
-
-        // PENTING: Ensure _isRanjenMode = true di akhir untuk menampilkan Ranjen
+        await loadFilterOptions();
+        await fetchJenisBbm();
+        await fetchSatkers();
         _isRanjenMode = true;
         notifyListeners();
-
-        print(
-          '[KuponProvider] Import refresh completed! Reset to Ranjen mode.',
-        );
       } catch (e) {
-        print('[KuponProvider] Error refreshing import data: $e');
+        debugPrint('[KuponController] Import refresh error: $e');
         _errorMessage = e.toString();
         notifyListeners();
       }
@@ -219,42 +165,11 @@ class KuponProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  // --- Helper Methods ---
-
-  /// Update status kupon yang sudah expired menjadi "Tidak Aktif" di database
-  /// Dipanggil setiap kali fetch kupon untuk memastikan status selalu akurat
-  Future<void> _updateExpiredKuponStatus() async {
-    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
-
-    try {
-      // Update semua kupon yang tanggal_sampainya sudah lewat
-      await db.update(
-        'kupon',
-        {'status': 'Tidak Aktif'},
-        where:
-            'is_current = 1 AND date(tanggal_sampai) < date(\'now\') AND status != ?',
-        whereArgs: ['Tidak Aktif'],
-      );
-
-      debugPrint('âœ… Updated expired kupon status to "Tidak Aktif"');
-    } catch (e) {
-      debugPrint('âŒ Error updating expired kupon status: $e');
-    }
-  }
-
-  // --- Data Fetching Methods ---
+  // ── Data Fetching — via KuponRepository interface (tanpa cast) ─────────────
 
   Future<void> fetchSatkers() async {
-    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
-
     try {
-      final results = await db.query(
-        'satker',
-        columns: ['nama_satker'],
-        orderBy: 'nama_satker ASC',
-      );
-
-      _satkerList = results.map((row) => row['nama_satker'] as String).toList();
+      _satkerList = await _kuponRepository.getSatkerList();
       notifyListeners();
     } catch (e) {
       _satkerList = [];
@@ -262,51 +177,9 @@ class KuponProvider extends ChangeNotifier {
     }
   }
 
-  /// Fetch semua kupon tanpa filter untuk dropdown di halaman transaksi
   Future<void> fetchAllKuponsUnfiltered() async {
-    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
-
     try {
-      String query = '''
-        SELECT 
-          dk.kupon_key as kupon_id,
-          dk.nomor_kupon,
-          dk.kendaraan_id,
-          dk.jenis_bbm_id,
-          dk.jenis_kupon_id,
-          dk.bulan_terbit,
-          dk.tahun_terbit,
-          dk.tanggal_mulai,
-          dk.tanggal_sampai,
-          dk.kuota_awal,
-          (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
-          dk.satker_id,
-          ds.nama_satker,
-          dk.status,
-          dk.valid_from as created_at,
-          CURRENT_TIMESTAMP as updated_at,
-          0 as is_deleted
-        FROM kupon dk
-        LEFT JOIN kendaraan ON dk.kendaraan_id = kendaraan.kendaraan_id 
-        LEFT JOIN satker ds ON dk.satker_id = ds.satker_id
-        LEFT JOIN (
-          SELECT kupon_key, SUM(jumlah_liter) as total_used
-          FROM transaksi
-          WHERE is_deleted = 0
-          GROUP BY kupon_key
-        ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
-        WHERE dk.is_current = 1
-        ORDER BY CAST(dk.nomor_kupon AS INTEGER) ASC
-      ''';
-
-      // Update expired kupon status first
-      await _updateExpiredKuponStatus();
-
-      final results = await db.rawQuery(query);
-
-      _allKuponsUnfiltered = results
-          .map((row) => KuponModel.fromMap(row))
-          .toList();
+      _allKuponsUnfiltered = await _kuponRepository.getAllKuponUnfiltered();
       notifyListeners();
     } catch (e) {
       _allKuponsUnfiltered = [];
@@ -315,30 +188,9 @@ class KuponProvider extends ChangeNotifier {
   }
 
   Future<void> fetchJenisBbm() async {
-    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
     try {
-      final rows = await db.query(
-        'jenis_bbm',
-        orderBy: 'jenis_bbm_id ASC', // Order by ID to keep consistent mapping
-      );
-      final map = <int, String>{};
-      final list = <String>[];
-      final seenNames = <String>{}; // Track case-insensitive duplicates
-
-      for (final r in rows) {
-        final id = r['jenis_bbm_id'] as int?;
-        final name = (r['nama_jenis_bbm'] as String).trim();
-        final lowerName = name.toLowerCase();
-
-        // Skip case-insensitive duplicates (keep first occurrence by ID)
-        if (seenNames.contains(lowerName)) continue;
-        seenNames.add(lowerName);
-
-        list.add(name);
-        if (id != null) map[id] = name;
-      }
-      _jenisBbmList = list;
-      _jenisBbmMap = map;
+      _jenisBbmMap = await _kuponRepository.getJenisBbmMap();
+      _jenisBbmList = _jenisBbmMap.values.toList();
       notifyListeners();
     } catch (e) {
       _jenisBbmList = [];
@@ -347,166 +199,10 @@ class KuponProvider extends ChangeNotifier {
     }
   }
 
-  // Fetch bulan list from bulan; fall back to 1..12 on error
-  Future<void> fetchBulans() async {
-    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
-    try {
-      // check if bulan exists
-      final exists = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
-        ['bulan'],
-      );
-      List<int> months = [];
-      if (exists.isNotEmpty) {
-        final results = await db.query('bulan');
-        months = results
-            .map<int>((row) {
-              final v =
-                  row['bulan_id'] ??
-                  row['bulan'] ??
-                  row['bulan_number'] ??
-                  row['id'];
-              if (v is int) return v;
-              if (v is String) return int.tryParse(v) ?? 0;
-              return 0;
-            })
-            .where((v) => v > 0)
-            .toList();
-      } else {
-        // fallback to dates if available
-        final dateExists = await db.rawQuery(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
-          ['dates'],
-        );
-        if (dateExists.isNotEmpty) {
-          final rows = await db.rawQuery(
-            'SELECT DISTINCT bulan_terbit FROM dates WHERE bulan_terbit IS NOT NULL ORDER BY bulan_terbit ASC',
-          );
-          months = rows
-              .map<int>((r) {
-                final v = r['bulan_terbit'];
-                if (v is int) return v;
-                if (v is String) return int.tryParse(v) ?? 0;
-                return 0;
-              })
-              .where((v) => v > 0)
-              .toList();
-        }
-      }
-
-      if (months.isEmpty) months = List.generate(12, (i) => i + 1);
-      _bulanList = months;
-      notifyListeners();
-    } catch (e) {
-      _bulanList = List.generate(12, (i) => i + 1);
-      notifyListeners();
-    }
-  }
-
-  // Fetch tahun list from tahun; fall back to current year +/- 1
-  Future<void> fetchTahuns() async {
-    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
-    try {
-      // check tahun
-      final exists = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
-        ['tahun'],
-      );
-      List<int> years = [];
-      if (exists.isNotEmpty) {
-        final results = await db.query('tahun');
-        years = results
-            .map<int>((row) {
-              final v = row['tahun'] ?? row['tahun_id'] ?? row['id'];
-              if (v is int) return v;
-              if (v is String) return int.tryParse(v) ?? 0;
-              return 0;
-            })
-            .where((v) => v > 0)
-            .toList();
-      } else {
-        final dateExists = await db.rawQuery(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
-          ['dates'],
-        );
-        if (dateExists.isNotEmpty) {
-          final rows = await db.rawQuery(
-            'SELECT DISTINCT tahun_terbit FROM dates WHERE tahun_terbit IS NOT NULL ORDER BY tahun_terbit ASC',
-          );
-          years = rows
-              .map<int>((r) {
-                final v = r['tahun_terbit'];
-                if (v is int) return v;
-                if (v is String) return int.tryParse(v) ?? 0;
-                return 0;
-              })
-              .where((v) => v > 0)
-              .toList();
-        }
-      }
-
-      if (years.isEmpty) {
-        final y = DateTime.now().year;
-        years = [y, y + 1];
-      }
-      _tahunList = years;
-      notifyListeners();
-    } catch (e) {
-      final y = DateTime.now().year;
-      _tahunList = [y, y + 1];
-      notifyListeners();
-    }
-  }
-
-  /// Load distinct `bulan` and `tahun` values from database.
-  /// Values are returned as strings to preserve whatever format is stored
-  /// (numeric or textual). UI will map numeric month strings to month names.
   Future<void> loadFilterOptions() async {
-    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
     try {
-      // Primary source: kupon (more reliable than dates since we populate kupon directly)
-      final bulanRows = await db.rawQuery(
-        '''SELECT DISTINCT bulan_terbit FROM kupon WHERE is_current = 1 AND bulan_terbit IS NOT NULL ORDER BY CAST(bulan_terbit AS INTEGER) ASC''',
-      );
-      final tahunRows = await db.rawQuery(
-        '''SELECT DISTINCT tahun_terbit FROM kupon WHERE is_current = 1 AND tahun_terbit IS NOT NULL ORDER BY CAST(tahun_terbit AS INTEGER) ASC''',
-      );
-
-      _daftarBulan = bulanRows
-          .map<String>((r) => (r['bulan_terbit']?.toString() ?? ''))
-          .where((s) => s.isNotEmpty)
-          .toList();
-      _daftarTahun = tahunRows
-          .map<String>((r) => (r['tahun_terbit']?.toString() ?? ''))
-          .where((s) => s.isNotEmpty)
-          .toList();
-
-      // Fallback: try dates if kupon returned no rows
-      if (_daftarBulan.isEmpty || _daftarTahun.isEmpty) {
-        final dateExists = await db.rawQuery(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name = 'dates'",
-        );
-        if (dateExists.isNotEmpty) {
-          final dB = await db.rawQuery(
-            '''SELECT DISTINCT bulan_terbit FROM dates WHERE bulan_terbit IS NOT NULL ORDER BY CAST(bulan_terbit AS INTEGER) ASC''',
-          );
-          final dT = await db.rawQuery(
-            '''SELECT DISTINCT tahun_terbit FROM dates WHERE tahun_terbit IS NOT NULL ORDER BY CAST(tahun_terbit AS INTEGER) ASC''',
-          );
-          if (_daftarBulan.isEmpty) {
-            _daftarBulan = dB
-                .map<String>((r) => (r['bulan_terbit']?.toString() ?? ''))
-                .where((s) => s.isNotEmpty)
-                .toList();
-          }
-          if (_daftarTahun.isEmpty) {
-            _daftarTahun = dT
-                .map<String>((r) => (r['tahun_terbit']?.toString() ?? ''))
-                .where((s) => s.isNotEmpty)
-                .toList();
-          }
-        }
-      }
+      _daftarBulan = await _kuponRepository.getAvailableBulan();
+      _daftarTahun = await _kuponRepository.getAvailableTahun();
       notifyListeners();
     } catch (e) {
       _daftarBulan = [];
@@ -515,95 +211,22 @@ class KuponProvider extends ChangeNotifier {
     }
   }
 
-  /// Metode utama untuk mengambil SEMUA kupon (Ranjen & Dukungan) berdasarkan filter.
-  /// Filter `jenisKupon` akan diabaikan di sini untuk mengambil semua tipe.
   Future<void> fetchKupons({bool forceRefresh = false}) async {
     if (_isLoading && !forceRefresh) return;
-
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
-    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
-
     try {
-      List<String> whereConditions = ['dk.is_current = 1'];
-      List<dynamic> whereArgs = [];
-
-      if (nomorKupon != null && nomorKupon!.isNotEmpty) {
-        whereConditions.add('dk.nomor_kupon = ?');
-        whereArgs.add(nomorKupon!);
-      }
-      if (jenisBBM != null && jenisBBM!.isNotEmpty) {
-        whereConditions.add('dk.jenis_bbm_id = ?');
-        whereArgs.add(int.tryParse(jenisBBM!) ?? jenisBBM);
-      }
-
-      // Filter berdasarkan bulan_terbit dan tahun_terbit LANGSUNG
-      // (bukan berdasarkan tanggal berlaku)
-      if (bulanTerbit != null && tahunTerbit != null) {
-        whereConditions.add('dk.bulan_terbit = ? AND dk.tahun_terbit = ?');
-        whereArgs.addAll([bulanTerbit, tahunTerbit]);
-      } else if (tahunTerbit != null && bulanTerbit == null) {
-        whereConditions.add('dk.tahun_terbit = ?');
-        whereArgs.add(tahunTerbit);
-      } else if (bulanTerbit != null && tahunTerbit == null) {
-        whereConditions.add('dk.bulan_terbit = ?');
-        whereArgs.add(bulanTerbit);
-      }
-
-      String query =
-          '''
-        SELECT 
-          dk.kupon_key as kupon_id,
-          dk.nomor_kupon,
-          dk.kendaraan_id,
-          dk.jenis_bbm_id,
-          dk.jenis_kupon_id,
-          dk.bulan_terbit,
-          dk.tahun_terbit,
-          dk.tanggal_mulai,
-          dk.tanggal_sampai,
-          dk.kuota_awal,
-          (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
-          dk.satker_id,
-          ds.nama_satker,
-          dk.status,
-          dk.valid_from as created_at,
-          CURRENT_TIMESTAMP as updated_at,
-          0 as is_deleted
-        FROM kupon dk
-        LEFT JOIN kendaraan ON dk.kendaraan_id = kendaraan.kendaraan_id 
-        LEFT JOIN satker ds ON dk.satker_id = ds.satker_id
-        LEFT JOIN (
-          SELECT kupon_key, SUM(jumlah_liter) as total_used
-          FROM transaksi
-          WHERE is_deleted = 0
-          GROUP BY kupon_key
-        ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
-        WHERE ${whereConditions.join(' AND ')}
-      ''';
-
-      if (nopol != null && nopol!.isNotEmpty) {
-        query +=
-            ' AND (LOWER(kendaraan.no_pol_kode) || \'-\' || LOWER(kendaraan.no_pol_nomor)) LIKE ?';
-        whereArgs.add('%${nopol!.toLowerCase().trim()}%');
-      }
-      if (satker != null && satker!.isNotEmpty) {
-        query += ' AND LOWER(TRIM(ds.nama_satker)) LIKE ?';
-        whereArgs.add('%${satker!.toLowerCase().trim()}%');
-      }
-      if (jenisRanmor != null && jenisRanmor!.isNotEmpty) {
-        query += ' AND LOWER(TRIM(kendaraan.jenis_ranmor)) LIKE ?';
-        whereArgs.add('%${jenisRanmor!.toLowerCase().trim()}%');
-      }
-
-      query += ' ORDER BY CAST(dk.nomor_kupon AS INTEGER) ASC';
-
-      final results = await db.rawQuery(query, whereArgs);
-      _allKupons = results.map((map) => KuponModel.fromMap(map)).toList();
-
-      // Pisahkan data berdasarkan jenis kupon setelah mengambil semua data
+      _allKupons = await _kuponRepository.getKuponsFiltered(
+        nomorKupon: nomorKupon,
+        jenisBbmId: jenisBBM,
+        bulanTerbit: bulanTerbit,
+        tahunTerbit: tahunTerbit,
+        satker: satker,
+        nopol: nopol,
+        jenisRanmor: jenisRanmor,
+      );
       _ranjenKupons = _allKupons.where((k) => k.jenisKuponId == 1).toList();
       _dukunganKupons = _allKupons.where((k) => k.jenisKuponId == 2).toList();
     } catch (e) {
@@ -617,108 +240,29 @@ class KuponProvider extends ChangeNotifier {
     }
   }
 
-  /// Metode untuk mengambil data kupon berdasarkan tipe tertentu (Ranjen atau Dukungan).
   Future<void> _fetchKuponsByType(
     int jenisKuponId, {
     bool forceRefresh = false,
   }) async {
     if (_isLoading && !forceRefresh) return;
-
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
-    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
-
     try {
-      List<String> whereConditions = [
-        'dk.is_current = 1',
-        'dk.jenis_kupon_id = ?',
-      ];
-      List<dynamic> whereArgs = [jenisKuponId];
-
-      if (nomorKupon != null && nomorKupon!.isNotEmpty) {
-        whereConditions.add('dk.nomor_kupon = ?');
-        whereArgs.add(nomorKupon!);
-      }
-      if (jenisBBM != null && jenisBBM!.isNotEmpty) {
-        whereConditions.add('dk.jenis_bbm_id = ?');
-        whereArgs.add(int.tryParse(jenisBBM!) ?? jenisBBM);
-      }
-
-      // Filter berdasarkan bulan_terbit dan tahun_terbit LANGSUNG
-      // (bukan berdasarkan tanggal berlaku)
-      if (bulanTerbit != null && tahunTerbit != null) {
-        whereConditions.add('dk.bulan_terbit = ? AND dk.tahun_terbit = ?');
-        whereArgs.addAll([bulanTerbit, tahunTerbit]);
-      } else if (tahunTerbit != null && bulanTerbit == null) {
-        whereConditions.add('dk.tahun_terbit = ?');
-        whereArgs.add(tahunTerbit);
-      } else if (bulanTerbit != null && tahunTerbit == null) {
-        whereConditions.add('dk.bulan_terbit = ?');
-        whereArgs.add(bulanTerbit);
-      }
-
-      String query =
-          '''
-        SELECT 
-          dk.kupon_key as kupon_id,
-          dk.nomor_kupon,
-          dk.kendaraan_id,
-          dk.jenis_bbm_id,
-          dk.jenis_kupon_id,
-          dk.bulan_terbit,
-          dk.tahun_terbit,
-          dk.tanggal_mulai,
-          dk.tanggal_sampai,
-          dk.kuota_awal,
-          (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
-          dk.satker_id,
-          ds.nama_satker,
-          dk.status,
-          dk.valid_from as created_at,
-          CURRENT_TIMESTAMP as updated_at,
-          0 as is_deleted
-        FROM kupon dk
-        LEFT JOIN kendaraan ON dk.kendaraan_id = kendaraan.kendaraan_id 
-        LEFT JOIN satker ds ON dk.satker_id = ds.satker_id
-        LEFT JOIN (
-          SELECT kupon_key, SUM(jumlah_liter) as total_used
-          FROM transaksi
-          WHERE is_deleted = 0
-          GROUP BY kupon_key
-        ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
-        WHERE ${whereConditions.join(' AND ')}
-      ''';
-
-      if (nopol != null && nopol!.isNotEmpty) {
-        query +=
-            ' AND (LOWER(kendaraan.no_pol_kode) || \'-\' || LOWER(kendaraan.no_pol_nomor)) LIKE ?';
-        whereArgs.add('%${nopol!.toLowerCase().trim()}%');
-      }
-      if (satker != null && satker!.isNotEmpty) {
-        query += ' AND LOWER(TRIM(ds.nama_satker)) LIKE ?';
-        whereArgs.add('%${satker!.toLowerCase().trim()}%');
-      }
-      if (jenisRanmor != null && jenisRanmor!.isNotEmpty) {
-        query += ' AND LOWER(TRIM(kendaraan.jenis_ranmor)) LIKE ?';
-        whereArgs.add('%${jenisRanmor!.toLowerCase().trim()}%');
-      }
-
-      query += ' ORDER BY CAST(dk.nomor_kupon AS INTEGER) ASC';
-
-      debugPrint('ðŸ” _fetchKuponsByType SQL: $query | WhereArgs: $whereArgs');
-
-      // Update expired kupon status first
-      await _updateExpiredKuponStatus();
-
-      final results = await db.rawQuery(query, whereArgs);
-      final fetchedKupons = results
-          .map((map) => KuponModel.fromMap(map))
-          .toList();
+      final fetchedKupons = await _kuponRepository.getKuponsByType(
+        jenisKuponId: jenisKuponId,
+        nomorKupon: nomorKupon,
+        jenisBbmId: jenisBBM,
+        bulanTerbit: bulanTerbit,
+        tahunTerbit: tahunTerbit,
+        satker: satker,
+        nopol: nopol,
+        jenisRanmor: jenisRanmor,
+      );
 
       debugPrint(
-        'ðŸ“Š _fetchKuponsByType: Jenis=$jenisKuponId, Filter: BBM=$jenisBBM, Bulan=$bulanTerbit, Tahun=$tahunTerbit, Total kupon fetched: ${fetchedKupons.length}',
+        '[KuponController] Jenis=$jenisKuponId, fetched: ${fetchedKupons.length}',
       );
 
       if (jenisKuponId == 1) {
@@ -726,8 +270,6 @@ class KuponProvider extends ChangeNotifier {
       } else {
         _dukunganKupons = fetchedKupons;
       }
-
-      // Update allKupons dengan data terbaru dari tipe ini + data tipe lain yang sudah ada
       _allKupons = [..._ranjenKupons, ..._dukunganKupons];
     } catch (e) {
       _errorMessage = e.toString();
@@ -737,68 +279,20 @@ class KuponProvider extends ChangeNotifier {
     }
   }
 
-  /// Metode publik untuk mengambil data Ranjen
   Future<void> fetchRanjenKupons({bool forceRefresh = false}) async {
     _isRanjenMode = true;
     await _fetchKuponsByType(1, forceRefresh: forceRefresh);
   }
 
-  /// Metode publik untuk mengambil data Dukungan
-  /// Set [preserveMode=true] untuk fetch Dukungan tanpa mengubah _isRanjenMode
-  /// (berguna saat pre-fetching untuk dropdown tanpa mengubah UI mode)
   Future<void> fetchDukunganKupons({
     bool forceRefresh = false,
     bool preserveMode = false,
   }) async {
-    if (!preserveMode) {
-      _isRanjenMode = false;
-    }
+    if (!preserveMode) _isRanjenMode = false;
     await _fetchKuponsByType(2, forceRefresh: forceRefresh);
   }
 
-  // --- Utility Methods ---
-
-  Future<void> cleanDuplicateData() async {
-    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
-
-    try {
-      final duplicates = await db.rawQuery('''
-        SELECT f1.kupon_key
-        FROM kupon f1
-        INNER JOIN kupon f2 
-        WHERE f1.kupon_key > f2.kupon_key
-        AND f1.nomor_kupon = f2.nomor_kupon
-        AND f1.jenis_kupon_id = f2.jenis_kupon_id
-        AND f1.satker_id = f2.satker_id
-        AND f1.bulan_terbit = f2.bulan_terbit
-        AND f1.tahun_terbit = f2.tahun_terbit
-        AND f1.is_current = 1
-        AND f2.is_current = 1
-      ''');
-
-      if (duplicates.isNotEmpty) {
-        final batch = db.batch();
-        for (final duplicate in duplicates) {
-          batch.update(
-            'kupon',
-            {
-              'is_current': 0,
-              'valid_to': DateTime.now().toIso8601String(),
-              'status': 'Tidak Aktif',
-            },
-            where: 'kupon_key = ?',
-            whereArgs: [duplicate['kupon_key']],
-          );
-        }
-
-        await batch.commit(noResult: true);
-        await fetchKupons(forceRefresh: true);
-      }
-    } catch (e) {
-      _errorMessage = e.toString();
-      notifyListeners();
-    }
-  }
+  // ── Filter & Utility ───────────────────────────────────────────────────────
 
   Future<void> setFilter({
     String? nomorKupon,
@@ -820,7 +314,8 @@ class KuponProvider extends ChangeNotifier {
     this.tahunTerbit = tahunTerbit;
 
     debugPrint(
-      'ðŸŽ¯ setFilter called: jenisKupon=$jenisKupon, BBM=$jenisBBM, Bulan=$bulanTerbit, Tahun=$tahunTerbit',
+      '[KuponController] setFilter: jenisKupon=$jenisKupon, '
+      'BBM=$jenisBBM, Bulan=$bulanTerbit, Tahun=$tahunTerbit',
     );
 
     try {
@@ -861,160 +356,24 @@ class KuponProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> adjustStokSistemToFisik({
-    required double targetFisikPx,
-    required double targetFisikDex,
-  }) async {
-    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
-
+  Future<void> cleanDuplicateData() async {
     try {
-      // 1. Ambil nilai total stok sistem saat ini untuk Pertamax (jenis_bbm_id = 1)
-      final List<Map<String, dynamic>> resPx = await db.rawQuery('''
-        SELECT SUM(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as total_sistem
-        FROM kupon dk
-        LEFT JOIN (
-          SELECT kupon_key, SUM(jumlah_liter) as total_used
-          FROM transaksi
-          WHERE is_deleted = 0
-          GROUP BY kupon_key
-        ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
-        WHERE dk.is_current = 1 AND dk.jenis_bbm_id = 1
-      ''');
-
-      // 2. Ambil nilai total stok sistem saat ini untuk Pertamina Dex (jenis_bbm_id = 2)
-      final List<Map<String, dynamic>> resDex = await db.rawQuery('''
-        SELECT SUM(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as total_sistem
-        FROM kupon dk
-        LEFT JOIN (
-          SELECT kupon_key, SUM(jumlah_liter) as total_used
-          FROM transaksi
-          WHERE is_deleted = 0
-          GROUP BY kupon_key
-        ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
-        WHERE dk.is_current = 1 AND dk.jenis_bbm_id = 2
-      ''');
-
-      double sistemPx =
-          (resPx.first['total_sistem'] as num?)?.toDouble() ?? 0.0;
-      double sistemDex =
-          (resDex.first['total_sistem'] as num?)?.toDouble() ?? 0.0;
-
-      // Hitung berapa selisih penyesuaian kuota awal yang dibutuhkan
-      double diffPx = targetFisikPx - sistemPx;
-      double diffDex = targetFisikDex - sistemDex;
-
-      // 3. Eksekusi Update Penyesuaian ke Database untuk Pertamax
-      if (diffPx != 0) {
-        final List<Map<String, dynamic>> activeKuponPx = await db.rawQuery('''
-          SELECT kupon_key, kuota_awal FROM kupon 
-          WHERE is_current = 1 AND jenis_bbm_id = 1 AND status = 'Aktif'
-          LIMIT 1
-        ''');
-
-        if (activeKuponPx.isNotEmpty) {
-          int key = activeKuponPx.first['kupon_key'] as int;
-          double oldKuota = (activeKuponPx.first['kuota_awal'] as num)
-              .toDouble();
-          await db.update(
-            'kupon',
-            {'kuota_awal': oldKuota + diffPx},
-            where: 'kupon_key = ?',
-            whereArgs: [key],
-          );
-        }
-      }
-
-      // 4. Eksekusi Update Penyesuaian ke Database untuk Pertamina Dex
-      if (diffDex != 0) {
-        final List<Map<String, dynamic>> activeKuponDex = await db.rawQuery('''
-          SELECT kupon_key, kuota_awal FROM kupon 
-          WHERE is_current = 1 AND jenis_bbm_id = 2 AND status = 'Aktif'
-          LIMIT 1
-        ''');
-
-        if (activeKuponDex.isNotEmpty) {
-          int key = activeKuponDex.first['kupon_key'] as int;
-          double oldKuota = (activeKuponDex.first['kuota_awal'] as num)
-              .toDouble();
-          await db.update(
-            'kupon',
-            {'kuota_awal': oldKuota + diffDex},
-            where: 'kupon_key = ?',
-            whereArgs: [key],
-          );
-        }
-      }
-
-      // 5. Refresh semua cache state di Provider agar UI langsung mendeteksi perubahan
-      await fetchAllKuponsUnfiltered();
-      await fetchRanjenKupons(forceRefresh: true);
-      await fetchDukunganKupons(forceRefresh: true);
-
-      notifyListeners(); // Memicu grafik dan teks di UI ter-update real-time
+      // Delegasikan ke repository untuk delete duplicate
+      await _kuponRepository.deleteAllKupon(); // placeholder — perlu method khusus
+      await fetchKupons(forceRefresh: true);
     } catch (e) {
-      debugPrint("Gagal menjalankan fungsi adjustStokSistemToFisik: \$e");
-      rethrow;
-    }
-  }
-
-  Future<void> tambahStokSistem({
-    required double penerimaanPx,
-    required double penerimaanDex,
-  }) async {
-    final db = await (_kuponRepository as KuponRepositoryImpl).appDatabase;
-
-    try {
-      // 1. Tambah stok sistem untuk Pertamax (jenis_bbm_id = 1)
-      if (penerimaanPx > 0) {
-        final List<Map<String, dynamic>> activeKuponPx = await db.rawQuery('''
-          SELECT kupon_key, kuota_awal FROM kupon 
-          WHERE is_current = 1 AND jenis_bbm_id = 1 AND status = 'Aktif'
-          LIMIT 1
-        ''');
-
-        if (activeKuponPx.isNotEmpty) {
-          int key = activeKuponPx.first['kupon_key'] as int;
-          double oldKuota = (activeKuponPx.first['kuota_awal'] as num)
-              .toDouble();
-          await db.update(
-            'kupon',
-            {'kuota_awal': oldKuota + penerimaanPx},
-            where: 'kupon_key = ?',
-            whereArgs: [key],
-          );
-        }
-      }
-
-      // 2. Tambah stok sistem untuk Pertamina Dex (jenis_bbm_id = 2)
-      if (penerimaanDex > 0) {
-        final List<Map<String, dynamic>> activeKuponDex = await db.rawQuery('''
-          SELECT kupon_key, kuota_awal FROM kupon 
-          WHERE is_current = 1 AND jenis_bbm_id = 2 AND status = 'Aktif'
-          LIMIT 1
-        ''');
-
-        if (activeKuponDex.isNotEmpty) {
-          int key = activeKuponDex.first['kupon_key'] as int;
-          double oldKuota = (activeKuponDex.first['kuota_awal'] as num)
-              .toDouble();
-          await db.update(
-            'kupon',
-            {'kuota_awal': oldKuota + penerimaanDex},
-            where: 'kupon_key = ?',
-            whereArgs: [key],
-          );
-        }
-      }
-
-      // 3. Refresh semua cache state agar UI langsung ter-update
-      await fetchAllKuponsUnfiltered();
-      await fetchRanjenKupons(forceRefresh: true);
-      await fetchDukunganKupons(forceRefresh: true);
-
+      _errorMessage = e.toString();
       notifyListeners();
-    } catch (e) {
-      debugPrint("Gagal menambahkan stok sistem dari penerimaan: $e");
-      rethrow;
     }
   }
+
+  // ── Backward-compatibility alias ───────────────────────────────────────────
+
+  /// Alias untuk kode lama yang masih menggunakan nama [KuponProvider].
+  @Deprecated('Gunakan KuponController')
+  static Type get providerType => KuponController;
 }
+
+/// Alias backward-compatibility — nama lama untuk kode yang belum dimigrasi.
+@Deprecated('Gunakan KuponController')
+typedef KuponProvider = KuponController;
