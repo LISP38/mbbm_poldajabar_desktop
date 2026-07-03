@@ -4,7 +4,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../providers/kupon_provider.dart';
-import '../../providers/laporan_provider.dart';
+import '../../providers/stok_opname_provider.dart';
+import '../../providers/generate_kupon_provider.dart';
 
 class InputStokOpnamePage extends StatefulWidget {
   const InputStokOpnamePage({super.key});
@@ -31,7 +32,7 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
     Future.microtask(() async {
       if (!mounted) return;
       await context.read<KuponProvider>().fetchAllKuponsUnfiltered();
-      final lp = context.read<LaporanProvider>();
+      final lp = context.read<StokOpnameController>();
       await lp.loadLastStokOpname();
       await lp.loadStokHistory();
       await lp.loadStokTrend();
@@ -41,12 +42,11 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
   }
 
   void _syncFisikFromLastOpname() {
-    final last = context.read<LaporanProvider>().lastStokOpname;
+    final last = context.read<StokOpnameController>().lastStokOpname;
     if (last != null) {
       setState(() {
-        _stokFisikPertamax =
-            (last['stok_fisik_pertamax'] as num?)?.toDouble() ?? 0;
-        _stokFisikDex = (last['stok_fisik_dex'] as num?)?.toDouble() ?? 0;
+        _stokFisikPertamax = last.stokFisikPertamax;
+        _stokFisikDex = last.stokFisikDex;
       });
     }
   }
@@ -81,14 +81,14 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
     final tanggal = DateFormat('yyyy-MM-dd').format(_tanggalPenerimaan);
 
     // 1. Simpan riwayat penerimaan ke database Laporan (Stok Tangki/Fisik)
-    await context.read<LaporanProvider>().simpanPenerimaanBbm(
+    await context.read<StokOpnameController>().simpanPenerimaanBbm(
       tanggal: tanggal,
       jumlahLiterPertamax: px,
       jumlahLiterDex: dex,
     );
 
     // 2. Tambahkan penerimaan ke Stok Sistem (Kuota aktif di database)
-    await context.read<KuponProvider>().tambahStokSistem(
+    await context.read<GenerateKuponController>().tambahStokSistemDariPenerimaan(
       penerimaanPx: px,
       penerimaanDex: dex,
     );
@@ -299,7 +299,7 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
                                     'yyyy-MM-dd',
                                   ).format(tanggalOpname);
                                   await context
-                                      .read<LaporanProvider>()
+                                      .read<StokOpnameController>()
                                       .simpanStokOpname(
                                         tanggal: tanggal,
                                         stokFisikPertamax: px,
@@ -396,7 +396,7 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
 
               try {
                 // Eksekusi perubahan ke SQLite melalui method Provider yang telah dibuat sebelumnya
-                await context.read<KuponProvider>().adjustStokSistemToFisik(
+                await context.read<GenerateKuponController>().adjustStokSistemToFisik(
                   targetFisikPx: fisikPx,
                   targetFisikDex: fisikDex,
                 );
@@ -589,10 +589,10 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
     required double pctPx,
     required double pctDex,
   }) {
-    final lastOpname = context.watch<LaporanProvider>().lastStokOpname;
+    final lastOpname = context.watch<StokOpnameController>().lastStokOpname;
     final tanggalLabel = lastOpname != null
         ? DateFormat('d MMMM yyyy', 'id_ID').format(
-            DateTime.tryParse(lastOpname['tanggal'] as String? ?? '') ??
+            DateTime.tryParse(lastOpname.tanggal) ??
                 DateTime.now(),
           )
         : DateFormat('d MMMM yyyy', 'id_ID').format(DateTime.now());
@@ -1157,7 +1157,7 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
   }
 
   Widget _buildHistoryTable() {
-    return Consumer<LaporanProvider>(
+    return Consumer<StokOpnameController>(
       builder: (context, lp, _) {
         final history = lp.stokHistory;
 
@@ -1482,7 +1482,7 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
   }
 
   Widget _buildTrendChart() {
-    return Consumer<LaporanProvider>(
+    return Consumer<StokOpnameController>(
       builder: (context, lp, _) {
         final trend = lp.stokTrend;
         if (trend.isEmpty) return const SizedBox.shrink();
