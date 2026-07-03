@@ -645,11 +645,7 @@ class _GenerateKuponPageState extends State<GenerateKuponPage> {
                       final isSelected = _selectedIds.contains(kupon.kuponId);
                       final isEven = idx % 2 == 0;
 
-                      String displayNo = kupon.nomorKupon;
-                      if (!displayNo.contains('/')) {
-                        displayNo =
-                        '${kupon.nomorKupon}/${kupon.bulanTerbit}/${kupon.tahunTerbit}/LOGISTIK';
-                      }
+                      String displayNo = kupon.displayNomorKupon;
 
                       return InkWell(
                         onTap: () => _toggleRow(kupon.kuponId),

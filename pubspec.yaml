@@ -54,6 +54,7 @@ dependencies:
   drift: ^2.34.0
   open_file: ^4.0.0
   archive: ^3.4.0
+  sqlite3: ^3.3.4
 
 dev_dependencies:
   flutter_test:

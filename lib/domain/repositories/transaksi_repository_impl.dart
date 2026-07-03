@@ -182,7 +182,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
                 jenisKuponId: Value(t.jenisKuponId),
                 tanggalTransaksi: t.tanggalTransaksi,
                 jumlahLiter: t.jumlahLiter,
-                jenisTransaksi: Value(t.jenisTransaksi),
+                jenisTransaksi: Value(t.jenisTransaksi ?? 'Non-Hutang'),
                 namaPetugas: Value(t.namaPetugas),
                 namaKonsumen: Value(t.namaKonsumen),
                 satkerText: Value(t.satkerText),
@@ -222,7 +222,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
             jenisKuponId: Value(t.jenisKuponId),
             tanggalTransaksi: Value(t.tanggalTransaksi),
             jumlahLiter: Value(t.jumlahLiter),
-            jenisTransaksi: Value(t.jenisTransaksi),
+            jenisTransaksi: Value(t.jenisTransaksi ?? 'Non-Hutang'),
             namaPetugas: Value(t.namaPetugas),
             namaKonsumen: Value(t.namaKonsumen),
             satkerText: Value(t.satkerText),
@@ -350,7 +350,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
         LEFT JOIN (
           SELECT kupon_key, SUM(jumlah_liter) as total_used, MAX(tanggal_transaksi) as tanggal_transaksi_terakhir, COUNT(*) as transaksi_count
           FROM transaksi ft
-          WHERE ft.is_deleted = 0
+          WHERE ft.is_deleted = 0 AND ft.jenis_transaksi = 'Non-Hutang'
           $transaksiFilter
           GROUP BY kupon_key
         ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
