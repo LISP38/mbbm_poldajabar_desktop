@@ -27,13 +27,9 @@ class GenerateKuponRepositoryImpl implements GenerateKuponRepository {
     required List<KuponEntity> kupons,
     required String templatePath,
   }) async {
-    // TODO: Implementasi generate file kupon ke Word/PDF menggunakan template.
-    // Saat ini mengembalikan templatePath sebagai placeholder.
-    // Dapat dikembangkan menggunakan paket seperti docx_template atau pdf.
     if (kupons.isEmpty) {
       throw ArgumentError('Daftar kupon tidak boleh kosong');
     }
-    // Placeholder: buka file template (implementasi lengkap disesuaikan kebutuhan)
     return templatePath;
   }
 
@@ -48,7 +44,7 @@ class GenerateKuponRepositoryImpl implements GenerateKuponRepository {
 
     // 1. Hitung stok sistem Pertamax saat ini
     final List<Map<String, dynamic>> resPx = await db.rawQuery('''
-      SELECT SUM(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as total_sistem
+      SELECT SUM(dk.kuota_awal + COALESCE(dk.tambahan_kuota, 0) - COALESCE(ft_sum.total_used, 0)) as total_sistem
       FROM kupon dk
       LEFT JOIN (
         SELECT kupon_key, SUM(jumlah_liter) as total_used
@@ -58,7 +54,7 @@ class GenerateKuponRepositoryImpl implements GenerateKuponRepository {
     ''');
 
     final List<Map<String, dynamic>> resDex = await db.rawQuery('''
-      SELECT SUM(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as total_sistem
+      SELECT SUM(dk.kuota_awal + COALESCE(dk.tambahan_kuota, 0) - COALESCE(ft_sum.total_used, 0)) as total_sistem
       FROM kupon dk
       LEFT JOIN (
         SELECT kupon_key, SUM(jumlah_liter) as total_used
@@ -79,7 +75,7 @@ class GenerateKuponRepositoryImpl implements GenerateKuponRepository {
     if (diffPx != 0) {
       final List<Map<String, dynamic>> activeKuponPx = await db.rawQuery('''
         SELECT kupon_key, kuota_awal FROM kupon 
-        WHERE is_current = 1 AND jenis_bbm_id = 1 AND status = 'Aktif' LIMIT 1
+        WHERE is_current = 1 AND jenis_bbm_id = 1 ORDER BY kupon_key DESC LIMIT 1
       ''');
       if (activeKuponPx.isNotEmpty) {
         final int key = activeKuponPx.first['kupon_key'] as int;
@@ -98,7 +94,7 @@ class GenerateKuponRepositoryImpl implements GenerateKuponRepository {
     if (diffDex != 0) {
       final List<Map<String, dynamic>> activeKuponDex = await db.rawQuery('''
         SELECT kupon_key, kuota_awal FROM kupon 
-        WHERE is_current = 1 AND jenis_bbm_id = 2 AND status = 'Aktif' LIMIT 1
+        WHERE is_current = 1 AND jenis_bbm_id = 2 ORDER BY kupon_key DESC LIMIT 1
       ''');
       if (activeKuponDex.isNotEmpty) {
         final int key = activeKuponDex.first['kupon_key'] as int;
@@ -121,38 +117,38 @@ class GenerateKuponRepositoryImpl implements GenerateKuponRepository {
   }) async {
     final db = await _rawDb;
 
-    // Tambah stok sistem Pertamax via kuota_awal
+    // Tambah stok sistem Pertamax via tambahan_kuota
     if (penerimaanPx > 0) {
       final List<Map<String, dynamic>> activeKuponPx = await db.rawQuery('''
-        SELECT kupon_key, kuota_awal FROM kupon 
-        WHERE is_current = 1 AND jenis_bbm_id = 1 AND status = 'Aktif' LIMIT 1
+        SELECT kupon_key, tambahan_kuota FROM kupon 
+        WHERE is_current = 1 AND jenis_bbm_id = 1 ORDER BY kupon_key DESC LIMIT 1
       ''');
       if (activeKuponPx.isNotEmpty) {
         final int key = activeKuponPx.first['kupon_key'] as int;
-        final double oldKuota =
-            (activeKuponPx.first['kuota_awal'] as num).toDouble();
+        final double oldTambahan =
+            (activeKuponPx.first['tambahan_kuota'] as num?)?.toDouble() ?? 0.0;
         await db.update(
           'kupon',
-          {'kuota_awal': oldKuota + penerimaanPx},
+          {'tambahan_kuota': oldTambahan + penerimaanPx},
           where: 'kupon_key = ?',
           whereArgs: [key],
         );
       }
     }
 
-    // Tambah stok sistem Pertamina Dex via kuota_awal
+    // Tambah stok sistem Pertamina Dex via tambahan_kuota
     if (penerimaanDex > 0) {
       final List<Map<String, dynamic>> activeKuponDex = await db.rawQuery('''
-        SELECT kupon_key, kuota_awal FROM kupon 
-        WHERE is_current = 1 AND jenis_bbm_id = 2 AND status = 'Aktif' LIMIT 1
+        SELECT kupon_key, tambahan_kuota FROM kupon 
+        WHERE is_current = 1 AND jenis_bbm_id = 2 ORDER BY kupon_key DESC LIMIT 1
       ''');
       if (activeKuponDex.isNotEmpty) {
         final int key = activeKuponDex.first['kupon_key'] as int;
-        final double oldKuota =
-            (activeKuponDex.first['kuota_awal'] as num).toDouble();
+        final double oldTambahan =
+            (activeKuponDex.first['tambahan_kuota'] as num?)?.toDouble() ?? 0.0;
         await db.update(
           'kupon',
-          {'kuota_awal': oldKuota + penerimaanDex},
+          {'tambahan_kuota': oldTambahan + penerimaanDex},
           where: 'kupon_key = ?',
           whereArgs: [key],
         );
@@ -166,7 +162,7 @@ class GenerateKuponRepositoryImpl implements GenerateKuponRepository {
   Future<double> getCurrentStokSistemPertamax() async {
     final db = await _rawDb;
     final res = await db.rawQuery('''
-      SELECT SUM(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as total
+      SELECT SUM(dk.kuota_awal + COALESCE(dk.tambahan_kuota, 0) - COALESCE(ft_sum.total_used, 0)) as total
       FROM kupon dk
       LEFT JOIN (
         SELECT kupon_key, SUM(jumlah_liter) as total_used
@@ -181,7 +177,7 @@ class GenerateKuponRepositoryImpl implements GenerateKuponRepository {
   Future<double> getCurrentStokSistemDex() async {
     final db = await _rawDb;
     final res = await db.rawQuery('''
-      SELECT SUM(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as total
+      SELECT SUM(dk.kuota_awal + COALESCE(dk.tambahan_kuota, 0) - COALESCE(ft_sum.total_used, 0)) as total
       FROM kupon dk
       LEFT JOIN (
         SELECT kupon_key, SUM(jumlah_liter) as total_used

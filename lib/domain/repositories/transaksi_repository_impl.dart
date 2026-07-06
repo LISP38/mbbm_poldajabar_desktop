@@ -298,7 +298,7 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
       final where = <String>[];
       final args = <Variable>[];
 
-      where.add('(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) < 0');
+      where.add('(dk.kuota_awal + COALESCE(dk.tambahan_kuota, 0) - COALESCE(ft_sum.total_used, 0)) < 0');
       where.add('dk.is_current = 1');
       if (satker != null && satker.isNotEmpty) {
         where.add('ds.nama_satker = ?');
@@ -337,8 +337,8 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
           dku.nama_jenis_kupon AS jenis_kupon_name,
           dk.kuota_awal,
           COALESCE(ft_sum.total_used, 0) as total_liter,
-          (dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
-          ABS(dk.kuota_awal - COALESCE(ft_sum.total_used, 0)) as minus,
+          (dk.kuota_awal + COALESCE(dk.tambahan_kuota, 0) - COALESCE(ft_sum.total_used, 0)) as kuota_sisa,
+          ABS(dk.kuota_awal + COALESCE(dk.tambahan_kuota, 0) - COALESCE(ft_sum.total_used, 0)) as minus,
           dk.status,
           COALESCE(ft_sum.tanggal_transaksi_terakhir, dk.tanggal_mulai) as tanggal_transaksi,
           dk.tanggal_mulai,

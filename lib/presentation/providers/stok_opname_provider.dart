@@ -6,11 +6,14 @@ import 'package:kupon_bbm_app/domain/repositories/stok_opname_repository.dart';
 /// Controller untuk fitur **Input Stok Opname** dan **Penerimaan BBM**.
 ///
 /// Dipisahkan dari [LaporanController] sesuai prinsip Single Responsibility.
-/// Kelas ini **hanya** mengelola:
+/// Kelas ini **hanya** mengkoordinasikan alur (GRASP — Controller):
 /// - State stok opname terakhir
 /// - Kalkulasi live stok fisik
 /// - Input stok opname baru
 /// - Input penerimaan BBM
+///
+/// Logika bisnis "apakah stok di bawah ambang batas?" **didelegasikan** ke
+/// [StokOpnameEntity] sesuai prinsip **Information Expert** (GRASP — Larman).
 ///
 /// Dependency: [StokOpnameRepository] (interface, bukan implementasi)
 class StokOpnameController extends ChangeNotifier {
@@ -45,6 +48,41 @@ class StokOpnameController extends ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
+  // ── Pengecekan Ambang Batas (delegasi ke Entity) ───────────────────────────
+
+  /// Mengembalikan daftar alert BBM yang stoknya di bawah ambang batas.
+  ///
+  /// Logika threshold didelegasikan ke [StokOpnameEntity.AMBANG_BATAS]
+  /// sesuai prinsip **Information Expert** (GRASP — Larman).
+  ///
+  /// Setiap item Map berisi: `jenis` (String), `stok` (double), `timestamp` (DateTime).
+  List<Map<String, dynamic>> getAlertsStokRendah() {
+    final alerts = <Map<String, dynamic>>[];
+    final now = DateTime.now();
+
+    // Gunakan konstanta dari entity — controller tidak mendefinisikan threshold sendiri
+    if (_liveFisikPx < StokOpnameEntity.ambangBatas) {
+      alerts.add({
+        'jenis': 'Pertamax',
+        'stok': _liveFisikPx,
+        'timestamp': now,
+      });
+    }
+    if (_liveFisikDex < StokOpnameEntity.ambangBatas) {
+      alerts.add({
+        'jenis': 'Pertamina Dex',
+        'stok': _liveFisikDex,
+        'timestamp': now,
+      });
+    }
+    return alerts;
+  }
+
+  /// `true` jika ada minimal satu jenis BBM yang live stoknya di bawah ambang batas.
+  bool get hasStokRendah =>
+      _liveFisikPx < StokOpnameEntity.ambangBatas ||
+      _liveFisikDex < StokOpnameEntity.ambangBatas;
+
   // ── Load Data ──────────────────────────────────────────────────────────────
 
   /// Memuat stok opname terakhir dan menghitung live stok fisik.
@@ -69,7 +107,7 @@ class StokOpnameController extends ChangeNotifier {
   // ── Kalkulasi Live Stok Fisik ──────────────────────────────────────────────
 
   /// Menghitung stok fisik live berdasarkan stok opname terakhir
-  /// dan pergerakan (penerimaan - pengeluaran) sejak hari berikutnya.
+  /// dan pergerakan (penerimaan) sejak hari berikutnya.
   Future<void> calculateLiveStokFisik() async {
     final last = await _repo.getLastStokOpname();
     if (last == null) {
@@ -109,10 +147,8 @@ class StokOpnameController extends ChangeNotifier {
       final double terimaDex =
           await _repo.getPenerimaanDexByPeriod(tglMulai, tglSelesai);
 
-      // CATATAN: Pengeluaran (transaksi) tidak lagi bisa diakses dari sini
-      // karena StokOpnameRepository tidak punya akses ke transaksi.
-      // Live stok fisik dihitung hanya dari penerimaan.
-      // Untuk running balance lengkap dengan pengeluaran, gunakan LaporanController.
+      // CATATAN: Pengeluaran (transaksi) tidak diakses di sini.
+      // Untuk running balance lengkap, gunakan LaporanController.
       _liveFisikPx = basePx + terimaPx;
       _liveFisikDex = baseDex + terimaDex;
     }

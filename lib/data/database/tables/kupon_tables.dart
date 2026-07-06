@@ -16,6 +16,7 @@ class Kupon extends Table {
   TextColumn get tanggalMulai => text()();
   TextColumn get tanggalSampai => text()();
   RealColumn get kuotaAwal => real()();
+  RealColumn get tambahanKuota => real().withDefault(const Constant(0.0))();
   TextColumn get status =>
       text().withDefault(const Constant('Aktif')).nullable()();
   TextColumn get validFrom => text()
