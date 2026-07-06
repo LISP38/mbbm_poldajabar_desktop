@@ -26,6 +26,7 @@ import 'package:kupon_bbm_app/domain/repositories/stok_opname_repository.dart';
 import 'package:kupon_bbm_app/domain/repositories/stok_opname_repository_impl.dart';
 import 'package:kupon_bbm_app/domain/repositories/generate_kupon_repository.dart';
 import 'package:kupon_bbm_app/domain/repositories/generate_kupon_repository_impl.dart';
+import 'package:kupon_bbm_app/data/datasources/sync_server_datasource.dart';
 
 final getIt = GetIt.instance;
 
@@ -45,23 +46,23 @@ Future<void> initializeDependencies() async {
 
   // Repositories
   getIt.registerLazySingleton<TransaksiRepositoryImpl>(
-    () => TransaksiRepositoryImpl(getIt<AppDatabase>()), 
+    () => TransaksiRepositoryImpl(getIt<AppDatabase>()),
   );
 
   getIt.registerLazySingleton<KendaraanRepository>(
-    () => KendaraanRepositoryImpl(getIt<AppDatabase>()), 
+    () => KendaraanRepositoryImpl(getIt<AppDatabase>()),
   );
 
   getIt.registerLazySingleton<KuponRepository>(
-    () => KuponRepositoryImpl(getIt<AppDatabase>()), 
+    () => KuponRepositoryImpl(getIt<AppDatabase>()),
   );
 
   getIt.registerLazySingleton<MasterDataRepository>(
-    () => MasterDataRepositoryImpl(getIt<AppDatabase>()), 
+    () => MasterDataRepositoryImpl(getIt<AppDatabase>()),
   );
 
   getIt.registerLazySingleton<AlokasiRepository>(
-    () => AlokasiRepositoryImpl(getIt<AppDatabase>()), 
+    () => AlokasiRepositoryImpl(getIt<AppDatabase>()),
   );
 
   getIt.registerLazySingleton<JenisBbmRepository>(
@@ -103,19 +104,18 @@ Future<void> initializeDependencies() async {
   );
 
   getIt.registerLazySingleton<DashboardRepositoryImpl>(
-    () => DashboardRepositoryImpl(
-      getIt<DashboardDao>(),
-    ),
+    () => DashboardRepositoryImpl(getIt<DashboardDao>()),
   );
 
   getIt.registerFactory<DashboardController>(
-    () => DashboardController(
-      getIt<DashboardRepositoryImpl>(),
-    ),
+    () => DashboardController(getIt<DashboardRepositoryImpl>()),
   );
 
   getIt.registerLazySingleton<DashboardDao>(
     () => getIt<AppDatabase>().dashboardDao,
   );
 
+  getIt.registerLazySingleton<SyncServerDatasource>(
+    () => SyncServerDatasource(),
+  );
 }

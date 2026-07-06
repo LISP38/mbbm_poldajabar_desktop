@@ -48,7 +48,7 @@ class GenerateKuponRepositoryImpl implements GenerateKuponRepository {
       FROM kupon dk
       LEFT JOIN (
         SELECT kupon_key, SUM(jumlah_liter) as total_used
-        FROM transaksi WHERE is_deleted = 0 GROUP BY kupon_key
+        FROM transaksi WHERE is_deleted = 0 AND jenis_transaksi = 'Non-Hutang' GROUP BY kupon_key
       ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
       WHERE dk.is_current = 1 AND dk.jenis_bbm_id = 1
     ''');
@@ -58,7 +58,7 @@ class GenerateKuponRepositoryImpl implements GenerateKuponRepository {
       FROM kupon dk
       LEFT JOIN (
         SELECT kupon_key, SUM(jumlah_liter) as total_used
-        FROM transaksi WHERE is_deleted = 0 GROUP BY kupon_key
+        FROM transaksi WHERE is_deleted = 0 AND jenis_transaksi = 'Non-Hutang' GROUP BY kupon_key
       ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
       WHERE dk.is_current = 1 AND dk.jenis_bbm_id = 2
     ''');
@@ -166,7 +166,7 @@ class GenerateKuponRepositoryImpl implements GenerateKuponRepository {
       FROM kupon dk
       LEFT JOIN (
         SELECT kupon_key, SUM(jumlah_liter) as total_used
-        FROM transaksi WHERE is_deleted = 0 GROUP BY kupon_key
+        FROM transaksi WHERE is_deleted = 0 AND jenis_transaksi = 'Non-Hutang' GROUP BY kupon_key
       ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
       WHERE dk.is_current = 1 AND dk.jenis_bbm_id = 1
     ''');
@@ -181,7 +181,7 @@ class GenerateKuponRepositoryImpl implements GenerateKuponRepository {
       FROM kupon dk
       LEFT JOIN (
         SELECT kupon_key, SUM(jumlah_liter) as total_used
-        FROM transaksi WHERE is_deleted = 0 GROUP BY kupon_key
+        FROM transaksi WHERE is_deleted = 0 AND jenis_transaksi = 'Non-Hutang' GROUP BY kupon_key
       ) ft_sum ON dk.kupon_key = ft_sum.kupon_key
       WHERE dk.is_current = 1 AND dk.jenis_bbm_id = 2
     ''');

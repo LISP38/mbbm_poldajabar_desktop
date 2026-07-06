@@ -341,10 +341,11 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
             variables: [Variable.withInt(cat.kategoriId)],
           )
           .getSingle();
-      
+
       final count = result.read<int>('cnt');
-      
-      if (count >= 0) { // Update even if 0 to reflect deletions/inactivations
+
+      if (count >= 0) {
+        // Update even if 0 to reflect deletions/inactivations
         await updateKendaraanKategoriCount(cat.kategoriId, count);
       }
     }
@@ -382,7 +383,11 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
   }
 
   List<String> _getCategoryPatterns(String namaKategori) {
-    switch (namaKategori.toUpperCase()) {
+    final cleanName = namaKategori
+        .replaceAll(RegExp(r'\s*\(.*\)$'), '')
+        .trim()
+        .toUpperCase();
+    switch (cleanName) {
       case 'R2 MOTOR':
         return ['motor', 'sepeda motor', 'r2'];
       case 'R4 PJU':
@@ -750,7 +755,8 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
     try {
       final outputPath = await FilePicker.platform.saveFile(
         dialogTitle: 'Simpan Data Kupon BBM',
-        fileName: 'Data_Kupon_${AlokasiResultModel.getBulanName(bulan)}_$tahun.xlsx',
+        fileName:
+            'Data_Kupon_${AlokasiResultModel.getBulanName(bulan)}_$tahun.xlsx',
         type: FileType.custom,
         allowedExtensions: ['xlsx'],
       );
@@ -782,7 +788,9 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
         ),
         leftOuterJoin(
           _db.alokasiKendaraanKategori,
-          _db.alokasiKendaraanKategori.kategoriId.equalsExp(_db.kendaraan.kategoriId),
+          _db.alokasiKendaraanKategori.kategoriId.equalsExp(
+            _db.kendaraan.kategoriId,
+          ),
         ),
       ])..where(_db.kendaraan.statusAktif.equals(1));
 
@@ -797,9 +805,22 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
       }
 
       final romanMonths = [
-        'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'
+        'I',
+        'II',
+        'III',
+        'IV',
+        'V',
+        'VI',
+        'VII',
+        'VIII',
+        'IX',
+        'X',
+        'XI',
+        'XII',
       ];
-      final romanMonth = bulan >= 1 && bulan <= 12 ? romanMonths[bulan - 1] : '';
+      final romanMonth = bulan >= 1 && bulan <= 12
+          ? romanMonths[bulan - 1]
+          : '';
 
       int noKupon = 1;
       for (final row in vehicles) {
@@ -814,18 +835,26 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
         final satkerData = row.readTableOrNull(_db.satker);
         final namaSatker = satkerData?.namaSatker ?? '';
 
-        final jenisKupon = kategori.isPju == 1 ? 'PJU' : 'Ranjen'; // User said "depend on category for now, just handle the ranjen kupon". Usually PJU is not ranjen, but let's see. We'll use Ranjen unless it's PJU or just "Ranjen".
+        final jenisKupon = kategori.isPju == 1
+            ? 'PJU'
+            : 'Ranjen'; // User said "depend on category for now, just handle the ranjen kupon". Usually PJU is not ranjen, but let's see. We'll use Ranjen unless it's PJU or just "Ranjen".
         // The user said: "depend on category for now, just handle the ranjen kupon left the dukungan/cadangan behind/do not process it"
         // So I'll put 'Ranjen' for now.
 
-        final noPolGabungan = '${kendaraanData.noPolKode ?? ''} ${kendaraanData.noPolNomor ?? ''}'.trim();
+        final noPolGabungan =
+            '${kendaraanData.noPolKode ?? ''} ${kendaraanData.noPolNomor ?? ''}'
+                .trim();
 
         sheet.appendRow([
-          TextCellValue('Ranjen'), // Based on user instruction "handle the ranjen kupon"
+          TextCellValue(
+            'Ranjen',
+          ), // Based on user instruction "handle the ranjen kupon"
           IntCellValue(noKupon),
           TextCellValue(romanMonth),
           IntCellValue(tahun),
-          TextCellValue(kategori.namaKategori), // or kendaraanData.jenisRanmor ?? kategori.namaKategori
+          TextCellValue(
+            kategori.namaKategori,
+          ), // or kendaraanData.jenisRanmor ?? kategori.namaKategori
           TextCellValue(namaSatker),
           TextCellValue(noPolGabungan),
           TextCellValue(kendaraanData.noPolKode ?? ''),
@@ -843,7 +872,9 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
       final fileBytes = excel.save();
       if (fileBytes == null) return false;
 
-      final finalPath = outputPath.endsWith('.xlsx') ? outputPath : '$outputPath.xlsx';
+      final finalPath = outputPath.endsWith('.xlsx')
+          ? outputPath
+          : '$outputPath.xlsx';
       final outputFile = File(finalPath);
       await outputFile.writeAsBytes(fileBytes);
 

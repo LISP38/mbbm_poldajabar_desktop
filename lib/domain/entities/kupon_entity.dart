@@ -37,6 +37,13 @@ class KuponEntity {
     this.isDeleted = 0,
   });
 
+  String get displayNomorKupon {
+    if (nomorKupon.contains('/')) return nomorKupon;
+    final romanMonths = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+    final romanMonth = (bulanTerbit >= 1 && bulanTerbit <= 12) ? romanMonths[bulanTerbit] : bulanTerbit.toString();
+    return '$nomorKupon/$romanMonth/$tahunTerbit/LOGISTIK';
+  }
+
   /// Determine actual kupon status based on date validity and quota
   /// Returns: 'Kadaluarsa', 'Belum Aktif', 'Habis', 'Terpakai', or 'Tersedia'
   String getActualStatus() {
