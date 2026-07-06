@@ -1837,6 +1837,18 @@ class $KuponTable extends Kupon with TableInfo<$KuponTable, KuponData> {
     type: DriftSqlType.double,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _tambahanKuotaMeta = const VerificationMeta(
+    'tambahanKuota',
+  );
+  @override
+  late final GeneratedColumn<double> tambahanKuota = GeneratedColumn<double>(
+    'tambahan_kuota',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
@@ -1895,6 +1907,7 @@ class $KuponTable extends Kupon with TableInfo<$KuponTable, KuponData> {
     tanggalMulai,
     tanggalSampai,
     kuotaAwal,
+    tambahanKuota,
     status,
     validFrom,
     validTo,
@@ -2017,6 +2030,15 @@ class $KuponTable extends Kupon with TableInfo<$KuponTable, KuponData> {
     } else if (isInserting) {
       context.missing(_kuotaAwalMeta);
     }
+    if (data.containsKey('tambahan_kuota')) {
+      context.handle(
+        _tambahanKuotaMeta,
+        tambahanKuota.isAcceptableOrUnknown(
+          data['tambahan_kuota']!,
+          _tambahanKuotaMeta,
+        ),
+      );
+    }
     if (data.containsKey('status')) {
       context.handle(
         _statusMeta,
@@ -2094,6 +2116,10 @@ class $KuponTable extends Kupon with TableInfo<$KuponTable, KuponData> {
         DriftSqlType.double,
         data['${effectivePrefix}kuota_awal'],
       )!,
+      tambahanKuota: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}tambahan_kuota'],
+      )!,
       status: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}status'],
@@ -2131,6 +2157,7 @@ class KuponData extends DataClass implements Insertable<KuponData> {
   final String tanggalMulai;
   final String tanggalSampai;
   final double kuotaAwal;
+  final double tambahanKuota;
   final String? status;
   final String? validFrom;
   final String? validTo;
@@ -2147,6 +2174,7 @@ class KuponData extends DataClass implements Insertable<KuponData> {
     required this.tanggalMulai,
     required this.tanggalSampai,
     required this.kuotaAwal,
+    required this.tambahanKuota,
     this.status,
     this.validFrom,
     this.validTo,
@@ -2168,6 +2196,7 @@ class KuponData extends DataClass implements Insertable<KuponData> {
     map['tanggal_mulai'] = Variable<String>(tanggalMulai);
     map['tanggal_sampai'] = Variable<String>(tanggalSampai);
     map['kuota_awal'] = Variable<double>(kuotaAwal);
+    map['tambahan_kuota'] = Variable<double>(tambahanKuota);
     if (!nullToAbsent || status != null) {
       map['status'] = Variable<String>(status);
     }
@@ -2198,6 +2227,7 @@ class KuponData extends DataClass implements Insertable<KuponData> {
       tanggalMulai: Value(tanggalMulai),
       tanggalSampai: Value(tanggalSampai),
       kuotaAwal: Value(kuotaAwal),
+      tambahanKuota: Value(tambahanKuota),
       status: status == null && nullToAbsent
           ? const Value.absent()
           : Value(status),
@@ -2230,6 +2260,7 @@ class KuponData extends DataClass implements Insertable<KuponData> {
       tanggalMulai: serializer.fromJson<String>(json['tanggalMulai']),
       tanggalSampai: serializer.fromJson<String>(json['tanggalSampai']),
       kuotaAwal: serializer.fromJson<double>(json['kuotaAwal']),
+      tambahanKuota: serializer.fromJson<double>(json['tambahanKuota']),
       status: serializer.fromJson<String?>(json['status']),
       validFrom: serializer.fromJson<String?>(json['validFrom']),
       validTo: serializer.fromJson<String?>(json['validTo']),
@@ -2251,6 +2282,7 @@ class KuponData extends DataClass implements Insertable<KuponData> {
       'tanggalMulai': serializer.toJson<String>(tanggalMulai),
       'tanggalSampai': serializer.toJson<String>(tanggalSampai),
       'kuotaAwal': serializer.toJson<double>(kuotaAwal),
+      'tambahanKuota': serializer.toJson<double>(tambahanKuota),
       'status': serializer.toJson<String?>(status),
       'validFrom': serializer.toJson<String?>(validFrom),
       'validTo': serializer.toJson<String?>(validTo),
@@ -2270,6 +2302,7 @@ class KuponData extends DataClass implements Insertable<KuponData> {
     String? tanggalMulai,
     String? tanggalSampai,
     double? kuotaAwal,
+    double? tambahanKuota,
     Value<String?> status = const Value.absent(),
     Value<String?> validFrom = const Value.absent(),
     Value<String?> validTo = const Value.absent(),
@@ -2286,6 +2319,7 @@ class KuponData extends DataClass implements Insertable<KuponData> {
     tanggalMulai: tanggalMulai ?? this.tanggalMulai,
     tanggalSampai: tanggalSampai ?? this.tanggalSampai,
     kuotaAwal: kuotaAwal ?? this.kuotaAwal,
+    tambahanKuota: tambahanKuota ?? this.tambahanKuota,
     status: status.present ? status.value : this.status,
     validFrom: validFrom.present ? validFrom.value : this.validFrom,
     validTo: validTo.present ? validTo.value : this.validTo,
@@ -2320,6 +2354,9 @@ class KuponData extends DataClass implements Insertable<KuponData> {
           ? data.tanggalSampai.value
           : this.tanggalSampai,
       kuotaAwal: data.kuotaAwal.present ? data.kuotaAwal.value : this.kuotaAwal,
+      tambahanKuota: data.tambahanKuota.present
+          ? data.tambahanKuota.value
+          : this.tambahanKuota,
       status: data.status.present ? data.status.value : this.status,
       validFrom: data.validFrom.present ? data.validFrom.value : this.validFrom,
       validTo: data.validTo.present ? data.validTo.value : this.validTo,
@@ -2341,6 +2378,7 @@ class KuponData extends DataClass implements Insertable<KuponData> {
           ..write('tanggalMulai: $tanggalMulai, ')
           ..write('tanggalSampai: $tanggalSampai, ')
           ..write('kuotaAwal: $kuotaAwal, ')
+          ..write('tambahanKuota: $tambahanKuota, ')
           ..write('status: $status, ')
           ..write('validFrom: $validFrom, ')
           ..write('validTo: $validTo, ')
@@ -2362,6 +2400,7 @@ class KuponData extends DataClass implements Insertable<KuponData> {
     tanggalMulai,
     tanggalSampai,
     kuotaAwal,
+    tambahanKuota,
     status,
     validFrom,
     validTo,
@@ -2382,6 +2421,7 @@ class KuponData extends DataClass implements Insertable<KuponData> {
           other.tanggalMulai == this.tanggalMulai &&
           other.tanggalSampai == this.tanggalSampai &&
           other.kuotaAwal == this.kuotaAwal &&
+          other.tambahanKuota == this.tambahanKuota &&
           other.status == this.status &&
           other.validFrom == this.validFrom &&
           other.validTo == this.validTo &&
@@ -2400,6 +2440,7 @@ class KuponCompanion extends UpdateCompanion<KuponData> {
   final Value<String> tanggalMulai;
   final Value<String> tanggalSampai;
   final Value<double> kuotaAwal;
+  final Value<double> tambahanKuota;
   final Value<String?> status;
   final Value<String?> validFrom;
   final Value<String?> validTo;
@@ -2416,6 +2457,7 @@ class KuponCompanion extends UpdateCompanion<KuponData> {
     this.tanggalMulai = const Value.absent(),
     this.tanggalSampai = const Value.absent(),
     this.kuotaAwal = const Value.absent(),
+    this.tambahanKuota = const Value.absent(),
     this.status = const Value.absent(),
     this.validFrom = const Value.absent(),
     this.validTo = const Value.absent(),
@@ -2433,6 +2475,7 @@ class KuponCompanion extends UpdateCompanion<KuponData> {
     required String tanggalMulai,
     required String tanggalSampai,
     required double kuotaAwal,
+    this.tambahanKuota = const Value.absent(),
     this.status = const Value.absent(),
     this.validFrom = const Value.absent(),
     this.validTo = const Value.absent(),
@@ -2458,6 +2501,7 @@ class KuponCompanion extends UpdateCompanion<KuponData> {
     Expression<String>? tanggalMulai,
     Expression<String>? tanggalSampai,
     Expression<double>? kuotaAwal,
+    Expression<double>? tambahanKuota,
     Expression<String>? status,
     Expression<String>? validFrom,
     Expression<String>? validTo,
@@ -2475,6 +2519,7 @@ class KuponCompanion extends UpdateCompanion<KuponData> {
       if (tanggalMulai != null) 'tanggal_mulai': tanggalMulai,
       if (tanggalSampai != null) 'tanggal_sampai': tanggalSampai,
       if (kuotaAwal != null) 'kuota_awal': kuotaAwal,
+      if (tambahanKuota != null) 'tambahan_kuota': tambahanKuota,
       if (status != null) 'status': status,
       if (validFrom != null) 'valid_from': validFrom,
       if (validTo != null) 'valid_to': validTo,
@@ -2494,6 +2539,7 @@ class KuponCompanion extends UpdateCompanion<KuponData> {
     Value<String>? tanggalMulai,
     Value<String>? tanggalSampai,
     Value<double>? kuotaAwal,
+    Value<double>? tambahanKuota,
     Value<String?>? status,
     Value<String?>? validFrom,
     Value<String?>? validTo,
@@ -2511,6 +2557,7 @@ class KuponCompanion extends UpdateCompanion<KuponData> {
       tanggalMulai: tanggalMulai ?? this.tanggalMulai,
       tanggalSampai: tanggalSampai ?? this.tanggalSampai,
       kuotaAwal: kuotaAwal ?? this.kuotaAwal,
+      tambahanKuota: tambahanKuota ?? this.tambahanKuota,
       status: status ?? this.status,
       validFrom: validFrom ?? this.validFrom,
       validTo: validTo ?? this.validTo,
@@ -2554,6 +2601,9 @@ class KuponCompanion extends UpdateCompanion<KuponData> {
     if (kuotaAwal.present) {
       map['kuota_awal'] = Variable<double>(kuotaAwal.value);
     }
+    if (tambahanKuota.present) {
+      map['tambahan_kuota'] = Variable<double>(tambahanKuota.value);
+    }
     if (status.present) {
       map['status'] = Variable<String>(status.value);
     }
@@ -2583,6 +2633,7 @@ class KuponCompanion extends UpdateCompanion<KuponData> {
           ..write('tanggalMulai: $tanggalMulai, ')
           ..write('tanggalSampai: $tanggalSampai, ')
           ..write('kuotaAwal: $kuotaAwal, ')
+          ..write('tambahanKuota: $tambahanKuota, ')
           ..write('status: $status, ')
           ..write('validFrom: $validFrom, ')
           ..write('validTo: $validTo, ')
@@ -6750,6 +6801,7 @@ typedef $$KuponTableCreateCompanionBuilder =
       required String tanggalMulai,
       required String tanggalSampai,
       required double kuotaAwal,
+      Value<double> tambahanKuota,
       Value<String?> status,
       Value<String?> validFrom,
       Value<String?> validTo,
@@ -6768,6 +6820,7 @@ typedef $$KuponTableUpdateCompanionBuilder =
       Value<String> tanggalMulai,
       Value<String> tanggalSampai,
       Value<double> kuotaAwal,
+      Value<double> tambahanKuota,
       Value<String?> status,
       Value<String?> validFrom,
       Value<String?> validTo,
@@ -6834,6 +6887,11 @@ class $$KuponTableFilterComposer extends Composer<_$AppDatabase, $KuponTable> {
 
   ColumnFilters<double> get kuotaAwal => $composableBuilder(
     column: $table.kuotaAwal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get tambahanKuota => $composableBuilder(
+    column: $table.tambahanKuota,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6922,6 +6980,11 @@ class $$KuponTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get tambahanKuota => $composableBuilder(
+    column: $table.tambahanKuota,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get status => $composableBuilder(
     column: $table.status,
     builder: (column) => ColumnOrderings(column),
@@ -7001,6 +7064,11 @@ class $$KuponTableAnnotationComposer
   GeneratedColumn<double> get kuotaAwal =>
       $composableBuilder(column: $table.kuotaAwal, builder: (column) => column);
 
+  GeneratedColumn<double> get tambahanKuota => $composableBuilder(
+    column: $table.tambahanKuota,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
 
@@ -7053,6 +7121,7 @@ class $$KuponTableTableManager
                 Value<String> tanggalMulai = const Value.absent(),
                 Value<String> tanggalSampai = const Value.absent(),
                 Value<double> kuotaAwal = const Value.absent(),
+                Value<double> tambahanKuota = const Value.absent(),
                 Value<String?> status = const Value.absent(),
                 Value<String?> validFrom = const Value.absent(),
                 Value<String?> validTo = const Value.absent(),
@@ -7069,6 +7138,7 @@ class $$KuponTableTableManager
                 tanggalMulai: tanggalMulai,
                 tanggalSampai: tanggalSampai,
                 kuotaAwal: kuotaAwal,
+                tambahanKuota: tambahanKuota,
                 status: status,
                 validFrom: validFrom,
                 validTo: validTo,
@@ -7087,6 +7157,7 @@ class $$KuponTableTableManager
                 required String tanggalMulai,
                 required String tanggalSampai,
                 required double kuotaAwal,
+                Value<double> tambahanKuota = const Value.absent(),
                 Value<String?> status = const Value.absent(),
                 Value<String?> validFrom = const Value.absent(),
                 Value<String?> validTo = const Value.absent(),
@@ -7103,6 +7174,7 @@ class $$KuponTableTableManager
                 tanggalMulai: tanggalMulai,
                 tanggalSampai: tanggalSampai,
                 kuotaAwal: kuotaAwal,
+                tambahanKuota: tambahanKuota,
                 status: status,
                 validFrom: validFrom,
                 validTo: validTo,

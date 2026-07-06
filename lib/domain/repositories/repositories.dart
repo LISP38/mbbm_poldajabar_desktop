@@ -10,7 +10,6 @@ export 'kendaraan_repository.dart';
 export 'kupon_repository.dart';
 export 'laporan_repository.dart';
 export 'master_data_repository.dart';
-export 'notification_repository.dart';
 export 'stok_opname_repository.dart';
 export 'transaksi_repository.dart';
 
@@ -21,6 +20,5 @@ export 'kendaraan_repository_impl.dart';
 export 'kupon_repository_impl.dart';
 export 'laporan_repository_impl.dart';
 export 'master_data_repository_impl.dart';
-export 'notification_repository_impl.dart';
 export 'stok_opname_repository_impl.dart';
 export 'transaksi_repository_impl.dart';
