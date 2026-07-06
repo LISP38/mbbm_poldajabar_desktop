@@ -17,7 +17,18 @@ class AlokasiDao extends DatabaseAccessor<AppDatabase> with _$AlokasiDaoMixin {
   Future<List<AlokasiKendaraanKategoriData>> getKategoris() => select(alokasiKendaraanKategori).get();
   Future<int> insertKategori(AlokasiKendaraanKategoriCompanion entry) => into(alokasiKendaraanKategori).insert(entry);
   Future<bool> updateKategori(AlokasiKendaraanKategoriCompanion entry) => update(alokasiKendaraanKategori).replace(entry);
-  Future<int> deleteKategori(int kategoriId) => (delete(alokasiKendaraanKategori)..where((t) => t.kategoriId.equals(kategoriId))).go();
+  Future<int> deleteKategori(int kategoriId) async {
+    return transaction(() async {
+      final deleted = await (delete(alokasiKendaraanKategori)
+            ..where((t) => t.kategoriId.equals(kategoriId)))
+          .go();
+      await customStatement(
+        'UPDATE kendaraan SET kategori_id = 0 WHERE kategori_id = ?',
+        [Variable.withInt(kategoriId)],
+      );
+      return deleted;
+    });
+  }
 
   // Index Norma
   Future<List<IndexNormaData>> getIndexNormaByKategori(int kategoriId) =>
