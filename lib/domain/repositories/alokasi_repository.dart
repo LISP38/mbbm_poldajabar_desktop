@@ -52,9 +52,6 @@ abstract class AlokasiRepository {
   /// Delete a vehicle category by ID.
   Future<void> deleteKendaraanKategori(int kategoriId);
 
-  /// Auto-count vehicles from kendaraan and update category counts.
-  Future<void> autoCountKendaraan();
-
   // ── Index Norma ───────────────────────────────────────────────────────
 
   /// Get all index norma entries (joined with category names).

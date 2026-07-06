@@ -137,4 +137,16 @@ class KendaraanRepositoryImpl implements KendaraanRepository {
     });
     return ids;
   }
+
+  @override
+  Future<int> getActiveVehicleCountByCategory(int kategoriId) async {
+    final result = await _db
+        .customSelect(
+          'SELECT COUNT(*) as cnt FROM kendaraan WHERE kategori_id = ? AND status_aktif = 1',
+          variables: [Variable.withInt(kategoriId)],
+        )
+        .getSingle();
+
+    return result.read<int>('cnt') ?? 0;
+  }
 }

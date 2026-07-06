@@ -331,27 +331,6 @@ class AlokasiRepositoryImpl implements AlokasiRepository {
   }
 
   @override
-  Future<void> autoCountKendaraan() async {
-    final categories = await getKendaraanKategori();
-
-    for (final cat in categories) {
-      final result = await _db
-          .customSelect(
-            'SELECT COUNT(*) as cnt FROM kendaraan WHERE kategori_id = ? AND status_aktif = 1',
-            variables: [Variable.withInt(cat.kategoriId)],
-          )
-          .getSingle();
-
-      final count = result.read<int>('cnt');
-
-      if (count >= 0) {
-        // Update even if 0 to reflect deletions/inactivations
-        await updateKendaraanKategoriCount(cat.kategoriId, count);
-      }
-    }
-  }
-
-  @override
   Future<void> addKendaraanKategori(KendaraanKategoriEntity entity) async {
     await _dao.insertKategori(
       AlokasiKendaraanKategoriCompanion.insert(

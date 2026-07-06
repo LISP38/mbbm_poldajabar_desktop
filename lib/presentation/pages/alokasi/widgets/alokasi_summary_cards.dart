@@ -144,8 +144,18 @@ class AlokasiSummaryCards extends StatelessWidget {
 
   String _getBulanName(int bulan) {
     const names = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
     return bulan >= 1 && bulan <= 12 ? names[bulan - 1] : '';
   }

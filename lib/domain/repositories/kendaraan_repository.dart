@@ -14,4 +14,7 @@ abstract class KendaraanRepository {
   );
   // Method untuk batch insert kendaraan
   Future<List<int>> insertManyKendaraan(List<KendaraanEntity> kendaraans);
+
+  // Get active vehicle count by category (for alokasi auto count)
+  Future<int> getActiveVehicleCountByCategory(int kategoriId);
 }

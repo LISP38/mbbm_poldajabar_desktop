@@ -127,13 +127,19 @@ class AlokasiResultModel {
       detailPdx: detailPdx ?? this.detailPdx,
       cadanganPx: cadanganPx ?? this.cadanganPx,
       cadanganPdx: cadanganPdx ?? this.cadanganPdx,
-      appliedCadanganPxPercent: appliedCadanganPxPercent ?? this.appliedCadanganPxPercent,
-      appliedCadanganPdxPercent: appliedCadanganPdxPercent ?? this.appliedCadanganPdxPercent,
-      actualCadanganPxPercent: actualCadanganPxPercent ?? this.actualCadanganPxPercent,
-      actualCadanganPdxPercent: actualCadanganPdxPercent ?? this.actualCadanganPdxPercent,
+      appliedCadanganPxPercent:
+          appliedCadanganPxPercent ?? this.appliedCadanganPxPercent,
+      appliedCadanganPdxPercent:
+          appliedCadanganPdxPercent ?? this.appliedCadanganPdxPercent,
+      actualCadanganPxPercent:
+          actualCadanganPxPercent ?? this.actualCadanganPxPercent,
+      actualCadanganPdxPercent:
+          actualCadanganPdxPercent ?? this.actualCadanganPdxPercent,
       isCadanganEdited: isCadanganEdited ?? this.isCadanganEdited,
-      editedCadanganPxPercent: editedCadanganPxPercent ?? this.editedCadanganPxPercent,
-      editedCadanganPdxPercent: editedCadanganPdxPercent ?? this.editedCadanganPdxPercent,
+      editedCadanganPxPercent:
+          editedCadanganPxPercent ?? this.editedCadanganPxPercent,
+      editedCadanganPdxPercent:
+          editedCadanganPdxPercent ?? this.editedCadanganPdxPercent,
       isEdited: isEdited ?? this.isEdited,
       editedJatahAnggaran: editedJatahAnggaran ?? this.editedJatahAnggaran,
     );
