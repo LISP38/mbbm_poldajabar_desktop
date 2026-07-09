@@ -189,7 +189,12 @@ class LaporanRepositoryImpl implements LaporanRepository {
   Future<double> getStokSistemPertamaxAtDate(String tanggal) async {
     final result = await _db.customSelect(
       '''SELECT
-           COALESCE(SUM(dk.kuota_awal), 0) -
+           COALESCE(SUM(dk.kuota_awal), 0) +
+           COALESCE((
+             SELECT SUM(p.jumlah_liter_pertamax) FROM penerimaan_bbm p
+             WHERE DATE(p.tanggal) >= DATE((SELECT MIN(tanggal_mulai) FROM kupon WHERE is_current = 1 AND jenis_bbm_id = 1))
+               AND DATE(p.tanggal) < DATE(?)
+           ), 0) -
            COALESCE((
              SELECT SUM(t.jumlah_liter) FROM transaksi t
              WHERE t.jenis_bbm_id = 1
@@ -198,7 +203,7 @@ class LaporanRepositoryImpl implements LaporanRepository {
            ), 0) AS total
          FROM kupon dk
          WHERE dk.is_current = 1 AND dk.jenis_bbm_id = 1''',
-      variables: [Variable.withString(tanggal)],
+      variables: [Variable.withString(tanggal), Variable.withString(tanggal)],
     ).getSingleOrNull();
     return (result?.data['total'] as num?)?.toDouble() ?? 0.0;
   }
@@ -207,7 +212,12 @@ class LaporanRepositoryImpl implements LaporanRepository {
   Future<double> getStokSistemDexAtDate(String tanggal) async {
     final result = await _db.customSelect(
       '''SELECT
-           COALESCE(SUM(dk.kuota_awal), 0) -
+           COALESCE(SUM(dk.kuota_awal), 0) +
+           COALESCE((
+             SELECT SUM(p.jumlah_liter_dex) FROM penerimaan_bbm p
+             WHERE DATE(p.tanggal) >= DATE((SELECT MIN(tanggal_mulai) FROM kupon WHERE is_current = 1 AND jenis_bbm_id = 2))
+               AND DATE(p.tanggal) < DATE(?)
+           ), 0) -
            COALESCE((
              SELECT SUM(t.jumlah_liter) FROM transaksi t
              WHERE t.jenis_bbm_id = 2
@@ -216,7 +226,7 @@ class LaporanRepositoryImpl implements LaporanRepository {
            ), 0) AS total
          FROM kupon dk
          WHERE dk.is_current = 1 AND dk.jenis_bbm_id = 2''',
-      variables: [Variable.withString(tanggal)],
+      variables: [Variable.withString(tanggal), Variable.withString(tanggal)],
     ).getSingleOrNull();
     return (result?.data['total'] as num?)?.toDouble() ?? 0.0;
   }

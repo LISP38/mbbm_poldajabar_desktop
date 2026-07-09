@@ -42,13 +42,55 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
   }
 
   void _syncFisikFromLastOpname() {
-    final last = context.read<StokOpnameController>().lastStokOpname;
-    if (last != null) {
+    final history = context.read<StokOpnameController>().stokHistory;
+    final allKupons = context.read<KuponProvider>().allKuponsForDropdown;
+    final stokSistemPx = allKupons
+        .where((k) => k.jenisBbmId == 1 && k.isDeleted == 0)
+        .fold(0.0, (sum, k) => sum + k.kuotaSisa);
+    final stokSistemDex = allKupons
+        .where((k) => k.jenisBbmId == 2 && k.isDeleted == 0)
+        .fold(0.0, (sum, k) => sum + k.kuotaSisa);
+
+    if (history.isEmpty) {
       setState(() {
-        _stokFisikPertamax = last.stokFisikPertamax;
-        _stokFisikDex = last.stokFisikDex;
+        _stokFisikPertamax = stokSistemPx;
+        _stokFisikDex = stokSistemDex;
       });
+      return;
     }
+
+    final reversedHistory = history.reversed.toList();
+    double currentPx = 0;
+    double currentDex = 0;
+
+    final hasStokOpname = reversedHistory.any((r) => r['sumber'] != 'PENERIMAAN');
+    if (!hasStokOpname) {
+      final totalPenerimaanPx = reversedHistory.fold(0.0, (sum, r) => sum + ((r['jumlah_liter_pertamax'] as num?)?.toDouble() ?? 0));
+      final totalPenerimaanDex = reversedHistory.fold(0.0, (sum, r) => sum + ((r['jumlah_liter_dex'] as num?)?.toDouble() ?? 0));
+      currentPx = stokSistemPx - totalPenerimaanPx;
+      currentDex = stokSistemDex - totalPenerimaanDex;
+      if (currentPx < 0) currentPx = 0;
+      if (currentDex < 0) currentDex = 0;
+    }
+
+    for (final row in reversedHistory) {
+      final px = (row['jumlah_liter_pertamax'] as num?)?.toDouble() ?? 0;
+      final dex = (row['jumlah_liter_dex'] as num?)?.toDouble() ?? 0;
+      final sumber = row['sumber'] as String? ?? '';
+
+      if (sumber == 'PENERIMAAN') {
+        currentPx += px;
+        currentDex += dex;
+      } else {
+        currentPx = px;
+        currentDex = dex;
+      }
+    }
+
+    setState(() {
+      _stokFisikPertamax = currentPx;
+      _stokFisikDex = currentDex;
+    });
   }
 
   @override
@@ -94,6 +136,9 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
     );
 
     if (!mounted) return;
+
+    // Refresh data KuponProvider agar stokSistem terupdate di grafik
+    await context.read<KuponProvider>().fetchAllKuponsUnfiltered();
 
     // 3. Update state lokal untuk langsung merefleksikan perubahan Stok Fisik di Grafik UI
     setState(() {
@@ -570,7 +615,7 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
                 const SizedBox(height: 20),
                 _buildPenerimaanSection(),
                 const SizedBox(height: 20),
-                _buildHistoryTable(),
+                _buildHistoryTable(stokSistemPx, stokSistemDex),
                 const SizedBox(height: 20),
                 _buildTrendChart(),
               ],
@@ -1156,7 +1201,7 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
     );
   }
 
-  Widget _buildHistoryTable() {
+  Widget _buildHistoryTable(double stokSistemPx, double stokSistemDex) {
     return Consumer<StokOpnameController>(
       builder: (context, lp, _) {
         final history = lp.stokHistory;
@@ -1178,8 +1223,24 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
         // Kalkulasi Saldo Berjalan (Running Balance) dari yang terlama ke yang terbaru
         final List<Map<String, dynamic>> reversedHistory = history.reversed
             .toList();
+        
         double currentPx = 0;
         double currentDex = 0;
+
+        // Cek apakah ada STOK OPNAME di history
+        final hasStokOpname = reversedHistory.any((r) => r['sumber'] != 'PENERIMAAN');
+        
+        if (!hasStokOpname) {
+          // Jika belum ada STOK OPNAME, anggap stok awal adalah (CURRENT Stok Sistem - TOTAL Penerimaan)
+          final totalPenerimaanPx = reversedHistory.fold(0.0, (sum, r) => sum + ((r['jumlah_liter_pertamax'] as num?)?.toDouble() ?? 0));
+          final totalPenerimaanDex = reversedHistory.fold(0.0, (sum, r) => sum + ((r['jumlah_liter_dex'] as num?)?.toDouble() ?? 0));
+          
+          currentPx = stokSistemPx - totalPenerimaanPx;
+          currentDex = stokSistemDex - totalPenerimaanDex;
+          
+          if (currentPx < 0) currentPx = 0;
+          if (currentDex < 0) currentDex = 0;
+        }
 
         List<Map<String, dynamic>> processedHistory = [];
 

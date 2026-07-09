@@ -2,7 +2,9 @@
 ///
 /// Digunakan oleh [StokOpnameRepository] dan [StokOpnameController].
 /// Sebelumnya data ini hanya direpresentasikan sebagai `Map<String, dynamic>`.
+
 class StokOpnameEntity {
+  static const double ambangBatas = 3000.0;
   final int? id;
   final String tanggal;
   final double stokFisikPertamax;
@@ -26,7 +28,7 @@ class StokOpnameEntity {
   /// Konversi dari raw Map (hasil SQL query) ke Entity.
   factory StokOpnameEntity.fromMap(Map<String, dynamic> map) {
     return StokOpnameEntity(
-      id: map['id'] as int?,
+      id: map['id'] as int,
       tanggal: map['tanggal'] as String? ?? '',
       stokFisikPertamax:
           (map['stok_fisik_pertamax'] as num?)?.toDouble() ?? 0.0,
@@ -44,7 +46,7 @@ class StokOpnameEntity {
   /// Konversi ke raw Map untuk keperluan insert/update database.
   Map<String, dynamic> toMap() {
     return {
-      if (id != null) 'id': id,
+      'id': id,
       'tanggal': tanggal,
       'stok_fisik_pertamax': stokFisikPertamax,
       'stok_fisik_dex': stokFisikDex,
@@ -55,11 +57,13 @@ class StokOpnameEntity {
     };
   }
 
-  /// Stok sistem akhir pertamax (fisik - penerimaan = saldo bersih)
   double get selisihPertamax => stokFisikPertamax - stokSistemPertamax;
 
-  /// Stok sistem akhir dex (fisik - penerimaan = saldo bersih)
   double get selisihDex => stokFisikDex - stokSistemDex;
+
+  bool get isPertamaxRendah => stokFisikPertamax < ambangBatas;
+
+  bool get isDexRendah => stokFisikDex < ambangBatas;
 
   @override
   String toString() =>

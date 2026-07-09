@@ -7,7 +7,6 @@ export 'jenis_bbm_entity.dart';
 export 'kendaraan_entity.dart';
 export 'kupon_entity.dart';
 export 'laporan_entity.dart';
-export 'notification_entity.dart';
 export 'satker_dukungan_entity.dart';
 export 'satker_entity.dart';
 export 'stok_opname_entity.dart';

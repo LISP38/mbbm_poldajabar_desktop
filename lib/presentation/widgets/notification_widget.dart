@@ -1,49 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../providers/kupon_provider.dart';
+import '../providers/stok_opname_provider.dart';
 
-const double _kLowStockThreshold = 3000.0;
-
-List<_BbmAlert> _buildAlerts(KuponProvider provider) {
-  final allKupons = provider.allKuponsForDropdown;
-
-  final stokPertamax = allKupons
-      .where((k) => k.jenisBbmId == 1 && k.isDeleted == 0)
-      .fold(0.0, (sum, k) => sum + k.kuotaSisa);
-  final stokDex = allKupons
-      .where((k) => k.jenisBbmId == 2 && k.isDeleted == 0)
-      .fold(0.0, (sum, k) => sum + k.kuotaSisa);
-
-  final alerts = <_BbmAlert>[];
-  if (stokPertamax < _kLowStockThreshold) {
-    alerts.add(_BbmAlert(
-      bbmName: 'Pertamax',
-      stok: stokPertamax,
-      timestamp: DateTime.now(),
-    ));
-  }
-  if (stokDex < _kLowStockThreshold) {
-    alerts.add(_BbmAlert(
-      bbmName: 'Pertamina Dex',
-      stok: stokDex,
-      timestamp: DateTime.now(),
-    ));
-  }
-  return alerts;
-}
-
-class _BbmAlert {
-  final String bbmName;
-  final double stok;
-  final DateTime timestamp;
-  const _BbmAlert({
-    required this.bbmName,
-    required this.stok,
-    required this.timestamp,
-  });
-}
-
+/// Widget bel notifikasi yang menampilkan alert stok BBM di bawah ambang batas.
+///
+/// Notifikasi muncul otomatis ketika live stok fisik salah satu jenis BBM
+/// berada di bawah [StokOpnameEntity.AMBANG_BATAS] (3.000 liter).
+///
+/// Data diambil dari [StokOpnameController.getAlertsStokRendah()].
+/// Logika threshold didefinisikan di domain entity [StokOpnameEntity].
 class NotificationBellButton extends StatefulWidget {
   final VoidCallback onNavigateToStokOpname;
 
@@ -61,9 +27,9 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<KuponProvider>(
-      builder: (context, provider, _) {
-        final alerts = _buildAlerts(provider);
+    return Consumer<StokOpnameController>(
+      builder: (context, controller, _) {
+        final alerts = controller.getAlertsStokRendah();
         final hasAlerts = alerts.isNotEmpty;
 
         return Container(
@@ -75,7 +41,8 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
             clipBehavior: Clip.none,
             children: [
               IconButton(
-                icon: const Icon(Icons.notifications, color: Colors.white, size: 20),
+                icon: const Icon(Icons.notifications,
+                    color: Colors.white, size: 20),
                 onPressed: () {
                   setState(() => _hasUnread = false);
                   _showNotificationPanel(context, alerts);
@@ -102,7 +69,8 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
     );
   }
 
-  void _showNotificationPanel(BuildContext context, List<_BbmAlert> alerts) {
+  void _showNotificationPanel(
+      BuildContext context, List<Map<String, dynamic>> alerts) {
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
     final offset = renderBox.localToGlobal(Offset.zero);
     final size = renderBox.size;
@@ -116,7 +84,8 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
           children: [
             Positioned(
               top: offset.dy + size.height + 8,
-              right: MediaQuery.of(context).size.width - offset.dx - size.width,
+              right:
+                  MediaQuery.of(context).size.width - offset.dx - size.width,
               child: Material(
                 elevation: 8,
                 borderRadius: BorderRadius.circular(12),
@@ -137,7 +106,7 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
 }
 
 class _NotificationPanel extends StatelessWidget {
-  final List<_BbmAlert> alerts;
+  final List<Map<String, dynamic>> alerts;
   final VoidCallback onNavigateToStokOpname;
 
   const _NotificationPanel({
@@ -160,7 +129,8 @@ class _NotificationPanel extends StatelessWidget {
         children: [
           // Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: Colors.grey.shade100,
               borderRadius:
@@ -179,8 +149,8 @@ class _NotificationPanel extends StatelessWidget {
                 const Spacer(),
                 if (alerts.isNotEmpty)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.red.shade600,
                       borderRadius: BorderRadius.circular(12),
@@ -188,9 +158,10 @@ class _NotificationPanel extends StatelessWidget {
                     child: Text(
                       '${alerts.length}',
                       style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600),
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
               ],
@@ -233,16 +204,21 @@ class _NotificationPanel extends StatelessWidget {
 }
 
 class _AlertCard extends StatelessWidget {
-  final _BbmAlert alert;
+  final Map<String, dynamic> alert;
   final VoidCallback onInputStok;
 
   const _AlertCard({required this.alert, required this.onInputStok});
 
   @override
   Widget build(BuildContext context) {
-    final formattedStok = NumberFormat('#,##0', 'id_ID').format(alert.stok.toInt());
+    final String jenis = alert['jenis'] as String;
+    final double stok = alert['stok'] as double;
+    final DateTime timestamp = alert['timestamp'] as DateTime;
+
+    final formattedStok =
+        NumberFormat('#,##0', 'id_ID').format(stok.toInt());
     final formattedTime =
-        DateFormat('d MMM yyyy HH:mm', 'id_ID').format(alert.timestamp);
+        DateFormat('d MMM yyyy HH:mm', 'id_ID').format(timestamp);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -270,7 +246,7 @@ class _AlertCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Stok ${alert.bbmName} di bawah ambang batas',
+                  'Stok $jenis di bawah ambang batas',
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -279,7 +255,7 @@ class _AlertCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Stok ${alert.bbmName} saat ini $formattedStok Liter',
+                  'Stok $jenis saat ini $formattedStok Liter',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey.shade600,

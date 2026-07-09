@@ -22,8 +22,6 @@ import 'package:kupon_bbm_app/domain/repositories/stok_opname_repository.dart';
 import 'package:kupon_bbm_app/presentation/providers/stok_opname_provider.dart';
 import 'package:kupon_bbm_app/domain/repositories/generate_kupon_repository.dart';
 import 'package:kupon_bbm_app/presentation/providers/generate_kupon_provider.dart';
-import 'package:kupon_bbm_app/domain/repositories/notification_repository.dart';
-import 'package:kupon_bbm_app/presentation/providers/notification_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -81,9 +79,6 @@ void main() async {
         ),
         ChangeNotifierProvider(
           create: (_) => GenerateKuponController(getIt<GenerateKuponRepository>()),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => NotificationController(getIt<NotificationRepository>()),
         ),
       ],
       child: const MyApp(),

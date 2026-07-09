@@ -14,6 +14,7 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
   JenisLaporan _jenisLaporan = JenisLaporan.harian;
   DateTime _tanggalMulai = DateTime.now();
   DateTime _tanggalSelesai = DateTime.now();
+  Set<int> _selectedWeekIndices = {};
 
   // Untuk bulanan – hanya perlu bulan & tahun
   DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
@@ -195,6 +196,9 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
           jenisLaporan: _jenisLaporan,
           tanggalMulai: _tanggalMulai,
           tanggalSelesai: _tanggalSelesai,
+          selectedWeekIndices: _jenisLaporan == JenisLaporan.mingguan 
+              ? _selectedWeekIndices.toList() 
+              : null,
         );
 
     if (!mounted) return;
@@ -258,10 +262,6 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
                   child: _buildPeriodSelector(),
                 ),
                 const SizedBox(height: 16),
-
-                // ── Info ───────────────────────────────────────────────────
-                _buildInfoBox(),
-                const SizedBox(height: 24),
 
                 // ── Tombol Generate ────────────────────────────────────────
                 SizedBox(
@@ -420,28 +420,146 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
   }
 
   Widget _buildPeriodMingguan() {
+    final weeks = LaporanController.getWeeksOfMonth(_selectedMonth.year, _selectedMonth.month);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Row(
+          children: [
+            const Text('Pilih Bulan/Tahun'),
+            const SizedBox(width: 12),
+            InkWell(
+              onTap: _pickMonth,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Text(_monthFormat.format(_selectedMonth)),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.keyboard_arrow_down, size: 20),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: [
-            _presetBtn('Minggu Ini', _setMingguIni),
-            _presetBtn('Bulan Ini', _setBulanIni),
-            _outlineBtn('Pilih Range Per Minggu', Icons.date_range_outlined, _pickWeekRange),
-          ],
+          children: List.generate(weeks.length, (index) {
+            final week = weeks[index];
+            final isSelected = _selectedWeekIndices.contains(index);
+            final df = DateFormat('d MMM yyyy', 'id_ID');
+            final dfDay = DateFormat('d');
+            
+            String dateRangeStr;
+            if (week.start.month == week.end.month) {
+              dateRangeStr = '${dfDay.format(week.start)} - ${df.format(week.end)}';
+            } else {
+              dateRangeStr = '${DateFormat('d MMM', 'id_ID').format(week.start)} - ${df.format(week.end)}';
+            }
+
+            return InkWell(
+              onTap: () {
+                setState(() {
+                  if (isSelected) {
+                    _selectedWeekIndices.remove(index);
+                  } else {
+                    _selectedWeekIndices.add(index);
+                  }
+                });
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: 130,
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFF1E3A5F) : Colors.white,
+                  border: Border.all(
+                    color: isSelected ? const Color(0xFF1E3A5F) : Colors.grey.shade300,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.date_range,
+                      color: isSelected ? Colors.white : Colors.grey.shade700,
+                      size: 20,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Minggu ${index + 1}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: isSelected ? Colors.white : const Color(0xFF1E293B),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      dateRangeStr,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isSelected ? Colors.white70 : Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Text(
-          'Range akan di-snap ke batas Senin–Minggu.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+          'Rentang tanggal dipangkas ke batas bulan (Senin–Minggu atau awal/akhir bulan)',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
         ),
-        const SizedBox(height: 8),
-        _buildDateDisplay(
-            '${_dateFormat.format(_tanggalMulai)}  →  ${_dateFormat.format(_tanggalSelesai)}'),
+        if (_selectedWeekIndices.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _buildSelectedWeeksSummary(weeks),
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ]
       ],
     );
+  }
+
+  String _buildSelectedWeeksSummary(List<({DateTime start, DateTime end})> weeks) {
+    if (_selectedWeekIndices.isEmpty) return 'Tidak ada minggu yang dipilih';
+    
+    final sortedIndices = _selectedWeekIndices.toList()..sort();
+    final df = DateFormat('d MMMM yyyy', 'id_ID');
+    
+    // Ambil start dari minggu pertama yang dipilih, end dari minggu terakhir yang dipilih
+    final firstWeek = weeks[sortedIndices.first];
+    final lastWeek = weeks[sortedIndices.last];
+    
+    String prefix = sortedIndices.map((i) => 'W${i + 1}').join(', ');
+    
+    return '$prefix | ${df.format(firstWeek.start)} → ${df.format(lastWeek.end)}';
   }
 
   Widget _buildPeriodBulanan() {
@@ -518,68 +636,15 @@ class _GenerateLaporanPageState extends State<GenerateLaporanPage> {
       ),
     );
   }
+}
 
-  // ── Info box ──────────────────────────────────────────────────────────────
-  Widget _buildInfoBox() {
-    final (templateName, csvName) = switch (_jenisLaporan) {
-      JenisLaporan.harian => ('LAPORAN HARIAN.docx', 'data_laporan_harian.csv'),
-      JenisLaporan.mingguan => ('BLANKO LAPORAN MINGGUAN.docx', 'data_laporan_mingguan.csv'),
-      JenisLaporan.bulanan => ('BLANKO LAPORAN BULANAN.docx', 'data_laporan_bulanan.csv'),
-      JenisLaporan.rekapitulasiHarian => ('REKAPITULASI HARIAN.docx', 'data_laporan_harian.csv'),
-    };
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
-              const SizedBox(width: 6),
-              Text('Cara Kerja',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 13, color: Colors.blue.shade800)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _infoRow('1', 'Penerimaan BBM diambil otomatis dari data Input Stok Opname'),
-          _infoRow('2', 'Pengeluaran dihitung dari transaksi dalam periode yang dipilih'),
-          _infoRow('3', 'CSV di-overwrite: static/templates/laporan/$csvName'),
-          _infoRow('4', 'Template Word dibuka: $templateName'),
-          _infoRow('5', 'Di Word: Mailings → Finish & Merge → Print Documents'),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoRow(String num, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 18,
-            height: 18,
-            margin: const EdgeInsets.only(right: 8, top: 1),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade700,
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(num,
-                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
-            ),
-          ),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: Colors.blue.shade900))),
-        ],
-      ),
-    );
+class HolidayUtils {
+  /// Mengecek apakah suatu tanggal adalah hari kerja (Senin - Jumat).
+  /// Mengabaikan tanggal merah, hanya mengecualikan akhir pekan (Sabtu/Minggu).
+  static bool isWorkingDay(DateTime date) {
+    if (date.weekday == DateTime.saturday || date.weekday == DateTime.sunday) {
+      return false;
+    }
+    return true;
   }
 }

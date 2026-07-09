@@ -8,6 +8,5 @@ export 'generate_kupon_provider.dart';
 export 'kupon_provider.dart';
 export 'laporan_provider.dart';
 export 'master_data_provider.dart';
-export 'notification_provider.dart';
 export 'stok_opname_provider.dart';
 export 'transaksi_provider.dart';
