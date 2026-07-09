@@ -193,16 +193,15 @@ class AlokasiProvider extends ChangeNotifier {
       _hariKerjaList = futures[3] as List<HariKerjaEntity>;
       _dipa = futures[4] as double;
 
-      // Auto-count vehicles from kendaraan on first load
-      if (_kategoriList.every((k) => k.jumlahKendaraan == 0)) {
-        for (final cat in _kategoriList) {
-          final count = await _kendaraanRepository.getActiveVehicleCountByCategory(cat.kategoriId);
-          if (count >= 0) {
-            await _repository.updateKendaraanKategoriCount(cat.kategoriId, count);
-          }
+      // Auto-count vehicles from kendaraan on every load to ensure it reflects Master Data
+      for (final cat in _kategoriList) {
+        final count = await _kendaraanRepository
+            .getActiveVehicleCountByCategory(cat.kategoriId);
+        if (count >= 0 && count != cat.jumlahKendaraan) {
+          await _repository.updateKendaraanKategoriCount(cat.kategoriId, count);
         }
-        _kategoriList = await _repository.getKendaraanKategori();
       }
+      _kategoriList = await _repository.getKendaraanKategori();
     } catch (e) {
       _errorMessage = e.toString();
       debugPrint('❌ AlokasiProvider.initialize error: $e');
