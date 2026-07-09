@@ -81,26 +81,26 @@ class _DistribusiKuponDialogState extends State<DistribusiKuponDialog> {
                   ),
                   Column(
                     children: [
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          provider.autoBulatkanKupon();
-                        },
-                        icon: const Icon(Icons.auto_fix_high, size: 14),
-                        label: const Text(
-                          'Auto-Bulatkan',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF335092),
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(140, 36),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                      //     ElevatedButton.icon(
+                      //       onPressed: () {
+                      //         provider.autoBulatkanKupon();
+                      //       },
+                      //       icon: const Icon(Icons.auto_fix_high, size: 14),
+                      //       label: const Text(
+                      //         'Auto-Bulatkan',
+                      //         style: TextStyle(fontSize: 12),
+                      //       ),
+                      //       style: ElevatedButton.styleFrom(
+                      //         backgroundColor: const Color(0xFF335092),
+                      //         foregroundColor: Colors.white,
+                      //         minimumSize: const Size(140, 36),
+                      //         padding: const EdgeInsets.symmetric(horizontal: 12),
+                      //         shape: RoundedRectangleBorder(
+                      //           borderRadius: BorderRadius.circular(8),
+                      //         ),
+                      //       ),
+                      //     ),
+                      //     const SizedBox(height: 8),
                       ElevatedButton.icon(
                         onPressed: () {
                           _showKonversiDialog(context, provider);
