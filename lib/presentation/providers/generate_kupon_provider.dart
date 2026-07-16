@@ -60,6 +60,11 @@ class GenerateKuponController extends ChangeNotifier {
       return 'Pilih setidaknya satu kupon untuk di-generate';
     }
 
+    final uniqueKeys = kupons.map((k) => k.kuponId).toSet();
+    if (uniqueKeys.length != kupons.length) {
+      return 'Terdapat kupon duplikat dalam pilihan';
+    }
+
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
