@@ -207,7 +207,7 @@ class AlokasiProvider extends ChangeNotifier {
       debugPrint('❌ AlokasiProvider.initialize error: $e');
     } finally {
       _isLoading = false;
-      notifyListeners();
+      notifyListeners();  
     }
   }
 
