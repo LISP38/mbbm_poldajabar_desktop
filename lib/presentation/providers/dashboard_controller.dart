@@ -29,44 +29,44 @@ class DashboardController extends ChangeNotifier {
   List<SatkerChartModel> kuponCadangan = [];
 
   Future<void> loadDashboard() async {
-
     isLoading = true;
     notifyListeners();
 
-    final mulai = tanggalMulai ?? DateTime(2000);
-    final akhir = tanggalAkhir ?? DateTime(2100);
+    try {
+      final mulai = tanggalMulai ?? DateTime(2000);
+      final akhir = tanggalAkhir ?? DateTime(2100);
 
-    stokBbm = await repository.getStokBbm(
-      mulai,
-      akhir,
-    );
+      stokBbm = await repository.getStokBbm(
+        mulai,
+        akhir,
+      );
 
-    transaksiHarian =
-        await repository.getTransaksiHarian(
-      mulai,
-      akhir,
-    );
+      transaksiHarian = await repository.getTransaksiHarian(
+        mulai,
+        akhir,
+      );
 
-    polaBelanja =
-        await repository.getPolaBelanja(
-      mulai,
-      akhir,
-    );
+      polaBelanja = await repository.getPolaBelanja(
+        mulai,
+        akhir,
+      );
 
-    penyerapanSatker =
-        await repository.getPenyerapanSatker(
-      mulai,
-      akhir,
-    );
+      penyerapanSatker = await repository.getPenyerapanSatker(
+        mulai,
+        akhir,
+      );
 
-    kuponCadangan =
-        await repository.getKuponCadangan(
-      mulai,
-      akhir,
-    );
-
-    isLoading = false;
-    notifyListeners();
+      kuponCadangan = await repository.getKuponCadangan(
+        mulai,
+        akhir,
+      );
+    } catch (e, stack) {
+      debugPrint('Error loading dashboard: $e');
+      debugPrint(stack.toString());
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> updatePeriode(

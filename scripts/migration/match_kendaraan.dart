@@ -17,7 +17,9 @@ void main() {
 
   db.execute('DELETE FROM alokasi_kendaraan_kategori');
 
-  final stmt = db.prepare('INSERT INTO alokasi_kendaraan_kategori (nama_kategori, jenis_bbm, is_pju, jumlah_kendaraan) VALUES (?, ?, ?, 0)');
+  final stmt = db.prepare(
+    'INSERT INTO alokasi_kendaraan_kategori (nama_kategori, jenis_bbm, is_pju, jumlah_kendaraan) VALUES (?, ?, ?, 0)',
+  );
   for (final bbm in ['PX', 'PDX']) {
     for (final c in categories) {
       stmt.execute(["${c['nama']} ($bbm)", bbm, c['is_pju']]);
@@ -26,24 +28,27 @@ void main() {
   stmt.dispose();
 
   // Load categories map
-  final katRows = db.select('SELECT kategori_id, nama_kategori, jenis_bbm FROM alokasi_kendaraan_kategori');
+  final katRows = db.select(
+    'SELECT kategori_id, nama_kategori, jenis_bbm FROM alokasi_kendaraan_kategori',
+  );
   final katMap = <String, int>{};
   for (final row in katRows) {
-    katMap['${row['nama_kategori']}_${row['jenis_bbm']}'] = row['kategori_id'] as int;
+    katMap['${row['nama_kategori']}_${row['jenis_bbm']}'] =
+        row['kategori_id'] as int;
   }
 
   String getKategori(String jenisRanmor, String keterangan) {
     if (keterangan.trim().toUpperCase() == 'PJU') return 'R4 PJU';
-    
+
     jenisRanmor = jenisRanmor.trim().toUpperCase();
     if (jenisRanmor == 'AMBULANCE') return 'R4 AMBULANCE';
-    
+
     bool isR2 = jenisRanmor.contains('MOTOR');
     bool isR6 = ['BUS', 'TRUCK', 'TRUCK BOX', 'TANGKI'].contains(jenisRanmor);
     // Note: treating MINI BUS as R4 based on common sense
-    
+
     if (isR2) return 'R2 MOTOR';
-    
+
     String jenis = keterangan.trim().toUpperCase() == 'OPS' ? 'OPS' : 'STAF';
     return isR6 ? 'R6 $jenis' : 'R4 $jenis';
   }
@@ -602,27 +607,27 @@ void main() {
       if (line.trim().isEmpty) continue;
       final parts = line.split('|').map((e) => e.trim()).toList();
       if (parts.length < 7) continue;
-      
+
       final jenisRanmor = parts[1];
       final noPol = parts[2];
       final satker = parts[3];
       final ketR4 = parts[4];
       final ketR2 = parts[5];
       final keterangan = parts[6];
-      
+
       final categoryName = "${getKategori(jenisRanmor, keterangan)} ($bbm)";
       final key = "${categoryName}_$bbm";
       final categoryId = katMap[key];
-      
+
       if (categoryId == null) {
         print('Category ID not found for $key');
         continue;
       }
-      
+
       // Update database matching by no_pol_nomor
       db.execute(
         'UPDATE kendaraan SET kategori_id = ? WHERE no_pol_nomor = ?',
-        [categoryId, noPol]
+        [categoryId, noPol],
       );
     }
   }
@@ -632,14 +637,16 @@ void main() {
 
   // After updating, recalculate alokasi_kendaraan_kategori.jumlah_kendaraan
   for (final catId in katMap.values) {
-    final count = db.select(
-      'SELECT COUNT(*) as cnt FROM kendaraan WHERE kategori_id = ? AND status_aktif = 1',
-      [catId]
-    ).first['cnt'] as int;
-    
+    final count =
+        db.select(
+              'SELECT COUNT(*) as cnt FROM kendaraan WHERE kategori_id = ? AND status_aktif = 1',
+              [catId],
+            ).first['cnt']
+            as int;
+
     db.execute(
       'UPDATE alokasi_kendaraan_kategori SET jumlah_kendaraan = ? WHERE kategori_id = ?',
-      [count, catId]
+      [count, catId],
     );
   }
 

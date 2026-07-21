@@ -298,7 +298,9 @@ class TransaksiRepositoryImpl implements TransaksiRepository {
       final where = <String>[];
       final args = <Variable>[];
 
-      where.add('(dk.kuota_awal + COALESCE(dk.tambahan_kuota, 0) - COALESCE(ft_sum.total_used, 0)) < 0');
+      where.add(
+        '(dk.kuota_awal + COALESCE(dk.tambahan_kuota, 0) - COALESCE(ft_sum.total_used, 0)) < 0',
+      );
       where.add('dk.is_current = 1');
       if (satker != null && satker.isNotEmpty) {
         where.add('ds.nama_satker = ?');

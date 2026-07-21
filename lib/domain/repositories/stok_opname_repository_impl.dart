@@ -130,7 +130,7 @@ class StokOpnameRepositoryImpl implements StokOpnameRepository {
   Future<List<Map<String, dynamic>>> getStokHistory() async {
     // Penerimaan records
     final penerimaan = await _db.customSelect(
-      '''SELECT tanggal, jumlah_liter_pertamax, jumlah_liter_dex,
+      '''SELECT id, tanggal, jumlah_liter_pertamax, jumlah_liter_dex,
                 keterangan, 'PENERIMAAN' AS sumber
          FROM penerimaan_bbm
          ORDER BY tanggal DESC, id DESC''',
@@ -138,7 +138,7 @@ class StokOpnameRepositoryImpl implements StokOpnameRepository {
 
     // Stok opname records
     final opname = await _db.customSelect(
-      '''SELECT tanggal, stok_fisik_pertamax AS jumlah_liter_pertamax,
+      '''SELECT id, tanggal, stok_fisik_pertamax AS jumlah_liter_pertamax,
                 stok_fisik_dex AS jumlah_liter_dex,
                 'INPUT STOK OPNAME' AS sumber
          FROM stok_opname
@@ -169,5 +169,15 @@ class StokOpnameRepositoryImpl implements StokOpnameRepository {
          LIMIT 20''',
     ).get();
     return result.map((r) => r.data).toList();
+  }
+
+  @override
+  Future<void> deletePenerimaanBbm(int id) async {
+    await _db.customStatement('DELETE FROM penerimaan_bbm WHERE id = ?', [Variable.withInt(id)]);
+  }
+
+  @override
+  Future<void> deleteStokOpname(int id) async {
+    await _db.customStatement('DELETE FROM stok_opname WHERE id = ?', [Variable.withInt(id)]);
   }
 }
