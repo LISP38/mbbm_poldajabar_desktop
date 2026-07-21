@@ -58,4 +58,12 @@ abstract class StokOpnameRepository {
 
   /// Mengambil trend stok fisik per tanggal stok opname (untuk grafik).
   Future<List<Map<String, dynamic>>> getStokTrend();
+
+  // ── Hapus Data ────────────────────────────────────────────────────────────
+
+  /// Menghapus data penerimaan BBM berdasarkan ID
+  Future<void> deletePenerimaanBbm(int id);
+
+  /// Menghapus data stok opname berdasarkan ID
+  Future<void> deleteStokOpname(int id);
 }

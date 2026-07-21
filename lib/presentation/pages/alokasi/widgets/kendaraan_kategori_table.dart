@@ -14,10 +14,12 @@ class KendaraanKategoriTable extends StatelessWidget {
         final categories = provider.kategoriList;
 
         // Group by fuel type
-        final pxCategories =
-            categories.where((c) => c.jenisBbm == 'PX').toList();
-        final pdxCategories =
-            categories.where((c) => c.jenisBbm == 'PDX').toList();
+        final pxCategories = categories
+            .where((c) => c.jenisBbm == 'PX')
+            .toList();
+        final pdxCategories = categories
+            .where((c) => c.jenisBbm == 'PDX')
+            .toList();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -32,7 +34,10 @@ class KendaraanKategoriTable extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: const Color(0xFF335092),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 14,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -43,83 +48,105 @@ class KendaraanKategoriTable extends StatelessWidget {
             const SizedBox(height: 12),
             Card(
               elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
               clipBehavior: Clip.antiAlias,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (categories.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(32.0),
+                      child: Center(
+                        child: Text('Belum ada data kategori kendaraan'),
+                      ),
+                    )
+                  else ...[
+                    // Table Header
+                    Container(
+                      color: const Color(0xFFF28C28), // AppTheme.primaryOrange
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 16,
+                      ),
+                      child: const Row(
+                        children: [
+                          Expanded(
+                            flex: 1,
+                            child: Text(
+                              'No',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              'Kategori Kendaraan',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              'Jenis BBM',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              'Jumlah Kendaraan',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              'Aksi',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
 
-              if (categories.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(32.0),
-                  child: Center(child: Text('Belum ada data kategori kendaraan')),
-                )
-              else ...[
-                // Table Header
-                Container(
-                  color: const Color(0xFFF28C28), // AppTheme.primaryOrange
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  child: const Row(
-                    children: [
-                      Expanded(
-                        flex: 1,
-                        child: Text('No',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13)),
-                      ),
-                      Expanded(
-                        flex: 3,
-                        child: Text('Kategori Kendaraan',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13)),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Text('Jenis BBM',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13)),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Text('Jumlah Kendaraan',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13)),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Text('Aksi',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13)),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Scrollable Data Rows
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+                    // Scrollable Data Rows
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
                         // Pertamax section
                         if (pxCategories.isNotEmpty) ...[
                           Container(
                             color: Colors.amber.shade50,
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 6,
+                              horizontal: 16,
+                            ),
                             child: Text(
                               'Pertamax (PX)',
                               style: TextStyle(
@@ -130,16 +157,23 @@ class KendaraanKategoriTable extends StatelessWidget {
                             ),
                           ),
                           ...pxCategories.asMap().entries.map(
-                                (e) => _buildRow(context, e.key + 1, e.value, provider),
-                              ),
+                            (e) => _buildRow(
+                              context,
+                              e.key + 1,
+                              e.value,
+                              provider,
+                            ),
+                          ),
                         ],
 
                         // Dexlite section
                         if (pdxCategories.isNotEmpty) ...[
                           Container(
                             color: Colors.green.shade50,
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 6,
+                              horizontal: 16,
+                            ),
                             child: Text(
                               'Pertamina Dex (PDX)',
                               style: TextStyle(
@@ -150,19 +184,22 @@ class KendaraanKategoriTable extends StatelessWidget {
                             ),
                           ),
                           ...pdxCategories.asMap().entries.map(
-                                (e) => _buildRow(
-                                    context,
-                                    pxCategories.length + e.key + 1,
-                                    e.value,
-                                    provider),
-                              ),
+                            (e) => _buildRow(
+                              context,
+                              pxCategories.length + e.key + 1,
+                              e.value,
+                              provider,
+                            ),
+                          ),
                         ],
 
                         // Total row
                         Container(
                           color: Colors.blue.shade50,
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                            horizontal: 16,
+                          ),
                           child: Row(
                             children: [
                               const Expanded(flex: 1, child: SizedBox()),
@@ -171,7 +208,9 @@ class KendaraanKategoriTable extends StatelessWidget {
                                 child: Text(
                                   'Total',
                                   style: TextStyle(
-                                      fontWeight: FontWeight.bold, fontSize: 14),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
                                 ),
                               ),
                               const Expanded(flex: 2, child: SizedBox()),
@@ -217,14 +256,8 @@ class KendaraanKategoriTable extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       child: Row(
         children: [
-          Expanded(
-            flex: 1,
-            child: Text('$no', textAlign: TextAlign.center),
-          ),
-          Expanded(
-            flex: 3,
-            child: Text(category.namaKategori),
-          ),
+          Expanded(flex: 1, child: Text('$no', textAlign: TextAlign.center)),
+          Expanded(flex: 3, child: Text(category.namaKategori)),
           Expanded(
             flex: 2,
             child: Text(
@@ -246,7 +279,11 @@ class KendaraanKategoriTable extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
-                  icon: Icon(Icons.edit, color: Colors.green.shade400, size: 20),
+                  icon: Icon(
+                    Icons.edit,
+                    color: Colors.green.shade400,
+                    size: 20,
+                  ),
                   onPressed: () => _showFormDialog(context, category, provider),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -254,7 +291,11 @@ class KendaraanKategoriTable extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  icon: Icon(Icons.delete, color: Colors.red.shade400, size: 20),
+                  icon: Icon(
+                    Icons.delete,
+                    color: Colors.red.shade400,
+                    size: 20,
+                  ),
                   onPressed: () => _confirmDelete(context, category, provider),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -275,10 +316,8 @@ class KendaraanKategoriTable extends StatelessWidget {
   ) {
     showDialog(
       context: context,
-      builder: (context) => _KategoriFormDialog(
-        category: category,
-        provider: provider,
-      ),
+      builder: (context) =>
+          _KategoriFormDialog(category: category, provider: provider),
     );
   }
 
@@ -291,7 +330,9 @@ class KendaraanKategoriTable extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Hapus Kategori?'),
-        content: Text('Apakah Anda yakin ingin menghapus kategori "${category.namaKategori}"?'),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus kategori "${category.namaKategori}"?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -315,10 +356,7 @@ class _KategoriFormDialog extends StatefulWidget {
   final KendaraanKategoriEntity? category;
   final AlokasiProvider provider;
 
-  const _KategoriFormDialog({
-    this.category,
-    required this.provider,
-  });
+  const _KategoriFormDialog({this.category, required this.provider});
 
   @override
   State<_KategoriFormDialog> createState() => _KategoriFormDialogState();
@@ -350,46 +388,12 @@ class _KategoriFormDialogState extends State<_KategoriFormDialog> {
     super.dispose();
   }
 
-  Widget _buildBbmPill(String jenisBbm) {
-    if (jenisBbm == 'PX') {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFF7D0),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: const Text(
-          'Pertamax (PX)',
-          style: TextStyle(
-            color: Color(0xFF964E00),
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-          ),
-        ),
-      );
-    } else {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.green.shade50,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Text(
-          'Pertamina Dex (PDX)',
-          style: TextStyle(
-            color: Colors.green.shade800,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-          ),
-        ),
-      );
-    }
-  }
+
 
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.category != null;
-    
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       backgroundColor: Colors.white,
@@ -409,7 +413,9 @@ class _KategoriFormDialogState extends State<_KategoriFormDialog> {
                 children: [
                   Expanded(
                     child: Text(
-                      isEdit ? 'Edit ${_namaController.text}' : 'Tambah Kategori',
+                      isEdit
+                          ? 'Edit ${_namaController.text}'
+                          : 'Tambah Kategori',
                       style: const TextStyle(
                         fontFamily: 'Mazzard',
                         fontSize: 20,
@@ -424,7 +430,11 @@ class _KategoriFormDialogState extends State<_KategoriFormDialog> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.close, color: Colors.grey, size: 20),
+                      icon: const Icon(
+                        Icons.close,
+                        color: Colors.grey,
+                        size: 20,
+                      ),
                       onPressed: () => Navigator.pop(context),
                       constraints: const BoxConstraints(),
                       padding: const EdgeInsets.all(8),
@@ -434,61 +444,66 @@ class _KategoriFormDialogState extends State<_KategoriFormDialog> {
               ),
             ),
             Divider(height: 1, color: Colors.grey.shade200),
-            
+
             // Content
             Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (isEdit) ...[
-                    _buildBbmPill(_jenisBbm),
-                    const SizedBox(height: 20),
-                  ],
-                  if (!isEdit) ...[
-                    const Text(
-                      'Nama Kategori',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black54,
-                        fontSize: 13,
+                  const Text(
+                    'Nama Kategori',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black54,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _namaController,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _namaController,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Jenis BBM',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black54,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: _jenisBbm,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Jenis BBM',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black54,
-                        fontSize: 13,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'PX',
+                        child: Text('Pertamax (PX)'),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      value: _jenisBbm,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      DropdownMenuItem(
+                        value: 'PDX',
+                        child: Text('Pertamina Dex (PDX)'),
                       ),
-                      items: const [
-                        DropdownMenuItem(value: 'PX', child: Text('Pertamax (PX)')),
-                        DropdownMenuItem(value: 'PDX', child: Text('Pertamina Dex (PDX)')),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) setState(() => _jenisBbm = val);
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setState(() => _jenisBbm = val);
+                    },
+                  ),
+                  const SizedBox(height: 16),
                   const Text(
                     'Jumlah Kendaraan',
                     style: TextStyle(
@@ -501,38 +516,40 @@ class _KategoriFormDialogState extends State<_KategoriFormDialog> {
                   TextField(
                     controller: _jumlahController,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      fillColor: Colors.grey.shade100,
+                      filled: true,
+                      hintText: 'Otomatis dihitung dari Master Data',
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Perubahan akan langsung mempengaruhi perhitungan alokasi BBM.',
-                    style: TextStyle(
-                      color: Colors.grey.shade500,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
                   ),
-                  
-                  if (!isEdit) ...[
-                    const SizedBox(height: 16),
-                    CheckboxListTile(
-                      title: const Text('Tandai sebagai PJU'),
-                      value: _isPju,
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      onChanged: (val) {
-                        if (val != null) setState(() => _isPju = val);
-                      },
-                    ),
-                  ],
+
+                  const SizedBox(height: 16),
+                  CheckboxListTile(
+                    title: const Text('Tandai sebagai PJU'),
+                    value: _isPju,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    onChanged: (val) {
+                      if (val != null) setState(() => _isPju = val);
+                    },
+                  ),
                 ],
               ),
             ),
-            
+
             Divider(height: 1, color: Colors.grey.shade200),
-            
+
             // Actions
             Padding(
               padding: const EdgeInsets.all(24),
@@ -562,18 +579,23 @@ class _KategoriFormDialogState extends State<_KategoriFormDialog> {
                     child: ElevatedButton(
                       onPressed: () {
                         final nama = _namaController.text.trim();
-                        final jumlah = int.tryParse(_jumlahController.text) ?? 0;
-                        
+                        final jumlah =
+                            int.tryParse(_jumlahController.text) ?? 0;
+
                         if (!isEdit && nama.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Nama kategori tidak boleh kosong')),
+                            const SnackBar(
+                              content: Text('Nama kategori tidak boleh kosong'),
+                            ),
                           );
                           return;
                         }
 
                         final entity = KendaraanKategoriEntity(
                           kategoriId: widget.category?.kategoriId ?? 0,
-                          namaKategori: isEdit ? widget.category!.namaKategori : nama,
+                          namaKategori: isEdit
+                              ? widget.category!.namaKategori
+                              : nama,
                           jenisBbm: _jenisBbm,
                           isPju: _isPju,
                           jumlahKendaraan: jumlah,
@@ -584,7 +606,7 @@ class _KategoriFormDialogState extends State<_KategoriFormDialog> {
                         } else {
                           widget.provider.addKendaraanKategori(entity);
                         }
-                        
+
                         Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(

@@ -63,10 +63,19 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
     double currentPx = 0;
     double currentDex = 0;
 
-    final hasStokOpname = reversedHistory.any((r) => r['sumber'] != 'PENERIMAAN');
+    final hasStokOpname = reversedHistory.any(
+      (r) => r['sumber'] != 'PENERIMAAN',
+    );
     if (!hasStokOpname) {
-      final totalPenerimaanPx = reversedHistory.fold(0.0, (sum, r) => sum + ((r['jumlah_liter_pertamax'] as num?)?.toDouble() ?? 0));
-      final totalPenerimaanDex = reversedHistory.fold(0.0, (sum, r) => sum + ((r['jumlah_liter_dex'] as num?)?.toDouble() ?? 0));
+      final totalPenerimaanPx = reversedHistory.fold(
+        0.0,
+        (sum, r) =>
+            sum + ((r['jumlah_liter_pertamax'] as num?)?.toDouble() ?? 0),
+      );
+      final totalPenerimaanDex = reversedHistory.fold(
+        0.0,
+        (sum, r) => sum + ((r['jumlah_liter_dex'] as num?)?.toDouble() ?? 0),
+      );
       currentPx = stokSistemPx - totalPenerimaanPx;
       currentDex = stokSistemDex - totalPenerimaanDex;
       if (currentPx < 0) currentPx = 0;
@@ -130,10 +139,10 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
     );
 
     // 2. Tambahkan penerimaan ke Stok Sistem (Kuota aktif di database)
-    await context.read<GenerateKuponController>().tambahStokSistemDariPenerimaan(
-      penerimaanPx: px,
-      penerimaanDex: dex,
-    );
+    // await context.read<GenerateKuponController>().tambahStokSistemDariPenerimaan(
+    //   penerimaanPx: px,
+    //   penerimaanDex: dex,
+    // );
 
     if (!mounted) return;
 
@@ -441,10 +450,12 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
 
               try {
                 // Eksekusi perubahan ke SQLite melalui method Provider yang telah dibuat sebelumnya
-                await context.read<GenerateKuponController>().adjustStokSistemToFisik(
-                  targetFisikPx: fisikPx,
-                  targetFisikDex: fisikDex,
-                );
+                await context
+                    .read<GenerateKuponController>()
+                    .adjustStokSistemToFisik(
+                      targetFisikPx: fisikPx,
+                      targetFisikDex: fisikDex,
+                    );
 
                 if (!mounted) return;
                 Navigator.pop(context); // Tutup loading indicator
@@ -636,10 +647,10 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
   }) {
     final lastOpname = context.watch<StokOpnameController>().lastStokOpname;
     final tanggalLabel = lastOpname != null
-        ? DateFormat('d MMMM yyyy', 'id_ID').format(
-            DateTime.tryParse(lastOpname.tanggal) ??
-                DateTime.now(),
-          )
+        ? DateFormat(
+            'd MMMM yyyy',
+            'id_ID',
+          ).format(DateTime.tryParse(lastOpname.tanggal) ?? DateTime.now())
         : DateFormat('d MMMM yyyy', 'id_ID').format(DateTime.now());
 
     return Container(
@@ -1223,21 +1234,31 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
         // Kalkulasi Saldo Berjalan (Running Balance) dari yang terlama ke yang terbaru
         final List<Map<String, dynamic>> reversedHistory = history.reversed
             .toList();
-        
+
         double currentPx = 0;
         double currentDex = 0;
 
         // Cek apakah ada STOK OPNAME di history
-        final hasStokOpname = reversedHistory.any((r) => r['sumber'] != 'PENERIMAAN');
-        
+        final hasStokOpname = reversedHistory.any(
+          (r) => r['sumber'] != 'PENERIMAAN',
+        );
+
         if (!hasStokOpname) {
           // Jika belum ada STOK OPNAME, anggap stok awal adalah (CURRENT Stok Sistem - TOTAL Penerimaan)
-          final totalPenerimaanPx = reversedHistory.fold(0.0, (sum, r) => sum + ((r['jumlah_liter_pertamax'] as num?)?.toDouble() ?? 0));
-          final totalPenerimaanDex = reversedHistory.fold(0.0, (sum, r) => sum + ((r['jumlah_liter_dex'] as num?)?.toDouble() ?? 0));
-          
+          final totalPenerimaanPx = reversedHistory.fold(
+            0.0,
+            (sum, r) =>
+                sum + ((r['jumlah_liter_pertamax'] as num?)?.toDouble() ?? 0),
+          );
+          final totalPenerimaanDex = reversedHistory.fold(
+            0.0,
+            (sum, r) =>
+                sum + ((r['jumlah_liter_dex'] as num?)?.toDouble() ?? 0),
+          );
+
           currentPx = stokSistemPx - totalPenerimaanPx;
           currentDex = stokSistemDex - totalPenerimaanDex;
-          
+
           if (currentPx < 0) currentPx = 0;
           if (currentDex < 0) currentDex = 0;
         }
@@ -1278,11 +1299,13 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
               _headerCell('JENIS BBM'),
               _headerCell('JUMLAH LITER'),
               _headerCell('DI RECORD BERDASARKAN'),
+              _headerCell('AKSI'),
             ],
           ),
         ];
 
         for (final event in processedHistory) {
+          final id = event['id'] as int?;
           final tanggal = event['tanggal'] as String? ?? '';
           final sumber = event['sumber'] as String? ?? '';
           final hasilPx = event['hasil_px'] as double;
@@ -1325,6 +1348,49 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  child: id != null
+                      ? IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Konfirmasi Hapus'),
+                                content: Text('Apakah Anda yakin ingin menghapus data ${sumber.toLowerCase()} ini?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx),
+                                    child: const Text('Batal'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.pop(ctx);
+                                      if (isPenerimaan) {
+                                        context.read<StokOpnameController>().deletePenerimaan(id);
+                                      } else {
+                                        context.read<StokOpnameController>().deleteStokOpname(id);
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                    ),
+                                    child: const Text(
+                                      'Hapus',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),
@@ -1374,6 +1440,7 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
                   ),
                 ),
                 const SizedBox.shrink(),
+                const SizedBox.shrink(),
               ],
             ),
           );
@@ -1408,6 +1475,7 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
                     ),
                   ),
                 ),
+                const SizedBox.shrink(),
                 const SizedBox.shrink(),
               ],
             ),
@@ -1474,6 +1542,7 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
                     ),
                   ),
                 ),
+                const SizedBox.shrink(),
               ],
             ),
           );
@@ -1507,6 +1576,7 @@ class _InputStokOpnamePageState extends State<InputStokOpnamePage> {
                 1: FlexColumnWidth(3),
                 2: FlexColumnWidth(2),
                 3: FlexColumnWidth(3),
+                4: FlexColumnWidth(1),
               },
               children: rows,
             ),

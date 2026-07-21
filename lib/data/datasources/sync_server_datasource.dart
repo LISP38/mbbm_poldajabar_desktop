@@ -71,9 +71,25 @@ class SyncServerDatasource {
 
           final db = await _db.database;
           final batch = db.batch();
+          final List<String> syncedIds = [];
 
           int count = 0;
           for (var t in transactions) {
+            final transaksiId = t['transaksi_id'];
+            if (transaksiId == null) continue;
+
+            // Idempotency check: Have we saved this exact mobile transaction before?
+            final existing = await db.rawQuery(
+              'SELECT transaksi_id FROM transaksi WHERE mobile_transaksi_id = ? LIMIT 1',
+              [transaksiId],
+            );
+
+            if (existing.isNotEmpty) {
+              // Already exists, just ACK it so mobile deletes it
+              syncedIds.add(transaksiId);
+              continue;
+            }
+
             final jenisTransaksi = t['jenis_transaksi'] ?? 'Non-Hutang';
             final jumlahLiter = t['jumlah_liter'];
             final tanggalTransaksi = t['tanggal_transaksi'];
@@ -85,6 +101,7 @@ class SyncServerDatasource {
               final nopolText = t['nomor_kendaraan'];
 
               batch.insert('transaksi', {
+                'mobile_transaksi_id': transaksiId,
                 'jumlah_liter': jumlahLiter,
                 'tanggal_transaksi': tanggalTransaksi,
                 'jenis_transaksi': jenisTransaksi,
@@ -107,6 +124,7 @@ class SyncServerDatasource {
                 if (kuponResult.isNotEmpty) {
                   final row = kuponResult.first;
                   batch.insert('transaksi', {
+                    'mobile_transaksi_id': transaksiId,
                     'kupon_key': kuponKey,
                     'jumlah_liter': jumlahLiter,
                     'tanggal_transaksi': tanggalTransaksi,
@@ -120,6 +138,7 @@ class SyncServerDatasource {
                   });
                 } else {
                   batch.insert('transaksi', {
+                    'mobile_transaksi_id': transaksiId,
                     'kupon_key': kuponKey,
                     'jumlah_liter': jumlahLiter,
                     'tanggal_transaksi': tanggalTransaksi,
@@ -131,6 +150,7 @@ class SyncServerDatasource {
               } else {
                 // Fallback if kupon_key not provided
                 batch.insert('transaksi', {
+                  'mobile_transaksi_id': transaksiId,
                   'jumlah_liter': jumlahLiter,
                   'tanggal_transaksi': tanggalTransaksi,
                   'jenis_transaksi': jenisTransaksi,
@@ -139,13 +159,18 @@ class SyncServerDatasource {
                 });
               }
             }
+            syncedIds.add(transaksiId);
             count++;
           }
 
           await batch.commit(noResult: true);
 
           return Response.ok(
-            json.encode({'message': 'Synced $count transactions'}),
+            json.encode({
+              'success': true,
+              'message': 'Synced $count new transactions',
+              'synced_ids': syncedIds,
+            }),
           );
         } catch (e) {
           return Response.internalServerError(

@@ -33,6 +33,7 @@ class Transaksi extends Table {
   String get tableName => 'transaksi';
 
   IntColumn get transaksiId => integer().autoIncrement()();
+  TextColumn get mobileTransaksiId => text().nullable()();
   IntColumn get kuponKey => integer().nullable()();
   IntColumn get satkerId => integer().nullable()();
   IntColumn get kendaraanId => integer().nullable()();

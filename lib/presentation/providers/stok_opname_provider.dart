@@ -62,11 +62,7 @@ class StokOpnameController extends ChangeNotifier {
 
     // Gunakan konstanta dari entity — controller tidak mendefinisikan threshold sendiri
     if (_liveFisikPx < StokOpnameEntity.ambangBatas) {
-      alerts.add({
-        'jenis': 'Pertamax',
-        'stok': _liveFisikPx,
-        'timestamp': now,
-      });
+      alerts.add({'jenis': 'Pertamax', 'stok': _liveFisikPx, 'timestamp': now});
     }
     if (_liveFisikDex < StokOpnameEntity.ambangBatas) {
       alerts.add({
@@ -130,8 +126,7 @@ class StokOpnameController extends ChangeNotifier {
       return;
     }
 
-    final DateTime tglMulaiDate =
-        tglOpnameDate.add(const Duration(days: 1));
+    final DateTime tglMulaiDate = tglOpnameDate.add(const Duration(days: 1));
     final String tglMulai = fmt.format(tglMulaiDate);
     final String tglSelesai = fmt.format(
       DateTime.now().add(const Duration(days: 1)),
@@ -142,10 +137,14 @@ class StokOpnameController extends ChangeNotifier {
       _liveFisikPx = basePx;
       _liveFisikDex = baseDex;
     } else {
-      final double terimaPx =
-          await _repo.getPenerimaanPertamaxByPeriod(tglMulai, tglSelesai);
-      final double terimaDex =
-          await _repo.getPenerimaanDexByPeriod(tglMulai, tglSelesai);
+      final double terimaPx = await _repo.getPenerimaanPertamaxByPeriod(
+        tglMulai,
+        tglSelesai,
+      );
+      final double terimaDex = await _repo.getPenerimaanDexByPeriod(
+        tglMulai,
+        tglSelesai,
+      );
 
       // CATATAN: Pengeluaran (transaksi) tidak diakses di sini.
       // Untuk running balance lengkap, gunakan LaporanController.
@@ -223,6 +222,43 @@ class StokOpnameController extends ChangeNotifier {
         );
       }
 
+      _lastStokOpname = await _repo.getLastStokOpname();
+      await loadStokHistory();
+      await loadStokTrend();
+      await calculateLiveStokFisik();
+    } catch (e) {
+      _errorMessage = e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deletePenerimaan(int id) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _repo.deletePenerimaanBbm(id);
+      await loadStokHistory();
+      await loadStokTrend();
+      await calculateLiveStokFisik();
+    } catch (e) {
+      _errorMessage = e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteStokOpname(int id) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _repo.deleteStokOpname(id);
       _lastStokOpname = await _repo.getLastStokOpname();
       await loadStokHistory();
       await loadStokTrend();

@@ -81,26 +81,26 @@ class _DistribusiKuponDialogState extends State<DistribusiKuponDialog> {
                   ),
                   Column(
                     children: [
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          provider.autoBulatkanKupon();
-                        },
-                        icon: const Icon(Icons.auto_fix_high, size: 14),
-                        label: const Text(
-                          'Auto-Bulatkan',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF335092),
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(140, 36),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                      //     ElevatedButton.icon(
+                      //       onPressed: () {
+                      //         provider.autoBulatkanKupon();
+                      //       },
+                      //       icon: const Icon(Icons.auto_fix_high, size: 14),
+                      //       label: const Text(
+                      //         'Auto-Bulatkan',
+                      //         style: TextStyle(fontSize: 12),
+                      //       ),
+                      //       style: ElevatedButton.styleFrom(
+                      //         backgroundColor: const Color(0xFF335092),
+                      //         foregroundColor: Colors.white,
+                      //         minimumSize: const Size(140, 36),
+                      //         padding: const EdgeInsets.symmetric(horizontal: 12),
+                      //         shape: RoundedRectangleBorder(
+                      //           borderRadius: BorderRadius.circular(8),
+                      //         ),
+                      //       ),
+                      //     ),
+                      //     const SizedBox(height: 8),
                       ElevatedButton.icon(
                         onPressed: () {
                           _showKonversiDialog(context, provider);
@@ -498,6 +498,7 @@ class _KonversiSaldoDialog extends StatefulWidget {
 class _KonversiSaldoDialogState extends State<_KonversiSaldoDialog> {
   String _sourceBbm = 'PX';
   final TextEditingController _literController = TextEditingController();
+  String? _errorMsg;
 
   @override
   void dispose() {
@@ -557,6 +558,7 @@ class _KonversiSaldoDialogState extends State<_KonversiSaldoDialog> {
                 setState(() {
                   _sourceBbm = val;
                   _literController.clear();
+                  _errorMsg = null;
                 });
               }
             },
@@ -574,8 +576,21 @@ class _KonversiSaldoDialogState extends State<_KonversiSaldoDialog> {
               border: const OutlineInputBorder(),
               isDense: true,
             ),
-            onChanged: (val) => setState(() {}),
+            onChanged: (val) => setState(() {
+              _errorMsg = null;
+            }),
           ),
+          if (_errorMsg != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _errorMsg!,
+                style: const TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(12),
@@ -600,23 +615,32 @@ class _KonversiSaldoDialogState extends State<_KonversiSaldoDialog> {
           child: const Text('Batal'),
         ),
         ElevatedButton(
-          onPressed: literInput <= 0
-              ? null
-              : () {
-                  if (literInput > sisaSource) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Jumlah transfer melebihi Sisa Kupon BBM sumber.',
-                        ),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-                  widget.provider.transferSisaKupon(_sourceBbm, literInput);
-                  Navigator.pop(context);
-                },
+          onPressed: () {
+            final textVal = _literController.text.replaceAll(',', '.');
+            final liter = double.tryParse(textVal) ?? 0;
+
+            if (liter <= 0) {
+              setState(() {
+                _errorMsg = 'Masukkan jumlah liter yang valid (> 0).';
+              });
+              return;
+            }
+            if (liter > sisaSource) {
+              setState(() {
+                _errorMsg = 'Jumlah transfer melebihi Sisa Kupon BBM sumber.';
+              });
+              return;
+            }
+
+            try {
+              widget.provider.transferSisaKupon(_sourceBbm, liter);
+              Navigator.pop(context);
+            } catch (e) {
+              setState(() {
+                _errorMsg = 'Terjadi kesalahan sistem: $e';
+              });
+            }
+          },
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF335092),
             foregroundColor: Colors.white,

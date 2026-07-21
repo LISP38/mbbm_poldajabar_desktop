@@ -10,10 +10,12 @@ class KuponDao extends DatabaseAccessor<AppDatabase> with _$KuponDaoMixin {
 
   Future<List<KuponData>> getAllKupon() => select(this.kupon).get();
 
-  Future<KuponData?> getKuponByNomor(String nomor) =>
-      (select(this.kupon)..where((t) => t.nomorKupon.equals(nomor))).getSingleOrNull();
+  Future<KuponData?> getKuponByNomor(String nomor) => (select(
+    this.kupon,
+  )..where((t) => t.nomorKupon.equals(nomor))).getSingleOrNull();
 
-  Future<int> insertKupon(KuponCompanion entry) => into(kupon).insert(entry, mode: InsertMode.insertOrIgnore);
+  Future<int> insertKupon(KuponCompanion entry) =>
+      into(kupon).insert(entry, mode: InsertMode.insertOrIgnore);
 
   Future<int> deleteAllKupon() => delete(kupon).go();
 

@@ -2664,6 +2664,18 @@ class $TransaksiTable extends Transaksi
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
+  static const VerificationMeta _mobileTransaksiIdMeta = const VerificationMeta(
+    'mobileTransaksiId',
+  );
+  @override
+  late final GeneratedColumn<String> mobileTransaksiId =
+      GeneratedColumn<String>(
+        'mobile_transaksi_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _kuponKeyMeta = const VerificationMeta(
     'kuponKey',
   );
@@ -2858,6 +2870,7 @@ class $TransaksiTable extends Transaksi
   @override
   List<GeneratedColumn> get $columns => [
     transaksiId,
+    mobileTransaksiId,
     kuponKey,
     satkerId,
     kendaraanId,
@@ -2894,6 +2907,15 @@ class $TransaksiTable extends Transaksi
         transaksiId.isAcceptableOrUnknown(
           data['transaksi_id']!,
           _transaksiIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('mobile_transaksi_id')) {
+      context.handle(
+        _mobileTransaksiIdMeta,
+        mobileTransaksiId.isAcceptableOrUnknown(
+          data['mobile_transaksi_id']!,
+          _mobileTransaksiIdMeta,
         ),
       );
     }
@@ -3043,6 +3065,10 @@ class $TransaksiTable extends Transaksi
         DriftSqlType.int,
         data['${effectivePrefix}transaksi_id'],
       )!,
+      mobileTransaksiId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mobile_transaksi_id'],
+      ),
       kuponKey: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}kupon_key'],
@@ -3122,6 +3148,7 @@ class $TransaksiTable extends Transaksi
 
 class TransaksiData extends DataClass implements Insertable<TransaksiData> {
   final int transaksiId;
+  final String? mobileTransaksiId;
   final int? kuponKey;
   final int? satkerId;
   final int? kendaraanId;
@@ -3141,6 +3168,7 @@ class TransaksiData extends DataClass implements Insertable<TransaksiData> {
   final int? isDeleted;
   const TransaksiData({
     required this.transaksiId,
+    this.mobileTransaksiId,
     this.kuponKey,
     this.satkerId,
     this.kendaraanId,
@@ -3163,6 +3191,9 @@ class TransaksiData extends DataClass implements Insertable<TransaksiData> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['transaksi_id'] = Variable<int>(transaksiId);
+    if (!nullToAbsent || mobileTransaksiId != null) {
+      map['mobile_transaksi_id'] = Variable<String>(mobileTransaksiId);
+    }
     if (!nullToAbsent || kuponKey != null) {
       map['kupon_key'] = Variable<int>(kuponKey);
     }
@@ -3216,6 +3247,9 @@ class TransaksiData extends DataClass implements Insertable<TransaksiData> {
   TransaksiCompanion toCompanion(bool nullToAbsent) {
     return TransaksiCompanion(
       transaksiId: Value(transaksiId),
+      mobileTransaksiId: mobileTransaksiId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mobileTransaksiId),
       kuponKey: kuponKey == null && nullToAbsent
           ? const Value.absent()
           : Value(kuponKey),
@@ -3273,6 +3307,9 @@ class TransaksiData extends DataClass implements Insertable<TransaksiData> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return TransaksiData(
       transaksiId: serializer.fromJson<int>(json['transaksiId']),
+      mobileTransaksiId: serializer.fromJson<String?>(
+        json['mobileTransaksiId'],
+      ),
       kuponKey: serializer.fromJson<int?>(json['kuponKey']),
       satkerId: serializer.fromJson<int?>(json['satkerId']),
       kendaraanId: serializer.fromJson<int?>(json['kendaraanId']),
@@ -3299,6 +3336,7 @@ class TransaksiData extends DataClass implements Insertable<TransaksiData> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'transaksiId': serializer.toJson<int>(transaksiId),
+      'mobileTransaksiId': serializer.toJson<String?>(mobileTransaksiId),
       'kuponKey': serializer.toJson<int?>(kuponKey),
       'satkerId': serializer.toJson<int?>(satkerId),
       'kendaraanId': serializer.toJson<int?>(kendaraanId),
@@ -3321,6 +3359,7 @@ class TransaksiData extends DataClass implements Insertable<TransaksiData> {
 
   TransaksiData copyWith({
     int? transaksiId,
+    Value<String?> mobileTransaksiId = const Value.absent(),
     Value<int?> kuponKey = const Value.absent(),
     Value<int?> satkerId = const Value.absent(),
     Value<int?> kendaraanId = const Value.absent(),
@@ -3340,6 +3379,9 @@ class TransaksiData extends DataClass implements Insertable<TransaksiData> {
     Value<int?> isDeleted = const Value.absent(),
   }) => TransaksiData(
     transaksiId: transaksiId ?? this.transaksiId,
+    mobileTransaksiId: mobileTransaksiId.present
+        ? mobileTransaksiId.value
+        : this.mobileTransaksiId,
     kuponKey: kuponKey.present ? kuponKey.value : this.kuponKey,
     satkerId: satkerId.present ? satkerId.value : this.satkerId,
     kendaraanId: kendaraanId.present ? kendaraanId.value : this.kendaraanId,
@@ -3367,6 +3409,9 @@ class TransaksiData extends DataClass implements Insertable<TransaksiData> {
       transaksiId: data.transaksiId.present
           ? data.transaksiId.value
           : this.transaksiId,
+      mobileTransaksiId: data.mobileTransaksiId.present
+          ? data.mobileTransaksiId.value
+          : this.mobileTransaksiId,
       kuponKey: data.kuponKey.present ? data.kuponKey.value : this.kuponKey,
       satkerId: data.satkerId.present ? data.satkerId.value : this.satkerId,
       kendaraanId: data.kendaraanId.present
@@ -3411,6 +3456,7 @@ class TransaksiData extends DataClass implements Insertable<TransaksiData> {
   String toString() {
     return (StringBuffer('TransaksiData(')
           ..write('transaksiId: $transaksiId, ')
+          ..write('mobileTransaksiId: $mobileTransaksiId, ')
           ..write('kuponKey: $kuponKey, ')
           ..write('satkerId: $satkerId, ')
           ..write('kendaraanId: $kendaraanId, ')
@@ -3435,6 +3481,7 @@ class TransaksiData extends DataClass implements Insertable<TransaksiData> {
   @override
   int get hashCode => Object.hash(
     transaksiId,
+    mobileTransaksiId,
     kuponKey,
     satkerId,
     kendaraanId,
@@ -3458,6 +3505,7 @@ class TransaksiData extends DataClass implements Insertable<TransaksiData> {
       identical(this, other) ||
       (other is TransaksiData &&
           other.transaksiId == this.transaksiId &&
+          other.mobileTransaksiId == this.mobileTransaksiId &&
           other.kuponKey == this.kuponKey &&
           other.satkerId == this.satkerId &&
           other.kendaraanId == this.kendaraanId &&
@@ -3479,6 +3527,7 @@ class TransaksiData extends DataClass implements Insertable<TransaksiData> {
 
 class TransaksiCompanion extends UpdateCompanion<TransaksiData> {
   final Value<int> transaksiId;
+  final Value<String?> mobileTransaksiId;
   final Value<int?> kuponKey;
   final Value<int?> satkerId;
   final Value<int?> kendaraanId;
@@ -3498,6 +3547,7 @@ class TransaksiCompanion extends UpdateCompanion<TransaksiData> {
   final Value<int?> isDeleted;
   const TransaksiCompanion({
     this.transaksiId = const Value.absent(),
+    this.mobileTransaksiId = const Value.absent(),
     this.kuponKey = const Value.absent(),
     this.satkerId = const Value.absent(),
     this.kendaraanId = const Value.absent(),
@@ -3518,6 +3568,7 @@ class TransaksiCompanion extends UpdateCompanion<TransaksiData> {
   });
   TransaksiCompanion.insert({
     this.transaksiId = const Value.absent(),
+    this.mobileTransaksiId = const Value.absent(),
     this.kuponKey = const Value.absent(),
     this.satkerId = const Value.absent(),
     this.kendaraanId = const Value.absent(),
@@ -3539,6 +3590,7 @@ class TransaksiCompanion extends UpdateCompanion<TransaksiData> {
        tanggalTransaksi = Value(tanggalTransaksi);
   static Insertable<TransaksiData> custom({
     Expression<int>? transaksiId,
+    Expression<String>? mobileTransaksiId,
     Expression<int>? kuponKey,
     Expression<int>? satkerId,
     Expression<int>? kendaraanId,
@@ -3559,6 +3611,7 @@ class TransaksiCompanion extends UpdateCompanion<TransaksiData> {
   }) {
     return RawValuesInsertable({
       if (transaksiId != null) 'transaksi_id': transaksiId,
+      if (mobileTransaksiId != null) 'mobile_transaksi_id': mobileTransaksiId,
       if (kuponKey != null) 'kupon_key': kuponKey,
       if (satkerId != null) 'satker_id': satkerId,
       if (kendaraanId != null) 'kendaraan_id': kendaraanId,
@@ -3582,6 +3635,7 @@ class TransaksiCompanion extends UpdateCompanion<TransaksiData> {
 
   TransaksiCompanion copyWith({
     Value<int>? transaksiId,
+    Value<String?>? mobileTransaksiId,
     Value<int?>? kuponKey,
     Value<int?>? satkerId,
     Value<int?>? kendaraanId,
@@ -3602,6 +3656,7 @@ class TransaksiCompanion extends UpdateCompanion<TransaksiData> {
   }) {
     return TransaksiCompanion(
       transaksiId: transaksiId ?? this.transaksiId,
+      mobileTransaksiId: mobileTransaksiId ?? this.mobileTransaksiId,
       kuponKey: kuponKey ?? this.kuponKey,
       satkerId: satkerId ?? this.satkerId,
       kendaraanId: kendaraanId ?? this.kendaraanId,
@@ -3627,6 +3682,9 @@ class TransaksiCompanion extends UpdateCompanion<TransaksiData> {
     final map = <String, Expression>{};
     if (transaksiId.present) {
       map['transaksi_id'] = Variable<int>(transaksiId.value);
+    }
+    if (mobileTransaksiId.present) {
+      map['mobile_transaksi_id'] = Variable<String>(mobileTransaksiId.value);
     }
     if (kuponKey.present) {
       map['kupon_key'] = Variable<int>(kuponKey.value);
@@ -3686,6 +3744,7 @@ class TransaksiCompanion extends UpdateCompanion<TransaksiData> {
   String toString() {
     return (StringBuffer('TransaksiCompanion(')
           ..write('transaksiId: $transaksiId, ')
+          ..write('mobileTransaksiId: $mobileTransaksiId, ')
           ..write('kuponKey: $kuponKey, ')
           ..write('satkerId: $satkerId, ')
           ..write('kendaraanId: $kendaraanId, ')
@@ -7205,6 +7264,7 @@ typedef $$KuponTableProcessedTableManager =
 typedef $$TransaksiTableCreateCompanionBuilder =
     TransaksiCompanion Function({
       Value<int> transaksiId,
+      Value<String?> mobileTransaksiId,
       Value<int?> kuponKey,
       Value<int?> satkerId,
       Value<int?> kendaraanId,
@@ -7226,6 +7286,7 @@ typedef $$TransaksiTableCreateCompanionBuilder =
 typedef $$TransaksiTableUpdateCompanionBuilder =
     TransaksiCompanion Function({
       Value<int> transaksiId,
+      Value<String?> mobileTransaksiId,
       Value<int?> kuponKey,
       Value<int?> satkerId,
       Value<int?> kendaraanId,
@@ -7256,6 +7317,11 @@ class $$TransaksiTableFilterComposer
   });
   ColumnFilters<int> get transaksiId => $composableBuilder(
     column: $table.transaksiId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mobileTransaksiId => $composableBuilder(
+    column: $table.mobileTransaksiId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7359,6 +7425,11 @@ class $$TransaksiTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get mobileTransaksiId => $composableBuilder(
+    column: $table.mobileTransaksiId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get kuponKey => $composableBuilder(
     column: $table.kuponKey,
     builder: (column) => ColumnOrderings(column),
@@ -7456,6 +7527,11 @@ class $$TransaksiTableAnnotationComposer
   });
   GeneratedColumn<int> get transaksiId => $composableBuilder(
     column: $table.transaksiId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get mobileTransaksiId => $composableBuilder(
+    column: $table.mobileTransaksiId,
     builder: (column) => column,
   );
 
@@ -7563,6 +7639,7 @@ class $$TransaksiTableTableManager
           updateCompanionCallback:
               ({
                 Value<int> transaksiId = const Value.absent(),
+                Value<String?> mobileTransaksiId = const Value.absent(),
                 Value<int?> kuponKey = const Value.absent(),
                 Value<int?> satkerId = const Value.absent(),
                 Value<int?> kendaraanId = const Value.absent(),
@@ -7582,6 +7659,7 @@ class $$TransaksiTableTableManager
                 Value<int?> isDeleted = const Value.absent(),
               }) => TransaksiCompanion(
                 transaksiId: transaksiId,
+                mobileTransaksiId: mobileTransaksiId,
                 kuponKey: kuponKey,
                 satkerId: satkerId,
                 kendaraanId: kendaraanId,
@@ -7603,6 +7681,7 @@ class $$TransaksiTableTableManager
           createCompanionCallback:
               ({
                 Value<int> transaksiId = const Value.absent(),
+                Value<String?> mobileTransaksiId = const Value.absent(),
                 Value<int?> kuponKey = const Value.absent(),
                 Value<int?> satkerId = const Value.absent(),
                 Value<int?> kendaraanId = const Value.absent(),
@@ -7622,6 +7701,7 @@ class $$TransaksiTableTableManager
                 Value<int?> isDeleted = const Value.absent(),
               }) => TransaksiCompanion.insert(
                 transaksiId: transaksiId,
+                mobileTransaksiId: mobileTransaksiId,
                 kuponKey: kuponKey,
                 satkerId: satkerId,
                 kendaraanId: kendaraanId,

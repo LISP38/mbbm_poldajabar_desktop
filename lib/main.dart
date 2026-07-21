@@ -59,7 +59,10 @@ void main() async {
         ),
         ChangeNotifierProvider(create: (_) => getIt<EnhancedImportProvider>()),
         ChangeNotifierProvider(
-          create: (_) => AlokasiProvider(getIt<AlokasiRepository>()),
+          create: (_) => AlokasiProvider(
+            getIt<AlokasiRepository>(),
+            getIt<kupon_kendaraan.KendaraanRepository>(),
+          ),
         ),
         ChangeNotifierProvider(
           create: (_) {

@@ -9,6 +9,7 @@ import '../../domain/entities/rpd_entity.dart';
 import '../../domain/models/alokasi_result_model.dart';
 import '../../domain/models/kupon_distribution_model.dart';
 import '../../domain/repositories/alokasi_repository.dart';
+import '../../domain/repositories/kendaraan_repository.dart';
 
 /// State management provider for the Rekomendasi Alokasi BBM feature.
 ///
@@ -16,8 +17,9 @@ import '../../domain/repositories/alokasi_repository.dart';
 /// config (prices, offset), and the calculated recommendation results.
 class AlokasiProvider extends ChangeNotifier {
   final AlokasiRepository _repository;
+  final KendaraanRepository _kendaraanRepository;
 
-  AlokasiProvider(this._repository);
+  AlokasiProvider(this._repository, this._kendaraanRepository);
 
   // ── State ─────────────────────────────────────────────────────────────
 
@@ -191,17 +193,21 @@ class AlokasiProvider extends ChangeNotifier {
       _hariKerjaList = futures[3] as List<HariKerjaEntity>;
       _dipa = futures[4] as double;
 
-      // Auto-count vehicles from kendaraan on first load
-      if (_kategoriList.every((k) => k.jumlahKendaraan == 0)) {
-        await _repository.autoCountKendaraan();
-        _kategoriList = await _repository.getKendaraanKategori();
+      // Auto-count vehicles from kendaraan on every load to ensure it reflects Master Data
+      for (final cat in _kategoriList) {
+        final count = await _kendaraanRepository
+            .getActiveVehicleCountByCategory(cat.kategoriId);
+        if (count >= 0 && count != cat.jumlahKendaraan) {
+          await _repository.updateKendaraanKategoriCount(cat.kategoriId, count);
+        }
       }
+      _kategoriList = await _repository.getKendaraanKategori();
     } catch (e) {
       _errorMessage = e.toString();
       debugPrint('❌ AlokasiProvider.initialize error: $e');
     } finally {
       _isLoading = false;
-      notifyListeners();
+      notifyListeners();  
     }
   }
 
@@ -585,6 +591,9 @@ class AlokasiProvider extends ChangeNotifier {
             jenisBbm: 'PX',
             jumlahUnit: detail.unit,
             rekomendasiLiterTotal: detail.jumlahLiterAlokasi,
+            // Formula Kuantum / Unit = (Total Liter Alokasi / Jumlah Kendaraan)
+            // Hasilnya dibulatkan ke bawah (floor) agar total liter tidak melebihi target alokasi.
+            // Sisa hasil pembulatan secara otomatis akan menjadi Sisa Kupon Dukungan / Cadangan.
             kuantumPerUnit: (detail.jumlahLiterAlokasi / detail.unit).floor(),
           ),
         );
@@ -599,6 +608,9 @@ class AlokasiProvider extends ChangeNotifier {
             jenisBbm: 'PDX',
             jumlahUnit: detail.unit,
             rekomendasiLiterTotal: detail.jumlahLiterAlokasi,
+            // Formula Kuantum / Unit = (Total Liter Alokasi / Jumlah Kendaraan)
+            // Hasilnya dibulatkan ke bawah (floor) agar total liter tidak melebihi target alokasi.
+            // Sisa hasil pembulatan secara otomatis akan menjadi Sisa Kupon Dukungan / Cadangan.
             kuantumPerUnit: (detail.jumlahLiterAlokasi / detail.unit).floor(),
           ),
         );
